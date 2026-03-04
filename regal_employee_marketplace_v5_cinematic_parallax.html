@@ -1,0 +1,1425 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Regal Honda Employee Marketplace</title>
+  <style>
+    :root{
+      --bg:#0b0f19; --panel:#111827; --panel2:#0f172a; --text:#e5e7eb; --muted:#9ca3af;
+      --accent:#22c55e; --danger:#ef4444; --warn:#f59e0b; --border:rgba(255,255,255,.08);
+      --shadow:0 10px 30px rgba(0,0,0,.35); --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);min-height:100vh}
+    .wrap{max-width:1200px;margin:0 auto;padding:18px}
+    .topbar{
+      display:flex;gap:12px;align-items:center;justify-content:space-between;
+      padding:14px 16px;border:1px solid var(--border);
+      background:rgba(17,24,39,.85);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      position:sticky;top:10px;z-index:10;flex-wrap:wrap
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.35));display:grid;place-items:center;font-weight:900;color:#08110c}
+    .title h1{font-size:14px;margin:0;font-weight:900}
+    .title p{font-size:12px;margin:2px 0 0;color:var(--muted)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+    button{
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.75);
+      color:var(--text);
+      border-radius:14px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer
+    }
+    button:hover{transform:translateY(-1px)}
+    .primary{background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.35)}
+    .danger{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35)}
+    .warn{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.35)}
+    .pill{font-size:12px;color:var(--muted);padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(17,24,39,.55)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .hide{display:none !important}
+
+    .layout{display:grid;grid-template-columns:280px 1fr;gap:16px;margin-top:16px;align-items:start}
+    @media (max-width:980px){.layout{grid-template-columns:1fr}}
+
+    .panel{border:1px solid var(--border);background:rgba(17,24,39,.8);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+    .panel-h{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .panel-h h2{margin:0;font-size:14px}
+    .panel-b{padding:14px 16px}
+
+    .boards{display:flex;flex-direction:column;gap:10px}
+    .boardBtn{
+      width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:12px 12px;border-radius:14px;border:1px solid var(--border);background:rgba(15,23,42,.55);
+    }
+    .boardBtn:hover{border-color:rgba(255,255,255,.14)}
+    .boardBtn.active{border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.12)}
+    .boardLeft{display:flex;flex-direction:column;gap:2px}
+    .boardName{font-weight:950}
+    .boardDesc{font-size:12px;color:var(--muted)}
+    .boardCount{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(17,24,39,.55);color:var(--text);white-space:nowrap}
+
+    .filters{display:grid;grid-template-columns:1.4fr .9fr .9fr;gap:10px}
+    @media (max-width:720px){.filters{grid-template-columns:1fr}}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:12px;color:var(--muted)}
+    input,select,textarea{
+      width:100%;
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.65);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px;
+      outline:none
+    }
+    textarea{min-height:90px;resize:vertical}
+
+    /* Facebook/OfferUp-style cards */
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    @media (max-width:1080px){.cards{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:560px){.cards{grid-template-columns:1fr}}
+    .card{
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.6);
+      border-radius:18px;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:260px
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+    .thumb{height:150px;background:rgba(2,6,23,.5);display:grid;place-items:center;border-bottom:1px solid var(--border);position:relative}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .badge{
+      position:absolute;left:10px;top:10px;
+      padding:6px 10px;border-radius:999px;font-size:12px;font-weight:900;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(17,24,39,.75)
+    }
+    .sold{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.35);color:#fecaca}
+    .free{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.35);color:#bbf7d0}
+    .card-b{padding:12px;display:flex;flex-direction:column;gap:8px;flex:1}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .name{font-weight:950}
+    .meta{color:var(--muted);font-size:12px}
+    .price{font-weight:950;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(17,24,39,.65);white-space:nowrap}
+    .desc{font-size:13px;line-height:1.35;color:rgba(229,231,235,.95)}
+    .card-f{display:flex;gap:8px;flex-wrap:wrap;padding:0 12px 12px}
+    .tag{font-size:12px;color:var(--muted);padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(17,24,39,.55)}
+    .mini{padding:8px 10px;border-radius:12px;font-size:12px;font-weight:900}
+
+    .note{font-size:12px;color:var(--muted);border:1px dashed rgba(255,255,255,.14);padding:10px 12px;border-radius:14px;background:rgba(2,6,23,.2)}
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:100}
+    .modal{width:min(920px,100%);border:1px solid var(--border);background:rgba(17,24,39,.92);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
+    .modal-h{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .modal-b{padding:14px 16px}
+    .modal-actions{padding:14px 16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+    .split{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+    @media (max-width:900px){.split{grid-template-columns:1fr}}
+    .hr{height:1px;background:rgba(255,255,255,.08);margin:12px 0}
+    .comment{border:1px solid rgba(255,255,255,.08);background:rgba(2,6,23,.25);border-radius:14px;padding:10px;margin-bottom:10px}
+    .comment .who{font-weight:900;font-size:12px}
+    .comment .when{color:var(--muted);font-size:12px}
+    .comment .body{margin-top:6px;font-size:13px;line-height:1.35}
+    .notifDot{display:inline-block;width:10px;height:10px;border-radius:99px;background:rgba(239,68,68,.95);margin-left:6px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid rgba(255,255,255,.08);padding:10px 6px;text-align:left;font-size:12px;color:var(--text)}
+    th{color:var(--muted);font-weight:900}
+  
+  
+/* ===== Cinematic background slideshow (loop) ===== */
+.bg-slideshow{position:fixed;inset:0;z-index:-2;overflow:hidden;}
+.bg-slideshow::after{content:"";position:absolute;inset:0;z-index:5;
+  background:radial-gradient(circle at 20% 10%, rgba(0,0,0,.08), rgba(0,0,0,.42)),
+             linear-gradient(to bottom, rgba(0,0,0,.10), rgba(0,0,0,.35));}
+.bg-layer{position:absolute;inset:-6%;z-index:1;will-change:transform;transform:translate3d(0,0,0) scale(1.06);}
+.bg-slide{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;
+  filter:saturate(1.08) contrast(1.04);opacity:0;animation:bgCine 30s infinite;will-change:opacity,transform;transform:scale(1.10);}
+.bg1{background-image:url("Images/regal1.jpg");animation-delay:0s;}
+.bg2{background-image:url("Images/regal2.jpg");animation-delay:10s;}
+.bg3{background-image:url("Images/regal3.jpg");animation-delay:20s;}
+@keyframes bgCine{
+  0%{opacity:0;transform:scale(1.12);} 12%{opacity:.95;transform:scale(1.08);}
+  45%{opacity:.95;transform:scale(1.03);} 60%{opacity:0;transform:scale(1.08);} 100%{opacity:0;transform:scale(1.12);}
+}
+
+</style>
+</head>
+<body>
+  <div id=\"bgDebug\" style=\"position:fixed;left:12px;bottom:12px;z-index:9999;font:12px system-ui;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.55);color:#e5e7eb\"></div>
+
+
+  <!-- Background slideshow -->
+  <div class="bg-slideshow" id="bgSlideshow"><div class="bg-layer" id="bgLayer"><div class="bg-slide bg1"></div><div class="bg-slide bg2"></div><div class="bg-slide bg3"></div></div></div></div>
+  <div class="bg-overlay" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">RH</div>
+        <div class="title">
+          <h1>Regal Honda Employee Marketplace</h1>
+          <p>Private boards • Items • Threads • Replies</p>
+        </div>
+      </div>
+      <div class="actions">
+        <span class="pill" id="statusPill">Connecting…</span>
+        <span class="pill" id="namePill">Name: —</span>
+        <span class="pill" id="bgStatusPill">BG: Loading…</span>
+        <span class="pill mono" id="devicePill">Device: —</span>
+        <button id="btnNotifications" class="warn">Notifications <span id="notifCount" class="hide"><span class="notifDot"></span></span></button>
+        <button id="btnInvite">Invite</button>
+        <button class="primary" id="btnNew">Post</button>
+        <button id="btnAdmin">Admin</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <!-- LEFT: Boards -->
+      <div class="panel">
+        <div class="panel-h">
+          <h2>Boards</h2>
+          <span class="pill" id="boardPill">All</span>
+        </div>
+        <div class="panel-b">
+          <div class="boards" id="boards"></div>
+          <div style="height:12px"></div>
+          <div class="note">Tip: Pick a board on the left. This is easier than filters for most people.</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Marketplace -->
+      <div class="panel">
+        <div class="panel-h">
+          <div>
+            <h2 id="marketTitle">Marketplace</h2>
+            <span class="pill" id="countLine">0 shown • 0 total</span>
+          </div>
+          <span class="pill" id="todayLine"></span>
+        </div>
+        <div class="panel-b">
+          <div class="filters">
+            <div class="field">
+              <label>Search</label>
+              <input id="q" placeholder="Search titles, descriptions, locations…" />
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="st">
+                <option value="ACTIVE">Active</option>
+                <option value="ALL">All</option>
+                <option value="SOLD">Sold</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Sort</label>
+              <select id="sort">
+                <option value="NEW">Newest</option>
+                <option value="OLD">Oldest</option>
+                <option value="PRICE_ASC">Price ↑</option>
+                <option value="PRICE_DESC">Price ↓</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Hidden category select (boards control this) -->
+          <select id="cat" style="display:none"></select>
+
+          <div style="height:12px"></div>
+          <div class="cards" id="cards"></div>
+          <div id="empty" class="note" style="display:none;margin-top:12px;">No listings match your filters.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:16px"></div>
+    <div class="panel">
+      <div class="panel-h">
+        <h2>Rules</h2>
+        <span class="pill">Keep it clean</span>
+      </div>
+      <div class="panel-b">
+        <div class="note">
+          • Work friends only<br/>
+          • No drama / no spam<br/>
+          • Include a contact method in your post<br/>
+          • Admins can remove posts + ban access at any time
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Name / Join Modal (step 1) -->
+  <div class="overlay" id="joinOverlay">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Welcome — 30 second setup</strong>
+        <button onclick="hide('joinOverlay')">Close</button>
+      </div>
+      <div class="modal-b">
+        <div class="split">
+          <div>
+            <div class="field">
+              <label>Your name (shows on posts)</label>
+              <input id="nameInput" placeholder="ex: Mike, Melanie, John S." autocomplete="name" />
+            </div>
+            <div style="height:10px"></div>
+            <div class="field">
+              <label>Join Code</label>
+              <input id="joinCodeInput" placeholder="Ask the organizer for the code…" />
+            </div>
+            <div class="note" style="margin-top:10px">
+              You can change your name anytime. If you’re removed later, this device is blocked.
+            </div>
+          </div>
+          <div>
+            <div class="note">
+              <strong>What you can do here</strong><br/>
+              • Post free items, buy/sell, garage sales<br/>
+              • Create a thread and coworkers can reply<br/>
+              • Upload photos<br/>
+              • Admins can add/remove boards + ban users
+            </div>
+            <div class="hr"></div>
+            <div class="note">
+              <strong>Privacy</strong><br/>
+              This board is invite-only. It’s not public.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="primary" id="btnJoinNow">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Post Modal -->
+  <div class="overlay" id="postOverlay">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>New Post</strong>
+        <button onclick="hide('postOverlay')">Close</button>
+      </div>
+      <div class="modal-b">
+        <div class="split">
+          <div>
+            <div class="field">
+              <label>Board</label>
+              <select id="fBoard"></select>
+            </div>
+            <div style="height:10px"></div>
+            <div class="field">
+              <label>Title</label>
+              <input id="fTitle" placeholder="ex: Free couch, Garage sale Saturday…" />
+            </div>
+            <div style="height:10px"></div>
+            <div class="field">
+              <label>Price (optional)</label>
+              <input id="fPrice" inputmode="decimal" placeholder="0 for free, 25, 100…" />
+            </div>
+            <div style="height:10px"></div>
+            <div class="field">
+              <label>Location (optional)</label>
+              <input id="fLocation" placeholder="Lakeland, Plant City…" />
+            </div>
+            <div style="height:10px"></div>
+            <div class="field">
+              <label>Description</label>
+              <textarea id="fDesc" placeholder="Details: condition, pickup time, etc."></textarea>
+            </div>
+            <div style="height:10px"></div>
+            <div class="field">
+              <label>Contact</label>
+              <input id="fContact" placeholder="Text/call/email or where to find you at work" />
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>Photo (optional)</label>
+              <input id="fPhoto" type="file" accept="image/*" />
+            </div>
+            <div class="note" style="margin-top:10px">
+              Photo uploads are stored in Firebase Storage.
+            </div>
+            <div class="hr"></div>
+            <div class="field">
+              <label>Status</label>
+              <select id="fStatus">
+                <option value="ACTIVE">Active</option>
+                <option value="SOLD">Sold</option>
+              </select>
+            </div>
+            <div class="note" style="margin-top:10px">
+              Posts create a “thread” — coworkers can reply.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="primary" id="btnSavePost">Post</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thread Modal -->
+  <div class="overlay" id="threadOverlay">
+    <div class="modal">
+      <div class="modal-h">
+        <strong id="threadTitle">Thread</strong>
+        <button onclick="hide('threadOverlay')">Close</button>
+      </div>
+      <div class="modal-b">
+        <div id="threadPost" class="card" style="min-height:auto"></div>
+        <div class="hr"></div>
+        <div class="row" style="justify-content:space-between">
+          <div class="pill">Replies</div>
+          <button class="warn" id="btnMarkRead">Mark read</button>
+        </div>
+        <div style="height:10px"></div>
+        <div id="comments"></div>
+        <div class="hr"></div>
+        <div class="field">
+          <label>Write a reply</label>
+          <textarea id="replyBody" placeholder="Type your reply…"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="primary" id="btnSendReply">Reply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notifications Modal -->
+  <div class="overlay" id="notifOverlay">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Notifications</strong>
+        <button onclick="hide('notifOverlay')">Close</button>
+      </div>
+      <div class="modal-b">
+        <div class="note">You’ll get a notification when someone replies to your post.</div>
+        <div style="height:10px"></div>
+        <div id="notifList"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="warn" id="btnClearNotifs">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Modal -->
+  <div class="overlay" id="adminOverlay">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Admin Panel</strong>
+        <button onclick="hide('adminOverlay')">Close</button>
+      </div>
+      <div class="modal-b">
+        <div id="adminGate">
+          <div class="note">
+            Admin access is by approved device. If you’re an admin and this isn’t unlocked, ask the organizer to add your Device ID.
+          </div>
+          <div style="height:10px"></div>
+          <div class="pill mono">Your Device ID: <span id="adminDeviceId">—</span></div>
+        </div>
+
+        <div id="adminTools" class="hide">
+          <div class="split">
+            <div>
+              <div class="note"><strong>Boards</strong> — add/remove boards (tabs) instantly.</div>
+              <div style="height:10px"></div>
+              <div class="field">
+                <label>New board key (ALL CAPS, no spaces)</label>
+                <input id="newBoardKey" class="mono" placeholder="ex: PARTS" />
+              </div>
+              <div style="height:10px"></div>
+              <div class="field">
+                <label>Name</label>
+                <input id="newBoardName" placeholder="ex: Parts for Sale" />
+              </div>
+              <div style="height:10px"></div>
+              <div class="field">
+                <label>Description</label>
+                <input id="newBoardDesc" placeholder="ex: Wheels, tires, accessories" />
+              </div>
+              <div style="height:10px"></div>
+              <button class="primary" id="btnAddBoard">Add Board</button>
+              <div class="hr"></div>
+              <div class="note"><strong>Existing boards</strong></div>
+              <div style="height:10px"></div>
+              <div style="overflow:auto;max-height:260px">
+                <table>
+                  <thead><tr><th>Key</th><th>Name</th><th>Status</th><th></th></tr></thead>
+                  <tbody id="boardsBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <div class="note"><strong>Members</strong> — one-click ban/unban devices.</div>
+              <div style="height:10px"></div>
+              <div style="overflow:auto;max-height:260px">
+                <table>
+                  <thead><tr><th>Device</th><th>Name</th><th>Status</th><th></th></tr></thead>
+                  <tbody id="membersBody"></tbody>
+                </table>
+              </div>
+              <div class="hr"></div>
+              <div class="note"><strong>Admins</strong> — allow other managers (by Device ID).</div>
+              <div style="height:10px"></div>
+              <div class="field">
+                <label>Add Admin Device ID</label>
+                <input id="addAdminUid" class="mono" placeholder="Paste Device ID" />
+              </div>
+              <button class="primary" id="btnAddAdmin">Add Admin</button>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <div class="note"><strong>Moderation</strong> — open a thread and use “Admin Delete” on posts/replies.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import {
+      getFirestore, doc, getDoc, setDoc, addDoc, collection,
+      onSnapshot, query, orderBy, serverTimestamp, deleteDoc, where, getDocs, updateDoc, limit
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
+    // === YOUR FIREBASE CONFIG ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
+      authDomain: "regal-lakeland-marketplace.firebaseapp.com",
+      projectId: "regal-lakeland-marketplace",
+      storageBucket: "regal-lakeland-marketplace.firebasestorage.app",
+      messagingSenderId: "1014346693296",
+      appId: "1:1014346693296:web:fc76118d1a8db347945975"
+    };
+
+    // Change these anytime
+    const DEFAULT_JOIN_CODE = "REGAL-207162";
+
+    // Bootstrap admins (add your first 2–3 managers by Device ID here)
+    // You can add more later in Admin Panel.
+    const ADMIN_BOOTSTRAP_UIDS = [
+      "B8PjddyIBOhK9G8rWvXXra1udJo1" // <-- your device (example from your screenshot)
+      // "PASTE_MANAGER_DEVICE_ID_2",
+      // "PASTE_MANAGER_DEVICE_ID_3"
+    ];
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const storage = getStorage(app);
+
+    const $ = (id) => document.getElementById(id);
+    const show = (id) => $(id).style.display = "flex";
+    const hide = (id) => $(id).style.display = "none";
+    const esc = (s) => String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+    const nowStr = () => new Date().toLocaleString();
+
+    let uid = null;
+    let joinOk = false;
+    let isAdmin = false;
+    let displayName = "";
+    let listings = [];
+    let boards = [];
+    let members = [];
+    let notifs = [];
+    let activeThreadId = null;
+    let activeThreadOwner = null;
+    let activeThreadUnsub = null;
+    let activeCommentsUnsub = null;
+    let activeNotifsUnsub = null;
+
+    $("todayLine").textContent = new Date().toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" });
+
+    // --- Firestore refs
+    const settingsRef = doc(db, "config", "settings");
+    const boardsRef = collection(db, "boards");
+    const listingsRef = collection(db, "listings");
+    const membersRef = collection(db, "members");
+    const adminsRef = collection(db, "admins");
+
+    // --- Helpers
+    function setStatus(text, ok){
+      $("statusPill").textContent = text;
+      $("statusPill").style.borderColor = ok ? "rgba(34,197,94,.35)" : "rgba(239,68,68,.35)";
+      $("statusPill").style.background = ok ? "rgba(34,197,94,.14)" : "rgba(239,68,68,.12)";
+    }
+
+    function fmtPrice(v){
+      if (v === null || v === undefined || v === "") return "";
+      const n = Number(v);
+      if (!Number.isFinite(n)) return "";
+      if (n <= 0) return "FREE";
+      return "$" + n.toFixed(n % 1 === 0 ? 0 : 2);
+    }
+
+    function normalizeBoardKey(s){
+      return String(s||"").trim().toUpperCase().replace(/\s+/g,"_").replace(/[^A-Z0-9_]/g,"");
+    }
+
+    async function ensureSettings(){
+      const snap = await getDoc(settingsRef);
+      if (!snap.exists()){
+        await setDoc(settingsRef, { joinCode: DEFAULT_JOIN_CODE, updatedAt: serverTimestamp() });
+      }
+    }
+    async function getJoinCode(){
+      const snap = await getDoc(settingsRef);
+      return (snap.data()?.joinCode) || DEFAULT_JOIN_CODE;
+    }
+
+    async function ensureBootstrapAdmins(){
+      // Create admin docs for bootstrap uids if they don't exist (safe upsert)
+      for (const a of ADMIN_BOOTSTRAP_UIDS){
+        if (!a) continue;
+        await setDoc(doc(db, "admins", a), { uid: a, createdAt: serverTimestamp(), note: "bootstrap" }, { merge:true });
+      }
+    }
+
+    async function checkAdmin(){
+      const snap = await getDoc(doc(db, "admins", uid));
+      return snap.exists();
+    }
+
+    async function markPresence(){
+      await setDoc(doc(db, "members", uid), {
+        deviceId: uid,
+        displayName: displayName || "—",
+        joinedAt: serverTimestamp(),
+        lastSeenAt: serverTimestamp(),
+        banned: false
+      }, { merge:true });
+    }
+    async function updateLastSeen(){
+      await setDoc(doc(db, "members", uid), { lastSeenAt: serverTimestamp(), displayName: displayName || "—" }, { merge:true });
+    }
+
+    async function isBanned(){
+      const snap = await getDoc(doc(db, "members", uid));
+      return snap.exists() ? !!snap.data().banned : false;
+    }
+
+    function requireJoin(){
+      if (!joinOk){
+        show("joinOverlay");
+        return false;
+      }
+      return true;
+    }
+
+    function setNamePill(){
+      $("namePill").textContent = `Name: ${displayName || "—"}`;
+    }
+
+    // --- Boards (dynamic)
+    async function seedDefaultBoardsIfEmpty(){
+      const snap = await getDocs(query(boardsRef, limit(1)));
+      if (!snap.empty) return;
+
+      const defaults = [
+        { key:"ALL", name:"All", desc:"Everything in one place", active:true, sortOrder:0, system:true },
+        { key:"FREE", name:"Free Items", desc:"Giveaways • curb alerts", active:true, sortOrder:10 },
+        { key:"BUYSELL", name:"Buy / Sell", desc:"Items for sale", active:true, sortOrder:20 },
+        { key:"GARAGE", name:"Garage Sales", desc:"Yard sales • moving sales", active:true, sortOrder:30 },
+        { key:"EVENTS", name:"Events", desc:"BBQ • meetups • birthdays", active:true, sortOrder:40 },
+        { key:"WORK", name:"Work News", desc:"Updates • announcements", active:true, sortOrder:50 },
+        { key:"SHIFTS", name:"Shift Swaps", desc:"Coverage • swaps", active:true, sortOrder:60 },
+        { key:"SERVICES", name:"Local Services", desc:"Side work • help needed", active:true, sortOrder:70 },
+      ];
+      for (const b of defaults){
+        await setDoc(doc(db, "boards", b.key), { ...b, updatedAt: serverTimestamp() }, { merge:true });
+      }
+    }
+
+    function boardsToSelectOptions(selectEl, includeAll=true){
+      selectEl.innerHTML = "";
+      for (const b of boards){
+        if (!b.active) continue;
+        if (!includeAll && b.key === "ALL") continue;
+        const opt = document.createElement("option");
+        opt.value = b.key;
+        opt.textContent = b.name;
+        selectEl.appendChild(opt);
+      }
+    }
+
+    function countByBoard(list){
+      const map = {};
+      for (const b of boards) map[b.key] = 0;
+      map["ALL"] = list.length;
+      for (const x of list){
+        if (x.boardKey && map[x.boardKey] !== undefined) map[x.boardKey]++;
+      }
+      return map;
+    }
+
+    function setActiveBoard(key){
+      $("cat").value = key;
+      const def = boards.find(b=>b.key===key) || boards.find(b=>b.key==="ALL") || { name:"Marketplace", key:"ALL" };
+      $("boardPill").textContent = def.name;
+      $("marketTitle").textContent = def.key==="ALL" ? "Marketplace" : def.name;
+
+      const wrap = $("boards");
+      [...wrap.querySelectorAll(".boardBtn")].forEach(btn=>{
+        btn.classList.toggle("active", btn.dataset.key === key);
+      });
+
+      render();
+    }
+
+    function renderBoardsSidebar(){
+      const wrap = $("boards");
+      if (!wrap) return;
+      const counts = countByBoard(listings);
+      wrap.innerHTML = "";
+
+      const visible = boards.filter(b=>b.active).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+
+      for (const b of visible){
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "boardBtn";
+        btn.dataset.key = b.key;
+        btn.innerHTML = `
+          <div class="boardLeft">
+            <div class="boardName">${esc(b.name)}</div>
+            <div class="boardDesc">${esc(b.desc||"")}</div>
+          </div>
+          <div class="boardCount">${counts[b.key] ?? 0}</div>
+        `;
+        btn.addEventListener("click", ()=> setActiveBoard(b.key));
+        wrap.appendChild(btn);
+      }
+
+      // keep selection sane
+      const cur = $("cat").value || "ALL";
+      if (!visible.some(b=>b.key===cur)) {
+        $("cat").value = "ALL";
+      }
+      setActiveBoard($("cat").value || "ALL");
+    }
+
+    // --- Filtering + Cards
+    function applyFilters(list){
+      const qv = $("q").value.trim().toLowerCase();
+      const boardKey = $("cat").value || "ALL";
+      const st = $("st").value;
+      const sort = $("sort").value;
+
+      let out = list.slice();
+      if (qv){
+        out = out.filter(x => (`${x.title} ${x.desc} ${x.location} ${x.contact}`.toLowerCase()).includes(qv));
+      }
+      if (boardKey !== "ALL") out = out.filter(x => x.boardKey === boardKey);
+      if (st === "ACTIVE") out = out.filter(x => x.status !== "SOLD");
+      if (st === "SOLD") out = out.filter(x => x.status === "SOLD");
+
+      if (sort === "NEW") out.sort((a,b)=> (b.createdAtMs||0) - (a.createdAtMs||0));
+      if (sort === "OLD") out.sort((a,b)=> (a.createdAtMs||0) - (b.createdAtMs||0));
+      if (sort === "PRICE_ASC") out.sort((a,b)=> (Number(a.price)||0) - (Number(b.price)||0));
+      if (sort === "PRICE_DESC") out.sort((a,b)=> (Number(b.price)||0) - (Number(a.price)||0));
+      return out;
+    }
+
+    function render(){
+      const cards = $("cards");
+      const empty = $("empty");
+      const filtered = applyFilters(listings);
+
+      $("countLine").textContent = `${filtered.length} shown • ${listings.length} total`;
+      cards.innerHTML = "";
+
+      if (filtered.length === 0){
+        empty.style.display = "block";
+        return;
+      }
+      empty.style.display = "none";
+
+      for (const x of filtered){
+        const priceText = fmtPrice(x.price);
+        const isFree = priceText === "FREE" || Number(x.price) === 0;
+        const badgeClass = x.status === "SOLD" ? "sold" : (isFree ? "free" : "");
+
+        const boardName = (boards.find(b=>b.key===x.boardKey)?.name) || x.boardKey || "—";
+
+        const el = document.createElement("div");
+        el.className = "card";
+        el.innerHTML = `
+          <div class="thumb">
+            ${x.photoUrl ? `<img src="${x.photoUrl}" alt="">` : `<div style="color:rgba(156,163,175,.8);font-weight:900;font-size:12px">No photo</div>`}
+            <div class="badge ${badgeClass}">${x.status==="SOLD" ? "SOLD" : (isFree ? "FREE" : "AVAILABLE")}</div>
+          </div>
+          <div class="card-b">
+            <div class="row">
+              <div class="name">${esc(x.title)}</div>
+              <div class="price">${esc(priceText || "—")}</div>
+            </div>
+            <div class="meta">${esc(boardName)}${x.location ? ` • ${esc(x.location)}` : ""}</div>
+            <div class="desc">${esc(x.desc||"").slice(0, 220)}${(x.desc||"").length>220 ? "…" : ""}</div>
+          </div>
+          <div class="card-f">
+            <span class="tag">${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
+            <span class="tag">By: ${esc(x.authorName||"—")}</span>
+            <button class="mini" data-act="thread">Open Thread</button>
+            ${isAdmin ? `<button class="mini danger" data-act="del">Admin Delete</button>` : ``}
+          </div>
+        `;
+
+        el.querySelector('[data-act="thread"]').addEventListener("click", ()=> openThread(x));
+        const delBtn = el.querySelector('[data-act="del"]');
+        if (delBtn){
+          delBtn.addEventListener("click", async ()=>{
+            if (!confirm("Admin delete this post?")) return;
+            await deleteDoc(doc(db, "listings", x.id));
+          });
+        }
+        cards.appendChild(el);
+      }
+    }
+
+    ["q","st","sort"].forEach(id => $(id).addEventListener("input", render));
+
+    // --- Thread / Comments
+    function cleanupThreadSubs(){
+      if (activeThreadUnsub) { activeThreadUnsub(); activeThreadUnsub=null; }
+      if (activeCommentsUnsub) { activeCommentsUnsub(); activeCommentsUnsub=null; }
+    }
+
+    function renderThreadPost(x){
+      const priceText = fmtPrice(x.price);
+      const isFree = priceText === "FREE" || Number(x.price) === 0;
+      const badgeClass = x.status === "SOLD" ? "sold" : (isFree ? "free" : "");
+      const boardName = (boards.find(b=>b.key===x.boardKey)?.name) || x.boardKey || "—";
+
+      $("threadPost").innerHTML = `
+        <div class="thumb" style="height:220px">
+          ${x.photoUrl ? `<img src="${x.photoUrl}" alt="">` : `<div style="color:rgba(156,163,175,.8);font-weight:900;font-size:12px">No photo</div>`}
+          <div class="badge ${badgeClass}">${x.status==="SOLD" ? "SOLD" : (isFree ? "FREE" : "AVAILABLE")}</div>
+        </div>
+        <div class="card-b">
+          <div class="row">
+            <div class="name" style="font-size:16px">${esc(x.title)}</div>
+            <div class="price">${esc(priceText || "—")}</div>
+          </div>
+          <div class="meta">${esc(boardName)} • By ${esc(x.authorName||"—")} • ${x.createdAtMs ? new Date(x.createdAtMs).toLocaleString() : ""}</div>
+          <div class="desc" style="white-space:pre-wrap">${esc(x.desc||"")}</div>
+          <div class="hr"></div>
+          <div class="meta">
+            ${x.location ? `Location: ${esc(x.location)} • ` : ""}
+            ${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderComments(arr){
+      const wrap = $("comments");
+      wrap.innerHTML = "";
+      if (!arr.length){
+        wrap.innerHTML = `<div class="note">No replies yet. Be the first to respond.</div>`;
+        return;
+      }
+      for (const c of arr){
+        const el = document.createElement("div");
+        el.className = "comment";
+        el.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <div class="who">${esc(c.authorName||"—")}</div>
+              <div class="when">${c.createdAtMs ? new Date(c.createdAtMs).toLocaleString() : ""}</div>
+            </div>
+            <div>
+              ${isAdmin ? `<button class="mini danger" data-act="delc">Admin Delete</button>` : ""}
+            </div>
+          </div>
+          <div class="body" style="white-space:pre-wrap">${esc(c.body||"")}</div>
+        `;
+        const del = el.querySelector('[data-act="delc"]');
+        if (del){
+          del.addEventListener("click", async ()=>{
+            if (!confirm("Admin delete this reply?")) return;
+            await deleteDoc(doc(db, "listings", activeThreadId, "comments", c.id));
+          });
+        }
+        wrap.appendChild(el);
+      }
+    }
+
+    async function openThread(post){
+      if (!requireJoin()) return;
+      if (await isBanned()) return alert("Access removed by admin.");
+
+      cleanupThreadSubs();
+      activeThreadId = post.id;
+      activeThreadOwner = post.deviceId || null;
+      $("threadTitle").textContent = `Thread: ${post.title}`;
+      $("replyBody").value = "";
+      show("threadOverlay");
+
+      // live update post
+      activeThreadUnsub = onSnapshot(doc(db, "listings", activeThreadId), (snap)=>{
+        if (!snap.exists()) return;
+        const x = { id:snap.id, ...snap.data() };
+        renderThreadPost(x);
+      });
+
+      // live comments
+      activeCommentsUnsub = onSnapshot(query(collection(db, "listings", activeThreadId, "comments"), orderBy("createdAtMs","asc")), (snap)=>{
+        const arr = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+        renderComments(arr);
+      });
+
+      // Mark notifications related to this post as read
+      await markNotifsReadForPost(activeThreadId);
+    }
+
+    async function markNotifsReadForPost(postId){
+      if (!uid) return;
+      const qn = query(collection(db, "notifications"), where("toUid","==",uid), where("postId","==",postId), where("read","==",false));
+      const snap = await getDocs(qn);
+      for (const d of snap.docs){
+        await updateDoc(d.ref, { read:true, readAtMs: Date.now() });
+      }
+    }
+
+    $("btnMarkRead").addEventListener("click", async ()=>{
+      if (!activeThreadId) return;
+      await markNotifsReadForPost(activeThreadId);
+      await refreshNotifsBadge();
+      alert("Marked read.");
+    });
+
+    $("btnSendReply").addEventListener("click", async ()=>{
+      if (!activeThreadId) return;
+      if (!requireJoin()) return;
+      if (await isBanned()) return alert("Access removed by admin.");
+
+      const body = $("replyBody").value.trim();
+      if (!body) return alert("Type a reply.");
+
+      await addDoc(collection(db, "listings", activeThreadId, "comments"), {
+        body,
+        authorUid: uid,
+        authorName: displayName || "—",
+        createdAt: serverTimestamp(),
+        createdAtMs: Date.now()
+      });
+
+      // Create a notification for the post owner (simple client-side notification)
+      if (activeThreadOwner && activeThreadOwner !== uid){
+        await addDoc(collection(db, "notifications"), {
+          toUid: activeThreadOwner,
+          fromUid: uid,
+          fromName: displayName || "—",
+          postId: activeThreadId,
+          type: "reply",
+          message: `New reply from ${displayName || "Someone"}`,
+          read: false,
+          createdAt: serverTimestamp(),
+          createdAtMs: Date.now()
+        });
+      }
+
+      $("replyBody").value = "";
+      await refreshNotifsBadge();
+    });
+
+    // --- Notifications
+    async function refreshNotifsBadge(){
+      if (!uid) return;
+      const qn = query(collection(db, "notifications"), where("toUid","==",uid), orderBy("createdAtMs","desc"), limit(50));
+      const snap = await getDocs(qn);
+      notifs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      const unread = notifs.filter(n=>!n.read).length;
+      $("notifCount").classList.toggle("hide", unread === 0);
+    }
+
+    function renderNotifList(){
+      const wrap = $("notifList");
+      wrap.innerHTML = "";
+      if (!notifs.length){
+        wrap.innerHTML = `<div class="note">No notifications yet.</div>`;
+        return;
+      }
+      for (const n of notifs){
+        const el = document.createElement("div");
+        el.className = "comment";
+        el.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <div class="who">${esc(n.message || "Notification")}${n.read ? "" : " • (new)"}</div>
+              <div class="when">${n.createdAtMs ? new Date(n.createdAtMs).toLocaleString() : ""}</div>
+            </div>
+            <div class="row" style="gap:6px">
+              <button class="mini" data-act="open">Open</button>
+              <button class="mini warn" data-act="read">Mark Read</button>
+            </div>
+          </div>
+        `;
+        el.querySelector('[data-act="open"]').addEventListener("click", async ()=>{
+          // open the thread
+          const ps = await getDoc(doc(db, "listings", n.postId));
+          if (!ps.exists()) return alert("Post not found (may have been deleted).");
+          await updateDoc(doc(db, "notifications", n.id), { read:true, readAtMs: Date.now() });
+          await refreshNotifsBadge();
+          hide("notifOverlay");
+          openThread({ id: ps.id, ...ps.data() });
+        });
+        el.querySelector('[data-act="read"]').addEventListener("click", async ()=>{
+          await updateDoc(doc(db, "notifications", n.id), { read:true, readAtMs: Date.now() });
+          await refreshNotifsBadge();
+          await pullNotifsOnce();
+          renderNotifList();
+        });
+        wrap.appendChild(el);
+      }
+    }
+
+    async function pullNotifsOnce(){
+      if (!uid) return;
+      const qn = query(collection(db, "notifications"), where("toUid","==",uid), orderBy("createdAtMs","desc"), limit(50));
+      const snap = await getDocs(qn);
+      notifs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    }
+
+    $("btnNotifications").addEventListener("click", async ()=>{
+      if (!requireJoin()) return;
+      await pullNotifsOnce();
+      renderNotifList();
+      show("notifOverlay");
+    });
+
+    $("btnClearNotifs").addEventListener("click", async ()=>{
+      if (!uid) return;
+      if (!confirm("Clear notifications?")) return;
+      const qn = query(collection(db, "notifications"), where("toUid","==",uid), limit(100));
+      const snap = await getDocs(qn);
+      for (const d of snap.docs){
+        await deleteDoc(d.ref);
+      }
+      await pullNotifsOnce();
+      renderNotifList();
+      await refreshNotifsBadge();
+    });
+
+    // --- Image upload
+    async function uploadPhotoIfAny(file){
+      if (!file) return "";
+      const path = `photos/${uid}/${Date.now()}_${file.name}`;
+      const r = sRef(storage, path);
+      await uploadBytes(r, file);
+      return await getDownloadURL(r);
+    }
+
+    // --- Post create
+    async function postListing(){
+      if (!requireJoin()) return;
+      if (await isBanned()) return alert("Access removed by admin.");
+
+      const title = $("fTitle").value.trim();
+      if (!title) return alert("Enter a title.");
+
+      const priceRaw = $("fPrice").value.trim();
+      let price = "";
+      if (priceRaw !== ""){
+        const n = Number(priceRaw);
+        if (!Number.isFinite(n) || n < 0) return alert("Price must be 0 or more.");
+        price = n;
+      }
+
+      const file = $("fPhoto").files && $("fPhoto").files[0] ? $("fPhoto").files[0] : null;
+      let photoUrl = "";
+      if (file){
+        try{
+          photoUrl = await uploadPhotoIfAny(file);
+        }catch(e){
+          console.error(e);
+          alert("Photo upload failed. You can still post without a photo.");
+        }
+      }
+
+      await addDoc(collection(db, "listings"), {
+        deviceId: uid,
+        authorName: displayName || "—",
+        boardKey: $("fBoard").value,
+        title,
+        price,
+        location: $("fLocation").value.trim(),
+        desc: $("fDesc").value.trim(),
+        contact: $("fContact").value.trim(),
+        status: $("fStatus").value,
+        photoUrl,
+        createdAt: serverTimestamp(),
+        createdAtMs: Date.now()
+      });
+
+      // reset
+      $("fTitle").value = "";
+      $("fPrice").value = "";
+      $("fLocation").value = "";
+      $("fDesc").value = "";
+      $("fContact").value = "";
+      $("fPhoto").value = "";
+      $("fStatus").value = "ACTIVE";
+
+      hide("postOverlay");
+    }
+
+    // --- Invite
+    $("btnInvite").addEventListener("click", async ()=>{
+      const code = await getJoinCode();
+      const msg =
+`Regal Honda Employee Marketplace
+
+Link: ${location.href}
+Join Code: ${code}
+
+Post:
+• Free items
+• Buy/Sell
+• Garage sales
+• Events
+…and coworkers can reply (forum threads).`;
+      if (navigator.share){
+        navigator.share({title:"Employee Marketplace Invite", text: msg}).catch(()=>{});
+      } else {
+        await navigator.clipboard?.writeText(msg);
+        alert("Invite copied:\n\n" + msg);
+      }
+    });
+
+    // --- Open modals
+    $("btnNew").addEventListener("click", async ()=>{
+      if (!requireJoin()) return;
+      if (await isBanned()) return alert("Access removed by admin.");
+      boardsToSelectOptions($("fBoard"), false);
+      show("postOverlay");
+    });
+    $("btnSavePost").addEventListener("click", postListing);
+
+    // --- Join flow (name + code)
+    $("btnJoinNow").addEventListener("click", async ()=>{
+      const enteredName = $("nameInput").value.trim();
+      const enteredCode = $("joinCodeInput").value.trim();
+      const real = await getJoinCode();
+
+      if (!enteredName) return alert("Enter your name.");
+      if (!enteredCode) return alert("Enter Join Code.");
+      if (enteredCode !== real) return alert("Incorrect Join Code.");
+
+      displayName = enteredName;
+      localStorage.setItem("rh_displayName", displayName);
+
+      joinOk = true;
+      hide("joinOverlay");
+      setStatus("Joined", true);
+      setNamePill();
+
+      await markPresence();
+      await updateLastSeen();
+    });
+
+    // --- Admin UI
+    $("btnAdmin").addEventListener("click", async ()=>{
+      if (!requireJoin()) return;
+      $("adminDeviceId").textContent = uid || "—";
+      $("adminDeviceId").classList.add("mono");
+      show("adminOverlay");
+
+      // toggle tools
+      $("adminTools").classList.toggle("hide", !isAdmin);
+      $("adminGate").classList.toggle("hide", isAdmin);
+    });
+
+    async function renderAdminBoardsTable(){
+      const body = $("boardsBody");
+      body.innerHTML = "";
+      const sorted = boards.slice().sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+      for (const b of sorted){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono">${esc(b.key)}</td>
+          <td>${esc(b.name)}</td>
+          <td>${b.active ? "ACTIVE" : "DISABLED"}</td>
+          <td>
+            ${b.key==="ALL" ? "" : `<button class="${b.active ? "danger" : "primary"}" data-act="toggle">${b.active ? "Disable" : "Enable"}</button>`}
+          </td>
+        `;
+        const btn = tr.querySelector('[data-act="toggle"]');
+        if (btn){
+          btn.addEventListener("click", async ()=>{
+            if (!isAdmin) return alert("Admin only.");
+            await updateDoc(doc(db, "boards", b.key), { active: !b.active, updatedAt: serverTimestamp() });
+          });
+        }
+        body.appendChild(tr);
+      }
+    }
+
+    async function renderAdminMembersTable(){
+      const body = $("membersBody");
+      body.innerHTML = "";
+      for (const m of members){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono">${esc(m.deviceId)}</td>
+          <td>${esc(m.displayName || "—")}</td>
+          <td>${m.banned ? "BANNED" : "ACTIVE"}</td>
+          <td><button class="${m.banned ? "primary" : "danger"}">${m.banned ? "Unban" : "Ban"}</button></td>
+        `;
+        tr.querySelector("button").addEventListener("click", async ()=>{
+          if (!isAdmin) return alert("Admin only.");
+          const action = m.banned ? "UNBAN" : "BAN";
+          if (!confirm(`${action} device ${m.deviceId}?`)) return;
+          await updateDoc(doc(db, "members", m.deviceId), { banned: !m.banned, bannedAt: serverTimestamp() });
+        });
+        body.appendChild(tr);
+      }
+    }
+
+    $("btnAddBoard").addEventListener("click", async ()=>{
+      if (!isAdmin) return alert("Admin only.");
+      const key = normalizeBoardKey($("newBoardKey").value);
+      const name = $("newBoardName").value.trim();
+      const desc = $("newBoardDesc").value.trim();
+      if (!key) return alert("Enter a board key.");
+      if (key === "ALL") return alert("ALL is reserved.");
+      if (!name) return alert("Enter a name.");
+
+      // pick a sort order at end
+      const max = boards.reduce((m,b)=>Math.max(m, Number(b.sortOrder)||0), 0);
+      await setDoc(doc(db, "boards", key), { key, name, desc, active:true, sortOrder:max+10, updatedAt: serverTimestamp() }, { merge:true });
+      $("newBoardKey").value=""; $("newBoardName").value=""; $("newBoardDesc").value="";
+      alert("Board added.");
+    });
+
+    $("btnAddAdmin").addEventListener("click", async ()=>{
+      if (!isAdmin) return alert("Admin only.");
+      const auid = $("addAdminUid").value.trim();
+      if (!auid) return alert("Paste a Device ID.");
+      await setDoc(doc(db, "admins", auid), { uid: auid, addedBy: uid, addedAt: serverTimestamp() }, { merge:true });
+      $("addAdminUid").value = "";
+      alert("Admin added. Tell them to refresh and open Admin.");
+    });
+
+    // --- Boot
+    async function boot(){
+      setStatus("Connecting…", false);
+      await ensureSettings();
+      await signInAnonymously(auth);
+
+      onAuthStateChanged(auth, async (user)=>{
+        if (!user) return;
+
+        uid = user.uid;
+        $("devicePill").textContent = `Device: ${uid}`;
+        $("adminDeviceId").textContent = uid;
+
+        // load local name if set
+        displayName = localStorage.getItem("rh_displayName") || "";
+        setNamePill();
+
+        // seed defaults
+        await ensureBootstrapAdmins();
+        await seedDefaultBoardsIfEmpty();
+
+        // determine admin
+        isAdmin = await checkAdmin();
+
+        // show join modal if not joined (name + code)
+        joinOk = false;
+        setStatus("Locked (Join Code)", false);
+        show("joinOverlay");
+        if (displayName) $("nameInput").value = displayName;
+
+        // presence + ban watch
+        onSnapshot(doc(db, "members", uid), (snap)=>{
+          if (snap.exists() && snap.data().banned){
+            joinOk = false;
+            setStatus("Removed", false);
+            alert("Access removed by admin.");
+            show("joinOverlay");
+          }
+        });
+
+        // members listener (admin panel)
+        onSnapshot(query(collection(db, "members"), orderBy("lastSeenAt","desc"), limit(60)), (snap)=>{
+          members = snap.docs.map(d=>({ id:d.id, ...d.data(), deviceId: d.id }));
+          if (isAdmin) renderAdminMembersTable();
+        });
+
+        // boards listener
+        onSnapshot(query(collection(db, "boards"), orderBy("sortOrder","asc")), (snap)=>{
+          boards = snap.docs.map(d=>d.data());
+          // ensure ALL exists in select
+          boardsToSelectOptions($("cat"), true);
+          boardsToSelectOptions($("fBoard"), false);
+          renderBoardsSidebar();
+          if (isAdmin) renderAdminBoardsTable();
+        });
+
+        // listings listener
+        onSnapshot(query(collection(db, "listings"), orderBy("createdAtMs","desc")), async (snap)=>{
+          // if banned, stop UX
+          if (await isBanned()) return;
+          listings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+          renderBoardsSidebar();
+          render();
+        });
+
+        // background notif badge updates (every 20s)
+        setInterval(async ()=>{
+          if (!uid) return;
+          await refreshNotifsBadge();
+        }, 20_000);
+
+        // last seen
+        setInterval(async ()=>{
+          if (!uid) return;
+          if (!joinOk) return;
+          await updateLastSeen();
+        }, 30_000);
+
+        // try to auto-mark presence after join occurs
+        // (markPresence is called when user hits Join)
+      });
+    }
+
+    boot();
+    window.hide = hide; // used by Close buttons
+  </script>
+
+<script>
+(function(){
+  const IMAGE_DIR = "Images"; // folder name exactly as on disk/hosting
+  const IMAGES = ["regal1.jpg","regal2.jpg","regal3.jpg"].map(f=>`${IMAGE_DIR}/${f}`);
+  const slide = document.getElementById("bgSlide");
+  const pill = document.getElementById("bgStatusPill");
+  if (!slide) return;
+
+  let loaded = 0;
+  const good = [];
+
+  function setPill(text, ok){
+    if (!pill) return;
+    pill.textContent = text;
+    pill.style.borderColor = ok ? "rgba(34,197,94,.35)" : "rgba(239,68,68,.35)";
+    pill.style.background = ok ? "rgba(34,197,94,.14)" : "rgba(239,68,68,.12)";
+    pill.style.color = ok ? "#bbf7d0" : "#fecaca";
+  }
+
+  setPill("Loading…", false);
+
+  IMAGES.forEach((p)=>{
+    const img = new Image();
+    img.onload = ()=>{ loaded++; good.push(p); if (loaded === IMAGES.length) start(); };
+    img.onerror = ()=>{ loaded++; if (loaded === IMAGES.length) start(); };
+    // cache-bust when testing locally
+    img.src = p + (location.protocol === "file:" ? `?v=${Date.now()}` : "");
+  });
+
+  function start(){
+    if (!good.length){
+      // fallback: keep dark background
+      setPill("No images found", false);
+      return;
+    }
+    setPill("Background OK", true);
+
+    let i = 0;
+    function showNext(){
+      const path = good[i % good.length];
+      // fade out, swap, fade in
+      slide.classList.remove("is-on");
+      setTimeout(()=>{
+        slide.style.backgroundImage = `url("${path}")`;
+        slide.classList.add("is-on");
+      }, 350);
+      i++;
+    }
+    // initial
+    slide.style.backgroundImage = `url("${good[0]}")`;
+    slide.classList.add("is-on");
+    // rotate every 10s
+    setInterval(showNext, 10000);
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  const pill = document.getElementById("bgStatusPill");
+  const paths = ["Images/regal1.jpg","Images/regal2.jpg","Images/regal3.jpg"];
+  let ok=0, done=0;
+
+  function setPill(text, good){
+    if (!pill) return;
+    pill.textContent = text;
+    pill.style.borderColor = good ? "rgba(34,197,94,.35)" : "rgba(239,68,68,.35)";
+    pill.style.background  = good ? "rgba(34,197,94,.14)" : "rgba(239,68,68,.12)";
+  }
+
+  setPill("BG: Loading…", false);
+
+  paths.forEach(p=>{
+    const img = new Image();
+    img.onload = ()=>{ ok++; done++; finish(); };
+    img.onerror = ()=>{ done++; finish(); };
+    img.src = p + (location.protocol === "file:" ? ("?v=" + Date.now()) : "");
+  });
+
+  function finish(){
+    if (done < paths.length) return;
+    if (ok === paths.length){
+      setPill("Background: On", true);
+    } else {
+      setPill(`BG: ${ok}/${paths.length} found`, false);
+    }
+  }
+})();
+</script>
+
+<script>
+(function(){
+  const layer=document.getElementById('bgLayer'); if(!layer) return;
+  const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+  let tx=0,ty=0,cx=0,cy=0;
+  function tick(){
+    cx+=(tx-cx)*0.06; cy+=(ty-cy)*0.06;
+    layer.style.transform=`translate3d(${cx}px,${cy}px,0) scale(1.06)`;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  window.addEventListener('mousemove',e=>{
+    const w=innerWidth||1,h=innerHeight||1;
+    const nx=(e.clientX/w)*2-1, ny=(e.clientY/h)*2-1;
+    tx=clamp(nx*-18,-18,18);
+    ty=clamp(ny*-12,-12,12);
+  },{passive:true});
+  window.addEventListener('scroll',()=>{
+    const s=scrollY||0;
+    ty=clamp(ty+(s*-0.008),-14,14);
+  },{passive:true});
+})();
+</script>
+</body>
+</html>
