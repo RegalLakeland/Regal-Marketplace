@@ -1,0 +1,59 @@
+
+body{
+font-family:Arial;
+margin:0;
+background:#0f172a;
+color:white;
+}
+
+header{
+background:#020617;
+padding:15px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+border-bottom:1px solid #334155;
+}
+
+.container{
+max-width:1000px;
+margin:auto;
+padding:20px;
+}
+
+.card{
+background:#020617;
+border:1px solid #334155;
+padding:12px;
+border-radius:10px;
+margin-bottom:12px;
+}
+
+input,textarea{
+width:100%;
+padding:8px;
+margin-top:6px;
+margin-bottom:10px;
+border-radius:6px;
+border:1px solid #475569;
+background:#020617;
+color:white;
+}
+
+button{
+padding:8px 12px;
+border-radius:6px;
+border:none;
+cursor:pointer;
+font-weight:bold;
+}
+
+.primary{
+background:#22c55e;
+color:black;
+}
+
+.post{
+border-bottom:1px solid #334155;
+padding:10px 0;
+}

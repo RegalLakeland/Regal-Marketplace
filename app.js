@@ -1,105 +1,129 @@
 
-const ADMIN_EMAILS=[
+const admins = [
 "janni.r@regallakeland.com",
 "michael.h@regallakeland.com"
-]
-
-let posts=[]
-let currentUser=null
+];
 
 function signup(){
 
-let first=document.getElementById("first").value
-let last=document.getElementById("last").value
-let email=document.getElementById("email").value
-let pass=document.getElementById("pass").value
+let first=document.getElementById("first").value;
+let last=document.getElementById("last").value;
+let email=document.getElementById("email").value;
+let pass=document.getElementById("password").value;
 
 if(!email.endsWith("@regallakeland.com")){
-alert("Must use Regal Lakeland email")
-return
+alert("Must use Regal Lakeland email");
+return;
 }
 
-localStorage.setItem("user_"+email,JSON.stringify({first,last,email,pass,banned:false}))
+auth.createUserWithEmailAndPassword(email,pass)
+.then(user=>{
 
-alert("Account created")
+db.collection("users").doc(user.user.uid).set({
+first:first,
+last:last,
+email:email,
+created:Date.now(),
+banned:false
+});
+
+alert("Account created");
+
+})
+.catch(e=>alert(e.message));
 }
 
 function login(){
 
-let email=document.getElementById("loginEmail").value
-let pass=document.getElementById("loginPass").value
+let email=document.getElementById("loginEmail").value;
+let pass=document.getElementById("loginPass").value;
 
-let data=JSON.parse(localStorage.getItem("user_"+email))
+auth.signInWithEmailAndPassword(email,pass)
+.catch(e=>alert(e.message));
 
-if(!data){alert("No account");return}
+}
 
-if(data.pass!=pass){alert("Wrong password");return}
+auth.onAuthStateChanged(user=>{
 
-if(data.banned){alert("User banned");return}
+if(user){
 
-currentUser=data
+document.getElementById("loginBox").style.display="none";
+document.getElementById("app").style.display="block";
 
-document.getElementById("loginBox").style.display="none"
-document.getElementById("app").style.display="block"
+loadPosts();
 
-renderPosts()
+}
+
+});
+
+function logout(){
+auth.signOut();
+location.reload();
+}
+
+function openPost(){
+
+document.getElementById("postPanel").style.display="block";
+
 }
 
 function createPost(){
 
-let title=document.getElementById("title").value
-let desc=document.getElementById("desc").value
-let price=document.getElementById("price").value
+let title=document.getElementById("title").value;
+let desc=document.getElementById("desc").value;
+let price=document.getElementById("price").value;
+let file=document.getElementById("photo").files[0];
 
-let post={
-id:Date.now(),
-title,
-desc,
-price,
-author:currentUser.first+" "+currentUser.last,
-replies:[]
+let ref=storage.ref("posts/"+Date.now()+file.name);
+
+ref.put(file).then(snapshot=>{
+
+snapshot.ref.getDownloadURL().then(url=>{
+
+db.collection("posts").add({
+title:title,
+desc:desc,
+price:price,
+image:url,
+created:Date.now(),
+author:auth.currentUser.email
+});
+
+});
+
+});
+
 }
 
-posts.push(post)
+function loadPosts(){
 
-renderPosts()
-}
+db.collection("posts").orderBy("created","desc")
+.onSnapshot(snap=>{
 
-function renderPosts(){
+let html="";
 
-let html=""
+snap.forEach(doc=>{
 
-posts.forEach(p=>{
+let p=doc.data();
 
-html+=`<div class="card">
+html+=`
 
-<b>${p.title}</b><br>
-${p.desc}<br>
-Price: ${p.price||"Free"}<br>
-By: ${p.author}
+<div class="post">
 
-<br><br>
-<input id="r_${p.id}" placeholder="Reply">
-<button onclick="reply(${p.id})">Reply</button>
-`
+<h3>${p.title}</h3>
+<p>${p.desc}</p>
+<p>Price: ${p.price}</p>
+<img src="${p.image}" width="200">
+<p>Posted by ${p.author}</p>
 
-p.replies.forEach(r=>{
-html+=`<div style="margin-left:20px">${r}</div>`
-})
+</div>
 
-html+="</div>"
+`;
 
-})
+});
 
-document.getElementById("posts").innerHTML=html
-}
+document.getElementById("posts").innerHTML=html;
 
-function reply(id){
+});
 
-let text=document.getElementById("r_"+id).value
-let post=posts.find(p=>p.id==id)
-
-post.replies.push(currentUser.first+": "+text)
-
-renderPosts()
 }
