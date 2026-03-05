@@ -1,17 +1,8 @@
 rules_version = '2';
 service firebase.storage {
-  match /b/{bucket}/o {
-
-    function employee() {
-      return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.matches('.*@regallakeland\\.com$');
-    }
-
-    match /postPhotos/{postId}/{fileName} {
-      allow read: if employee();
-      allow write: if employee();
-    }
-  }
+match /b/{bucket}/o {
+match /{allPaths=**} {
+allow read, write: if true;
+}
+}
 }

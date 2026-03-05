@@ -1,319 +1,36 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Regal Lakeland Employee Marketplace</title>
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="UTF-8">
+<title>Regal Employee Marketplace</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Background slideshow -->
-  <div class="bg-slideshow" aria-hidden="true">
-    <div class="bg-img i1"></div>
-    <div class="bg-img i2"></div>
-    <div class="bg-img i3"></div>
-  </div>
-  <div class="bg-overlay" aria-hidden="true"></div>
 
-  <!-- Auth Overlay -->
-  <div class="overlay" id="authOverlay">
-    <div class="modal">
-      <div class="modal-h">
-        <div class="brandmark">
-          <div class="brand-badge">Regal</div>
-          <div>
-            <div class="brand-title">Employee Marketplace</div>
-            <div class="brand-sub">Private • Verified work email required</div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-b">
-        <div class="authTabs">
-          <button class="tabBtn active" id="tabLogin" type="button">Login</button>
-          <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
-        </div>
+<h1>Regal Employee Marketplace</h1>
 
-        <!-- Login -->
-        <div id="loginPane">
-          <div class="field">
-            <label>Email</label>
-            <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
-          </div>
-          <div class="field">
-            <label>Password</label>
-            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
-          </div>
+<div id="login">
+<h3>Login</h3>
+<input id="email" placeholder="email">
+<input id="password" type="password" placeholder="password">
+<button onclick="login()">Login</button>
+<button onclick="signup()">Create Account</button>
+</div>
 
-          <div class="note warn" id="verifyNote" style="display:none">
-            Your email is not verified yet. Check your inbox and click the verification link, then return and log in.
-          </div>
+<hr>
 
-          <div class="rowBtns">
-            <button class="btn primary" id="btnLogin" type="button">Login</button>
-            <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Resend Verification Email</button>
-          </div>
+<div id="postArea" style="display:none;">
+<h3>Create Post</h3>
+<input id="title" placeholder="title">
+<input id="price" placeholder="price">
+<textarea id="desc" placeholder="description"></textarea>
+<button onclick="createPost()">Post</button>
+</div>
 
-          <div class="note" style="margin-top:10px">
-            Allowed domain: <b>@regallakeland.com</b>
-          </div>
-        </div>
+<div id="posts"></div>
 
-        <!-- Signup -->
-        <div id="signupPane" style="display:none">
-          <div class="note">
-            Create an account using your work email. You must verify your email before you can use the marketplace.
-          </div>
-          <div style="height:10px"></div>
-          <div class="field">
-            <label>Work Email</label>
-            <input id="signupEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
-          </div>
-          <div class="field">
-            <label>Password</label>
-            <input id="signupPassword" type="password" placeholder="Create a password (8+ chars)" autocomplete="new-password" />
-          </div>
-          <div class="field">
-            <label>Confirm Password</label>
-            <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
-          </div>
-          <div class="note ok" id="signupMsg" style="display:none"></div>
-          <div class="rowBtns">
-            <button class="btn primary" id="btnSignup" type="button">Create Account</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
 
-  <!-- Name + Rules Overlay -->
-  <div class="overlay" id="profileOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Welcome — one-time setup</strong>
-      </div>
-      <div class="modal-b">
-        <div class="field">
-          <label>First & Last Name</label>
-          <input id="displayNameInput" placeholder="e.g. Michael Hall" autocomplete="name" />
-        </div>
-
-        <div style="height:10px"></div>
-        <div class="rulesBox">
-          <div class="rulesTitle">Rules</div>
-          <ul>
-            <li>Work friends only • no spam</li>
-            <li>No harassment, hate, or drama</li>
-            <li>Include a contact method on posts</li>
-            <li>Admins can remove posts and ban access anytime</li>
-          </ul>
-        </div>
-
-        <label class="checkRow">
-          <input type="checkbox" id="agreeRules" />
-          <span>I agree to the rules above</span>
-        </label>
-
-        <div class="note warn" id="profileWarn" style="display:none"></div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSaveProfile" type="button">Continue</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Topbar -->
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">RH</div>
-      <div class="title">
-        <div class="h1">Regal Employee Marketplace</div>
-        <div class="sub">Free items • Buy/Sell • Garage sales • Events • Work news</div>
-      </div>
-    </div>
-
-    <div class="actions">
-      <span class="pill" id="pillUser">Not signed in</span>
-      <button class="btn" id="btnNotif" type="button" title="Notifications">
-        🔔 <span class="notifDot" id="notifDot" style="display:none"></span>
-      </button>
-      <button class="btn primary" id="btnNewPost" type="button">+ Post</button>
-      <a class="btn ghost" id="adminLink" href="/adminregal/" style="display:none">Admin</a>
-      <button class="btn danger" id="btnLogout" type="button" style="display:none">Logout</button>
-    </div>
-  </header>
-
-  <!-- Layout -->
-  <div class="wrap">
-    <div class="layout">
-      <aside class="panel">
-        <div class="panel-h">
-          <h2>Boards</h2>
-          <span class="pill" id="boardPill">All</span>
-        </div>
-        <div class="panel-b">
-          <div class="boards" id="boards"></div>
-          <div class="note" style="margin-top:12px">
-            Tip: Pick a board. Easier than filters for most people.
-          </div>
-        </div>
-      </aside>
-
-      <main class="panel">
-        <div class="panel-h">
-          <div>
-            <h2 id="marketTitle">Marketplace</h2>
-            <span class="pill" id="countLine">0 shown • 0 total</span>
-          </div>
-          <div class="filters">
-            <div class="field">
-              <label>Search</label>
-              <input id="q" placeholder="Search items, descriptions, locations…" />
-            </div>
-            <div class="field">
-              <label>Status</label>
-              <select id="st">
-                <option value="ACTIVE">Active</option>
-                <option value="ALL">All</option>
-                <option value="SOLD">Sold</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Sort</label>
-              <select id="sort">
-                <option value="NEW">Newest</option>
-                <option value="OLD">Oldest</option>
-                <option value="PRICE_ASC">Price ↑</option>
-                <option value="PRICE_DESC">Price ↓</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel-b">
-          <div class="cards" id="cards"></div>
-          <div id="empty" class="note" style="display:none;margin-top:12px;">
-            No listings match your filters.
-          </div>
-        </div>
-      </main>
-    </div>
-  </div>
-
-  <!-- New Post Modal -->
-  <div class="overlay" id="postOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Create Post</strong>
-        <button class="btn ghost" id="btnClosePost" type="button">Close</button>
-      </div>
-      <div class="modal-b">
-        <div class="grid2">
-          <div class="field">
-            <label>Board</label>
-            <select id="fBoard">
-              <option value="FREE">Free Items</option>
-              <option value="BUYSELL">Buy / Sell</option>
-              <option value="GARAGE">Garage Sales</option>
-              <option value="EVENTS">Events</option>
-              <option value="WORK">Work News</option>
-              <option value="SERVICES">Local Services</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Status</label>
-            <select id="fStatus">
-              <option value="ACTIVE">Active</option>
-              <option value="SOLD">Sold</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Title</label>
-          <input id="fTitle" placeholder="e.g. Free couch, Garage sale Saturday…" />
-        </div>
-
-        <div class="grid2">
-          <div class="field">
-            <label>Price (optional)</label>
-            <input id="fPrice" inputmode="decimal" placeholder="0 for free, 25, 100…" />
-          </div>
-          <div class="field">
-            <label>Location (optional)</label>
-            <input id="fLocation" placeholder="Lakeland, Plant City…" />
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Description</label>
-          <textarea id="fDesc" placeholder="Details: condition, pickup time, etc."></textarea>
-        </div>
-
-        <div class="field">
-          <label>Contact</label>
-          <input id="fContact" placeholder="Text/call/email or where to find you at work" />
-        </div>
-
-        <div class="field">
-          <label>Photo (optional)</label>
-          <input id="fPhoto" type="file" accept="image/*" />
-          <div class="note" id="photoNote">You can upload one photo per post.</div>
-        </div>
-
-        <div class="note warn" id="postWarn" style="display:none"></div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSavePost" type="button">Post</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Thread Modal -->
-  <div class="overlay" id="threadOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong id="threadTitle">Thread</strong>
-        <button class="btn ghost" id="btnCloseThread" type="button">Close</button>
-      </div>
-      <div class="modal-b">
-        <div id="threadMeta" class="threadMeta"></div>
-        <div id="threadBody" class="threadBody"></div>
-
-        <div style="height:12px"></div>
-        <div class="repliesTitle">Replies</div>
-        <div id="threadReplies" class="replies"></div>
-
-        <div style="height:12px"></div>
-        <div class="field">
-          <label>Add a reply</label>
-          <textarea id="replyText" placeholder="Write a reply…"></textarea>
-        </div>
-        <div class="rowBtns">
-          <button class="btn primary" id="btnSendReply" type="button">Reply</button>
-        </div>
-
-        <div class="note ok" id="replyOk" style="display:none"></div>
-        <div class="note warn" id="replyWarn" style="display:none"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Notifications Modal -->
-  <div class="overlay" id="notifOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Notifications</strong>
-        <button class="btn ghost" id="btnCloseNotif" type="button">Close</button>
-      </div>
-      <div class="modal-b">
-        <div class="note">In-app notifications show when someone replies to your post.</div>
-        <div style="height:10px"></div>
-        <div id="notifList" class="notifList"></div>
-      </div>
-    </div>
-  </div>
-
-  <script type="module" src="firebase-config.js"></script>
-  <script type="module" src="app.js"></script>
 </body>
 </html>
