@@ -1,84 +1,69 @@
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Regal Employee Marketplace</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regal Honda Employee Marketplace</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
 
-<div class="slideshow">
-<img src="Images/regal1.jpg">
-<img src="Images/regal2.jpg">
-<img src="Images/regal3.jpg">
-</div>
-
-<div id="loginScreen" class="login-screen">
-<div class="login-box">
-<h2>Employee Login</h2>
-<input id="email" placeholder="Work Email">
-<input id="password" type="password" placeholder="Password">
-<button onclick="login()">Login</button>
-</div>
-</div>
-
-<div id="app" class="hidden">
-
 <header>
-<div class="logo">RH</div>
-<h1>Regal Employee Marketplace</h1>
+<div class="brand">Regal Honda Employee Marketplace</div>
 
 <div class="header-right">
-<span id="userDisplay"></span>
-<button onclick="logout()">Logout</button>
-<button onclick="openPost()">+ Post</button>
-<a href="admin.html" id="adminLink" class="hidden">Admin</a>
+<span id="userEmail"></span>
+<button id="btnLogout">Logout</button>
 </div>
 </header>
 
 <div class="container">
 
-<aside class="boards">
-<h3>Boards</h3>
-<button class="board active">All</button>
-<button class="board">Free Items</button>
-<button class="board">Buy / Sell</button>
-<button class="board">Garage Sales</button>
-<button class="board">Events</button>
-<button class="board">Work News</button>
-</aside>
+<div class="toolbar">
+<input id="search" placeholder="Search listings...">
+<button id="btnNew">Create Listing</button>
+</div>
 
-<main id="feed"></main>
+<div id="cards" class="cards"></div>
 
 </div>
 
+<!-- LOGIN -->
+
+<div class="overlay" id="loginOverlay">
+<div class="modal">
+
+<h2>Employee Login</h2>
+
+<input id="loginEmail" placeholder="Email">
+<input id="loginPassword" type="password" placeholder="Password">
+
+<button id="btnLogin">Login</button>
+
+</div>
 </div>
 
-<div id="postModal" class="modal hidden">
-<div class="modal-box">
-<h2>Create Post</h2>
+<!-- CREATE POST -->
+
+<div class="overlay" id="postOverlay" style="display:none">
+<div class="modal">
+
+<h2>Create Listing</h2>
+
 <input id="title" placeholder="Title">
 <input id="price" placeholder="Price">
+<input id="photo" type="file">
+
 <textarea id="desc" placeholder="Description"></textarea>
-<input type="file" id="imageUpload">
-<button onclick="createPost()">Post</button>
-<button onclick="closePost()">Cancel</button>
+
+<button id="btnSave">Post</button>
+
 </div>
 </div>
 
-<div id="threadModal" class="modal hidden">
-<div class="modal-box">
-<h2 id="threadTitle"></h2>
-<div id="threadComments"></div>
-<textarea id="replyText" placeholder="Write reply"></textarea>
-<button onclick="sendReply()">Reply</button>
-<button onclick="closeThread()">Close</button>
-</div>
-</div>
-
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 
 </body>
 </html>

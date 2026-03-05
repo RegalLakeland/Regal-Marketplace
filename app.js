@@ -1,115 +1,154 @@
 
-const admins=[
-"Michael.H@regallakeland.com",
-"janni.r@regallakeland.com",
-"chrissy.h@regallakeland.com",
-"amy.m@regallakeland.com"
-]
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import {
+getAuth,
+signInWithEmailAndPassword,
+signOut,
+onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 
-let posts=JSON.parse(localStorage.getItem("posts")||"[]")
-let currentThread=null
+import {
+getFirestore,
+collection,
+addDoc,
+getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
-function login(){
-let email=document.getElementById("email").value
-if(!email) return alert("Enter email")
-localStorage.setItem("user",email)
-startApp()
+import {
+getStorage,
+ref,
+uploadBytes,
+getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
+authDomain: "regal-lakeland-marketplace.firebaseapp.com",
+projectId: "regal-lakeland-marketplace",
+storageBucket: "regal-lakeland-marketplace.appspot.com",
+messagingSenderId: "1014346693296",
+appId: "1:1014346693296:web:fc76118d1a8db347945975"
+};
+
+const app = initializeApp(firebaseConfig)
+const auth = getAuth(app)
+const db = getFirestore(app)
+const storage = getStorage(app)
+
+let currentUser = null
+
+const loginOverlay = document.getElementById("loginOverlay")
+const postOverlay = document.getElementById("postOverlay")
+const cards = document.getElementById("cards")
+
+document.getElementById("btnLogin").onclick = async () => {
+
+const email = document.getElementById("loginEmail").value
+const pass = document.getElementById("loginPassword").value
+
+try{
+
+await signInWithEmailAndPassword(auth,email,pass)
+
+}catch(e){
+
+alert("Login failed")
+
 }
 
-function logout(){
-localStorage.removeItem("user")
-location.reload()
 }
 
-function startApp(){
-let user=localStorage.getItem("user")
-if(!user) return
+document.getElementById("btnLogout").onclick = () => signOut(auth)
 
-loginScreen.classList.add("hidden")
-app.classList.remove("hidden")
+onAuthStateChanged(auth,(user)=>{
 
-userDisplay.innerText=user
+if(!user){
 
-if(admins.includes(user)){
-adminLink.classList.remove("hidden")
+loginOverlay.style.display="flex"
+return
+
 }
 
-render()
-}
+loginOverlay.style.display="none"
+currentUser=user
 
-window.onload=startApp
+document.getElementById("userEmail").innerText=user.email
 
-function render(){
-feed.innerHTML=""
-posts.forEach(p=>{
-let div=document.createElement("div")
-div.className="post"
+loadPosts()
 
-div.innerHTML=`
-${p.image?`<img src="${p.image}">`:""}
-<h3>${p.title}</h3>
-<div>$${p.price||""}</div>
-<p>${p.desc}</p>
-<button onclick="openThread('${p.id}')">Open Thread</button>
-`
-feed.appendChild(div)
 })
+
+document.getElementById("btnNew").onclick = () => {
+
+postOverlay.style.display="flex"
+
 }
 
-function openPost(){postModal.classList.remove("hidden")}
-function closePost(){postModal.classList.add("hidden")}
+document.getElementById("btnSave").onclick = async ()=>{
 
-function createPost(){
-let file=imageUpload.files[0]
+let imageURL=""
+
+const file=document.getElementById("photo").files[0]
+
 if(file){
-let reader=new FileReader()
-reader.onload=function(){savePost(reader.result)}
-reader.readAsDataURL(file)
-}else{
-savePost(null)
-}
-}
 
-function savePost(img){
-let post={
-id:Date.now().toString(),
-title:title.value,
-price:price.value,
-desc:desc.value,
-image:img,
-comments:[]
+const storageRef = ref(storage,"images/"+Date.now())
+
+await uploadBytes(storageRef,file)
+
+imageURL = await getDownloadURL(storageRef)
+
 }
 
-posts.push(post)
-localStorage.setItem("posts",JSON.stringify(posts))
-closePost()
-render()
-}
+await addDoc(collection(db,"posts"),{
 
-function openThread(id){
-currentThread=id
-let post=posts.find(p=>p.id==id)
-threadTitle.innerText=post.title
-let html=""
-post.comments.forEach(c=>{
-html+=`<div class="comment"><b>${c.user}</b><div>${c.text}</div></div>`
-})
-threadComments.innerHTML=html
-threadModal.classList.remove("hidden")
-}
+title:document.getElementById("title").value,
+price:document.getElementById("price").value,
+desc:document.getElementById("desc").value,
+image:imageURL,
+user:currentUser.email
 
-function closeThread(){threadModal.classList.add("hidden")}
-
-function sendReply(){
-let txt=replyText.value
-let user=localStorage.getItem("user")
-let post=posts.find(p=>p.id==currentThread)
-
-post.comments.push({
-user:user,
-text:txt
 })
 
-localStorage.setItem("posts",JSON.stringify(posts))
-openThread(currentThread)
+postOverlay.style.display="none"
+
+loadPosts()
+
+}
+
+async function loadPosts(){
+
+cards.innerHTML=""
+
+const snap = await getDocs(collection(db,"posts"))
+
+snap.forEach(doc=>{
+
+const d = doc.data()
+
+const card=document.createElement("div")
+
+card.className="card"
+
+card.innerHTML=`
+
+${d.image ? `<img src="${d.image}">` : ""}
+
+<div class="card-body">
+
+<h3>${d.title}</h3>
+
+<b>$${d.price||""}</b>
+
+<p>${d.desc}</p>
+
+<small>Posted by ${d.user}</small>
+
+</div>
+`
+
+cards.appendChild(card)
+
+})
+
 }
