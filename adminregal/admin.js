@@ -1,233 +1,165 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { firebaseConfig, ADMIN_EMAILS } from "../firebase-config.js";
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  doc,
-  deleteDoc,
-  updateDoc,
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  getFirestore, collection, doc, getDoc, onSnapshot, query, orderBy, updateDoc, deleteDoc, where, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 
-const $ = (id) => document.getElementById(id);
-const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-function show(el) { el.classList.add("show"); el.setAttribute("aria-hidden", "false"); }
-function hide(el) { el.classList.remove("show"); el.setAttribute("aria-hidden", "true"); }
-function notice(msg, type = "") {
-  const box = $("authNotice");
-  box.textContent = msg || "";
-  box.className = "notice" + (type ? ` ${type}` : "");
+const $ = (id)=>document.getElementById(id);
+const esc = (s)=>String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+
+let user = null;
+let posts = [];
+let profiles = [];
+
+function prettyTime(ms){
+  if (!ms) return "—";
+  return new Date(ms).toLocaleString();
 }
 
-function normalizeEmail(e) { return (e || "").trim().toLowerCase(); }
-function isAdmin(email) {
-  const e = normalizeEmail(email);
-  return (window.ADMIN_EMAILS || []).map((x) => x.toLowerCase()).includes(e);
+function isAdminEmail(email){
+  return ADMIN_EMAILS.has(String(email||"").toLowerCase());
 }
 
-const cfg = window.FIREBASE_CONFIG;
-function configLooksValid(c) {
-  if (!c) return false;
-  const required = ["apiKey", "authDomain", "projectId", "storageBucket", "appId"];
-  return required.every((k) => typeof c[k] === "string" && c[k] && !c[k].includes("PASTE_"));
+function applyPostFilters(list){
+  const q = ($("pq").value||"").toLowerCase().trim();
+  const b = $("pboard").value;
+  let out = list.slice();
+  if (b !== "ALL") out = out.filter(x=> x.board === b);
+  if (q){
+    out = out.filter(x => (`${x.title} ${x.displayName} ${x.userEmail} ${x.uid}`.toLowerCase()).includes(q));
+  }
+  return out;
 }
 
-if (!configLooksValid(cfg)) {
-  show($("authModal"));
-  notice("Firebase not configured. Fix firebase-config.js first.", "bad");
-  $("btnLogin").disabled = true;
-  $("btnForgot").disabled = true;
-} else {
-  const app = initializeApp(cfg);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+function renderPosts(){
+  const list = applyPostFilters(posts);
+  $("postCount").textContent = `${list.length}`;
 
-  let currentUser = null;
-  let unsub = null;
+  let html = `<table><thead><tr>
+    <th>Title</th><th>Board</th><th>By</th><th>Email</th><th>Created</th><th>Replies</th><th></th>
+  </tr></thead><tbody>`;
 
-  function setPill() {
-    const pill = $("authPill");
-    if (!currentUser) {
-      pill.textContent = "Not signed in";
-      pill.className = "pill pill-muted";
-      return;
-    }
-    pill.textContent = `${currentUser.displayName || currentUser.email} • Admin`;
-    pill.className = "pill pill-ok";
+  for (const p of list){
+    html += `<tr>
+      <td>${esc(p.title||"")}</td>
+      <td>${esc(p.board||"")}</td>
+      <td>${esc(p.displayName||"—")}</td>
+      <td>${esc(p.userEmail||"—")}</td>
+      <td>${esc(prettyTime(p.createdAtMs))}</td>
+      <td>${esc((p.replies||[]).length)}</td>
+      <td>
+        <button class="btn mini danger" data-del="${esc(p.id)}">Delete</button>
+        <button class="btn mini" data-ban="${esc(p.uid)}">Ban User</button>
+      </td>
+    </tr>`;
   }
+  html += `</tbody></table>`;
+  $("postsTable").innerHTML = html;
 
-  async function doLogin() {
-    const email = normalizeEmail($("loginEmail").value);
-    const pass = $("loginPass").value || "";
-    if (!email || !pass) { notice("Enter email and password.", "bad"); return; }
-    try {
-      await signInWithEmailAndPassword(auth, email, pass);
-      hide($("authModal"));
-    } catch (e) {
-      notice(e?.message || "Login failed.", "bad");
-    }
-  }
-
-  async function doForgot() {
-    const email = normalizeEmail($("loginEmail").value);
-    if (!email) { notice("Enter your email first.", "bad"); return; }
-    try { await sendPasswordResetEmail(auth, email); notice("Reset email sent.", "ok"); }
-    catch (e) { notice(e?.message || "Reset failed.", "bad"); }
-  }
-
-  function prettyBoard(b) {
-    const map = { free: "Free Items", sell: "Buy / Sell", garage: "Garage Sales", events: "Events", work: "Work News" };
-    return map[b] || "All";
-  }
-
-  function buildQuery() {
-    const board = $("filterBoard").value;
-    const status = $("filterStatus").value;
-
-    const base = collection(db, "posts");
-    const parts = [];
-    if (board !== "all") parts.push(where("board", "==", board));
-    if (status !== "all") parts.push(where("status", "==", status));
-    parts.push(orderBy("createdAt", "desc"));
-    return query(base, ...parts);
-  }
-
-  function listen() {
-    if (unsub) unsub();
-    unsub = onSnapshot(buildQuery(), (snap) => {
-      const rows = [];
-      snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
-      render(rows);
-      $("adminStatus").textContent = `${rows.length} posts`;
-    });
-  }
-
-  function render(posts) {
-    const feed = $("adminFeed");
-    feed.innerHTML = "";
-    if (!posts.length) {
-      const empty = document.createElement("div");
-      empty.className = "muted";
-      empty.textContent = "No posts.";
-      feed.appendChild(empty);
-      return;
-    }
-
-    for (const p of posts) {
-      const card = document.createElement("article");
-      card.className = "card";
-
-      const media = document.createElement("div");
-      media.className = "card-media";
-      if (Array.isArray(p.photoUrls) && p.photoUrls.length) {
-        const img = document.createElement("img");
-        img.src = p.photoUrls[0];
-        media.appendChild(img);
-      } else {
-        media.textContent = "No photo";
-      }
-
-      const body = document.createElement("div");
-      body.className = "card-body";
-
-      const title = document.createElement("div");
-      title.className = "card-title";
-      title.textContent = p.title || "(no title)";
-
-      const sub = document.createElement("div");
-      sub.className = "card-sub";
-      sub.textContent = `${prettyBoard(p.board)} • ${p.authorName || p.authorEmail || ""}`;
-
-      const actions = document.createElement("div");
-      actions.className = "card-actions";
-
-      const del = document.createElement("button");
-      del.className = "btn";
-      del.textContent = "Delete";
-      del.dataset.action = "delete";
-      del.dataset.id = p.id;
-
-      const close = document.createElement("button");
-      close.className = "btn";
-      close.textContent = p.status === "closed" ? "Reopen" : "Close";
-      close.dataset.action = "toggle";
-      close.dataset.id = p.id;
-      close.dataset.status = p.status || "active";
-
-      actions.appendChild(close);
-      actions.appendChild(del);
-
-      body.appendChild(title);
-      body.appendChild(sub);
-      body.appendChild(actions);
-
-      card.appendChild(media);
-      card.appendChild(body);
-      feed.appendChild(card);
-    }
-  }
-
-  $("adminFeed").addEventListener("click", async (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    const id = btn.dataset.id;
-    if (!id) return;
-
-    if (btn.dataset.action === "delete") {
+  $("postsTable").querySelectorAll("[data-del]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const id = btn.getAttribute("data-del");
       if (!confirm("Delete this post?")) return;
-      await deleteDoc(doc(db, "posts", id));
-    }
-
-    if (btn.dataset.action === "toggle") {
-      const cur = btn.dataset.status;
-      const next = cur === "closed" ? "active" : "closed";
-      await updateDoc(doc(db, "posts", id), { status: next });
-    }
+      await deleteDoc(doc(db, "listings", id));
+    });
   });
 
-  $("filterBoard").addEventListener("change", listen);
-  $("filterStatus").addEventListener("change", listen);
-
-  $("authClose").onclick = () => hide($("authModal"));
-  $("btnLogin").onclick = doLogin;
-  $("btnForgot").onclick = doForgot;
-
-  $("authPill").addEventListener("click", async () => {
-    if (!currentUser) {
-      show($("authModal"));
-      return;
-    }
-    if (confirm("Logout?")) await signOut(auth);
-  });
-
-  onAuthStateChanged(auth, async (u) => {
-    currentUser = u;
-    setPill();
-
-    if (!u) {
-      show($("authModal"));
-      notice("Login with an admin account.", "bad");
-      return;
-    }
-
-    if (!isAdmin(u.email)) {
-      alert("Admin access required.");
-      await signOut(auth);
-      return;
-    }
-
-    hide($("authModal"));
-    $("adminStatus").textContent = "Admin signed in.";
-    listen();
+  $("postsTable").querySelectorAll("[data-ban]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const uid = btn.getAttribute("data-ban");
+      if (!confirm("Ban this user?")) return;
+      await updateDoc(doc(db, "profiles", uid), { banned:true, bannedAtMs: Date.now() });
+      alert("User banned.");
+    });
   });
 }
+
+function applyUserFilters(list){
+  const q = ($("uq").value||"").toLowerCase().trim();
+  if (!q) return list;
+  return list.filter(p => (`${p.name||""} ${p.email||""} ${p.uid||""}`.toLowerCase()).includes(q));
+}
+
+function renderUsers(){
+  const list = applyUserFilters(profiles);
+  $("userCount").textContent = `${list.length}`;
+
+  let html = `<table><thead><tr>
+    <th>Name</th><th>Email</th><th>UID</th><th>Last Seen</th><th>Status</th><th></th>
+  </tr></thead><tbody>`;
+  for (const p of list){
+    html += `<tr>
+      <td>${esc(p.name||"—")}</td>
+      <td>${esc(p.email||"—")}</td>
+      <td>${esc(p.uid||"—")}</td>
+      <td>${esc(prettyTime(p.lastSeenAtMs))}</td>
+      <td>${p.banned ? "BANNED" : "ACTIVE"}</td>
+      <td>
+        <button class="btn mini ${p.banned ? "" : "danger"}" data-toggle="${esc(p.uid)}" data-b="${p.banned ? "1":"0"}">
+          ${p.banned ? "Unban" : "Ban"}
+        </button>
+      </td>
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  $("usersTable").innerHTML = html;
+
+  $("usersTable").querySelectorAll("[data-toggle]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const uid = btn.getAttribute("data-toggle");
+      const banned = btn.getAttribute("data-b") === "1";
+      const willBan = !banned;
+      if (!confirm(`${willBan ? "BAN" : "UNBAN"} this user?`)) return;
+      await updateDoc(doc(db, "profiles", uid), { banned: willBan, bannedAtMs: Date.now() });
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", ()=>{
+  ["pq","pboard"].forEach(id => $(id).addEventListener("input", renderPosts));
+  ["uq"].forEach(id => $(id).addEventListener("input", renderUsers));
+  $("btnAdminLogout").addEventListener("click", async ()=>{
+    await signOut(auth);
+  });
+});
+
+onAuthStateChanged(auth, (u)=>{
+  user = u;
+  if (!user){
+    $("adminUserPill").textContent = "Not signed in";
+    $("btnAdminLogout").style.display = "none";
+    alert("Admin login required. Go back to main site and log in.");
+    return;
+  }
+  if (!user.emailVerified){
+    alert("Verify your email first.");
+    signOut(auth);
+    return;
+  }
+  if (!isAdminEmail(user.email)){
+    alert("Access denied.");
+    signOut(auth);
+    return;
+  }
+
+  $("adminUserPill").textContent = `Admin: ${user.email}`;
+  $("btnAdminLogout").style.display = "inline-flex";
+
+  const postQ = query(collection(db, "listings"), orderBy("createdAtMs","desc"));
+  onSnapshot(postQ, (snap)=>{
+    posts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderPosts();
+  });
+
+  const profQ = query(collection(db, "profiles"), orderBy("lastSeenAtMs","desc"));
+  onSnapshot(profQ, (snap)=>{
+    profiles = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderUsers();
+  });
+});

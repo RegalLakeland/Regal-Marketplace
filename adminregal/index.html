@@ -3,82 +3,93 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin Portal • Regal Marketplace</title>
+  <title>Admin — Regal Marketplace</title>
   <link rel="stylesheet" href="../styles.css" />
+  <style>
+    .adminWrap{max-width:1200px;margin:0 auto;padding:18px}
+    .adminTop{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid rgba(255,255,255,.08);padding:10px 6px;text-align:left;font-size:12px}
+    th{color:#9ca3af;font-weight:1000}
+    .gridAdmin{display:grid;grid-template-columns:1fr;gap:16px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:980px){.row2{grid-template-columns:1fr}}
+    .tiny{font-size:12px;color:#9ca3af}
+  </style>
 </head>
 <body>
-  <div id="bg" class="bg" aria-hidden="true"></div>
-
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-badge">RH</div>
-      <div class="brand-text">
-        <div class="brand-title">Admin Portal</div>
-        <div class="brand-sub">Moderation • Requires admin login</div>
-      </div>
-    </div>
-    <div class="topbar-actions">
-      <div id="authPill" class="pill pill-muted">Not signed in</div>
-      <a class="btn" href="../">Back to Marketplace</a>
-    </div>
-  </header>
-
-  <main class="layout" style="grid-template-columns:1fr;">
-    <section class="content">
-      <div class="panel content-panel">
-        <div class="content-head">
-          <div>
-            <div class="panel-title">Moderation</div>
-            <div class="muted" id="adminStatus">Loading…</div>
-          </div>
-          <div class="filters">
-            <select id="filterBoard" class="input">
-              <option value="all">All boards</option>
-              <option value="free">Free Items</option>
-              <option value="sell">Buy / Sell</option>
-              <option value="garage">Garage Sales</option>
-              <option value="events">Events</option>
-              <option value="work">Work News</option>
-            </select>
-            <select id="filterStatus" class="input">
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-        </div>
-        <div id="adminFeed" class="feed"></div>
-      </div>
-
-      <div class="panel" style="margin-top:14px;">
-        <div class="panel-title">Notes</div>
-        <div class="muted small">
-          GitHub Pages cannot reliably capture visitor IP addresses. IP ban requires a backend (Cloud Functions / server).
+  <div class="adminWrap">
+    <header class="topbar" style="margin:10px 0 0 0">
+      <div class="brand">
+        <div class="logo">RH</div>
+        <div class="title">
+          <div class="h1">Admin Portal</div>
+          <div class="sub">Moderation • Users • Posts • Bans</div>
         </div>
       </div>
-    </section>
-  </main>
+      <div class="actions">
+        <span class="pill" id="adminUserPill">Not signed in</span>
+        <a class="btn ghost" href="../">Back</a>
+        <button class="btn danger" id="btnAdminLogout" type="button" style="display:none">Logout</button>
+      </div>
+    </header>
 
-  <!-- Auth modal reused from main page (simpler) -->
-  <div id="authModal" class="modal" aria-hidden="true">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div class="modal-title">Admin Login</div>
-        <button id="authClose" class="icon-btn" type="button" aria-label="Close">✕</button>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-b">
+        <div class="note warn">
+          IP addresses are not available from a static website. This portal moderates by account (email/uid) and content.
+        </div>
       </div>
-      <div id="authNotice" class="notice"></div>
-      <label class="label">Work Email</label>
-      <input id="loginEmail" class="input" placeholder="name@regallakeland.com" autocomplete="username" />
-      <label class="label">Password</label>
-      <input id="loginPass" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
-      <div class="row">
-        <button id="btnLogin" class="btn btn-primary" type="button">Login</button>
-        <button id="btnForgot" class="btn btn-ghost" type="button">Forgot password</button>
-      </div>
+    </div>
+
+    <div class="row2" style="margin-top:16px">
+      <section class="panel">
+        <div class="panel-h">
+          <h2>Posts</h2>
+          <span class="pill" id="postCount">0</span>
+        </div>
+        <div class="panel-b">
+          <div class="filters" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label>Search</label>
+              <input id="pq" placeholder="Search title / user / email…" />
+            </div>
+            <div class="field">
+              <label>Board</label>
+              <select id="pboard">
+                <option value="ALL">All</option>
+                <option value="FREE">Free Items</option>
+                <option value="BUYSELL">Buy / Sell</option>
+                <option value="GARAGE">Garage Sales</option>
+                <option value="EVENTS">Events</option>
+                <option value="WORK">Work News</option>
+                <option value="SERVICES">Local Services</option>
+              </select>
+            </div>
+          </div>
+          <div style="height:12px"></div>
+          <div id="postsTable" style="overflow:auto;max-height:60vh;"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-h">
+          <h2>Users</h2>
+          <span class="pill" id="userCount">0</span>
+        </div>
+        <div class="panel-b">
+          <div class="field">
+            <label>Search users</label>
+            <input id="uq" placeholder="Search name / email / uid…" />
+          </div>
+          <div style="height:12px"></div>
+          <div id="usersTable" style="overflow:auto;max-height:60vh;"></div>
+        </div>
+      </section>
     </div>
   </div>
 
-  <script src="../firebase-config.js"></script>
+  <script type="module" src="../firebase-config.js"></script>
   <script type="module" src="./admin.js"></script>
 </body>
 </html>
