@@ -6,36 +6,57 @@ const admins=[
 "amy.m@regallakeland.com"
 ]
 
-let username=localStorage.getItem("username")
-if(!username){
-username=prompt("Enter your email")
-localStorage.setItem("username",username)
+let posts=JSON.parse(localStorage.getItem("posts")||"[]")
+let currentThread=null
+
+function login(){
+let email=document.getElementById("email").value
+if(!email) return alert("Enter email")
+localStorage.setItem("user",email)
+startApp()
 }
 
-document.getElementById("userDisplay").innerText=username
-if(admins.includes(username)){document.getElementById("adminLink").classList.remove("hidden")}
+function logout(){
+localStorage.removeItem("user")
+location.reload()
+}
 
-let posts=JSON.parse(localStorage.getItem("posts")||"[]")
-const feed=document.getElementById("feed")
+function startApp(){
+let user=localStorage.getItem("user")
+if(!user) return
+
+loginScreen.classList.add("hidden")
+app.classList.remove("hidden")
+
+userDisplay.innerText=user
+
+if(admins.includes(user)){
+adminLink.classList.remove("hidden")
+}
+
+render()
+}
+
+window.onload=startApp
 
 function render(){
 feed.innerHTML=""
 posts.forEach(p=>{
-let card=document.createElement("div")
-card.className="post"
-card.innerHTML=`
+let div=document.createElement("div")
+div.className="post"
+
+div.innerHTML=`
 ${p.image?`<img src="${p.image}">`:""}
 <h3>${p.title}</h3>
 <div>$${p.price||""}</div>
 <p>${p.desc}</p>
 <button onclick="openThread('${p.id}')">Open Thread</button>
 `
-feed.appendChild(card)
+feed.appendChild(div)
 })
 }
-render()
 
-postBtn.onclick=()=>postModal.classList.remove("hidden")
+function openPost(){postModal.classList.remove("hidden")}
 function closePost(){postModal.classList.add("hidden")}
 
 function createPost(){
@@ -44,24 +65,35 @@ if(file){
 let reader=new FileReader()
 reader.onload=function(){savePost(reader.result)}
 reader.readAsDataURL(file)
-}else{savePost(null)}
+}else{
+savePost(null)
+}
 }
 
 function savePost(img){
-let post={id:Date.now().toString(),title:title.value,price:price.value,desc:desc.value,image:img,comments:[]}
+let post={
+id:Date.now().toString(),
+title:title.value,
+price:price.value,
+desc:desc.value,
+image:img,
+comments:[]
+}
+
 posts.push(post)
 localStorage.setItem("posts",JSON.stringify(posts))
 closePost()
 render()
 }
 
-let currentThread=null
 function openThread(id){
 currentThread=id
 let post=posts.find(p=>p.id==id)
 threadTitle.innerText=post.title
 let html=""
-post.comments.forEach(c=>{html+=`<div class="comment"><b>${c.user}</b><div>${c.text}</div></div>`})
+post.comments.forEach(c=>{
+html+=`<div class="comment"><b>${c.user}</b><div>${c.text}</div></div>`
+})
 threadComments.innerHTML=html
 threadModal.classList.remove("hidden")
 }
@@ -70,8 +102,14 @@ function closeThread(){threadModal.classList.add("hidden")}
 
 function sendReply(){
 let txt=replyText.value
+let user=localStorage.getItem("user")
 let post=posts.find(p=>p.id==currentThread)
-post.comments.push({user:username,text:txt})
+
+post.comments.push({
+user:user,
+text:txt
+})
+
 localStorage.setItem("posts",JSON.stringify(posts))
 openThread(currentThread)
 }

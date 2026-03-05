@@ -15,13 +15,25 @@
 <img src="Images/regal3.jpg">
 </div>
 
+<div id="loginScreen" class="login-screen">
+<div class="login-box">
+<h2>Employee Login</h2>
+<input id="email" placeholder="Work Email">
+<input id="password" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+</div>
+
+<div id="app" class="hidden">
+
 <header>
 <div class="logo">RH</div>
 <h1>Regal Employee Marketplace</h1>
 
 <div class="header-right">
 <span id="userDisplay"></span>
-<button id="postBtn">+ Post</button>
+<button onclick="logout()">Logout</button>
+<button onclick="openPost()">+ Post</button>
 <a href="admin.html" id="adminLink" class="hidden">Admin</a>
 </div>
 </header>
@@ -36,10 +48,11 @@
 <button class="board">Garage Sales</button>
 <button class="board">Events</button>
 <button class="board">Work News</button>
-<button class="board">Local Services</button>
 </aside>
 
 <main id="feed"></main>
+
+</div>
 
 </div>
 
@@ -48,14 +61,6 @@
 <h2>Create Post</h2>
 <input id="title" placeholder="Title">
 <input id="price" placeholder="Price">
-<select id="category">
-<option>Free Items</option>
-<option>Buy / Sell</option>
-<option>Garage Sales</option>
-<option>Events</option>
-<option>Work News</option>
-<option>Local Services</option>
-</select>
 <textarea id="desc" placeholder="Description"></textarea>
 <input type="file" id="imageUpload">
 <button onclick="createPost()">Post</button>

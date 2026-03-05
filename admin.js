@@ -1,6 +1,6 @@
 
 let posts=JSON.parse(localStorage.getItem("posts")||"[]")
-const container=document.getElementById("adminPosts")
+let container=document.getElementById("adminPosts")
 
 posts.forEach(p=>{
 let div=document.createElement("div")
