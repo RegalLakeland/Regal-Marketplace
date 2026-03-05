@@ -1,56 +1,78 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Regal Employee Marketplace</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-body{font-family:Arial;margin:0;background:#0f172a;color:white}
-header{background:#020617;padding:15px;border-bottom:1px solid #334155}
-.container{max-width:1000px;margin:auto;padding:20px}
-.card{background:#020617;border:1px solid #334155;border-radius:10px;padding:12px;margin-bottom:10px}
-button{padding:8px 12px;border-radius:6px;border:none;cursor:pointer;font-weight:bold}
-.primary{background:#22c55e;color:black}
-</style>
+<link rel="stylesheet" href="styles.css">
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+<script src="firebase-config.js"></script>
+<script src="app.js" defer></script>
 </head>
+
 <body>
 
 <header>
-<h2>Regal Honda Employee Marketplace</h2>
+<h1>Regal Lakeland Employee Marketplace</h1>
+
+<div class="nav">
+<button onclick="openPost()">+ Post</button>
+<button onclick="logout()">Logout</button>
+</div>
+
 </header>
 
 <div class="container">
 
 <div id="loginBox" class="card">
-<h3>Create Account</h3>
-<input id="first" placeholder="First Name"><br><br>
-<input id="last" placeholder="Last Name"><br><br>
-<input id="email" placeholder="Email"><br><br>
-<input id="pass" type="password" placeholder="Password"><br><br>
-<button class="primary" onclick="signup()">Create Account</button>
 
-<h3>Login</h3>
-<input id="loginEmail" placeholder="Email"><br><br>
-<input id="loginPass" type="password" placeholder="Password"><br><br>
+<h2>Employee Login</h2>
+
+<input id="first" placeholder="First Name">
+<input id="last" placeholder="Last Name">
+<input id="email" placeholder="Work Email">
+<input id="password" type="password" placeholder="Password">
+
+<button onclick="signup()" class="primary">Create Account</button>
+
+<hr>
+
+<input id="loginEmail" placeholder="Email">
+<input id="loginPass" type="password" placeholder="Password">
+
 <button onclick="login()">Login</button>
+
 </div>
 
 <div id="app" style="display:none">
 
-<h3>Create Post</h3>
-<input id="title" placeholder="Title"><br><br>
-<textarea id="desc" placeholder="Description"></textarea><br><br>
-<input type="number" id="price" placeholder="Price"><br><br>
-<button class="primary" onclick="createPost()">Post</button>
+<h2>Marketplace</h2>
 
-<h3>Marketplace</h3>
 <div id="posts"></div>
 
 </div>
 
+<div id="postPanel" class="card" style="display:none">
+
+<h3>Create Listing</h3>
+
+<input id="title" placeholder="Title">
+<textarea id="desc" placeholder="Description"></textarea>
+<input id="price" placeholder="Price">
+<input id="photo" type="file">
+
+<button onclick="createPost()" class="primary">Post Listing</button>
+
 </div>
 
-<script src="firebase-config.js"></script>
-<script src="app.js"></script>
+</div>
+
 </body>
 </html>
