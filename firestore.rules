@@ -1,16 +1,41 @@
 
 rules_version = '2';
 service cloud.firestore {
- match /databases/{database}/documents {
+  match /databases/{database}/documents {
 
-  match /posts/{post} {
-    allow read: if true;
-    allow write: if request.auth != null;
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function emailOk() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@regallakeland\\.com$');
+    }
+
+    // Listings (marketplace posts)
+    match /listings/{id} {
+      allow read: if emailOk();
+
+      // Create: verified employee only; must stamp their own uid/email
+      allow create: if emailOk()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email;
+
+      // Update: owner can edit their post; admins could be added here later via custom claims
+      allow update: if emailOk() && request.resource.data.uid == request.auth.uid;
+
+      // Delete: owner can delete their own post (admin deletion handled in admin UI by signing in as admin; still needs rules)
+      allow delete: if emailOk() && resource.data.uid == request.auth.uid;
+    }
+
+    // Profiles (names, bans, presence)
+    match /profiles/{uid} {
+      allow read: if emailOk();
+      // User can write their own profile (name/lastSeen). Banned flag should be admin-only (requires backend/custom claims)
+      allow create, update: if emailOk() && request.auth.uid == uid;
+      allow delete: if false;
+    }
   }
-
-  match /users/{uid} {
-    allow read,write: if request.auth != null && request.auth.uid == uid;
-  }
-
- }
 }

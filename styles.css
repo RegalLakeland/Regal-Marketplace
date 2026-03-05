@@ -30,18 +30,23 @@ body{
 @keyframes fade{
   0%{opacity:0; transform:scale(1.06)}
   8%{opacity:1}
+  33%{opacity:1; transform:scale(1.01)}
+  41%{opacity:0}
+  100%{opacity:0}
+}
+  8%{opacity:1}
   33%{opacity:1; transform:scale(1.02)}
   41%{opacity:0}
   100%{opacity:0}
 }
-.bg-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(11,15,25,.78), rgba(11,15,25,.88)); backdrop-filter: blur(2px);}
+.bg-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(11,15,25,.28), rgba(11,15,25,.55));}
 
 .topbar{
   position:sticky; top:0; z-index:10;
   display:flex; align-items:center; justify-content:space-between;
   padding:14px 16px; gap:12px;
   border-bottom:1px solid var(--border);
-  background:rgba(17,24,39,.78);
+  background:rgba(17,24,39,.68);
   backdrop-filter: blur(8px);
 }
 
@@ -91,7 +96,7 @@ body{
 
 .panel{
   border:1px solid var(--border);
-  background:rgba(17,24,39,.78);
+  background:rgba(17,24,39,.68);
   border-radius:var(--r);
   box-shadow:var(--shadow);
   overflow:hidden;
@@ -242,3 +247,21 @@ textarea{min-height:92px; resize:vertical;}
 .replyUser{font-weight:950; font-size:12px;}
 .replyTime{font-size:12px; color:var(--muted);}
 .replyText{margin-top:6px; font-size:13px; line-height:1.35;}
+
+/* Auth tabs */
+.authTabs{display:flex;gap:8px;margin-bottom:12px;}
+.tabBtn{
+  flex:1;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(15,23,42,.55);
+  color:var(--text);
+  padding:10px 12px;
+  border-radius:14px;
+  font-weight:950;
+  cursor:pointer;
+}
+.tabBtn.active{
+  border-color:rgba(34,197,94,.45);
+  background:rgba(34,197,94,.14);
+}
+.rowBtns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;}

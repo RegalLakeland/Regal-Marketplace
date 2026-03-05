@@ -17,7 +17,7 @@
     <div class="bg-overlay"></div>
   </div>
 
-  <!-- LOGIN -->
+  <!-- LOGIN / SIGNUP -->
   <div class="overlay" id="loginOverlay">
     <div class="modal">
       <div class="modal-h">
@@ -28,6 +28,63 @@
             <div class="brand-sub">Private • Work friends only</div>
           </div>
         </div>
+      </div>
+
+      <div class="modal-b">
+        <div class="authTabs">
+          <button class="tabBtn active" id="tabLogin" type="button">Login</button>
+          <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
+        </div>
+
+        <div id="loginPane">
+          <div class="field">
+            <label>Email</label>
+            <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+          </div>
+          <div class="note" id="verifyNote" style="display:none">
+            Your email is not verified yet. Check your inbox and click the verification link, then come back and log in.
+          </div>
+          <div class="rowBtns">
+            <button class="btn primary" id="btnLogin">Login</button>
+            <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Resend Verification Email</button>
+          </div>
+        </div>
+
+        <div id="signupPane" style="display:none">
+          <div class="note">
+            Create an account using your work email. You must verify your email before you can post or view listings.
+          </div>
+          <div style="height:10px"></div>
+          <div class="field">
+            <label>Work Email</label>
+            <input id="signupEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input id="signupPassword" type="password" placeholder="Create a password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label>Confirm Password</label>
+            <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
+          </div>
+          <div class="note" id="signupMsg" style="display:none"></div>
+          <div class="modal-actions" style="padding:0; border:0; justify-content:flex-start">
+            <button class="btn primary" id="btnSignup" type="button">Create Account</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <div class="note" style="margin:0">
+          Allowed domain: <b>@regallakeland.com</b>
+        </div>
+      </div>
+    </div>
+  </div>
       </div>
       <div class="modal-b">
         <div class="field">
@@ -44,6 +101,26 @@
       </div>
       <div class="modal-actions">
         <button class="btn primary" id="btnLogin">Login</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- NAME SETUP (first login) -->
+  <div class="overlay" id="nameOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Set Your Display Name</strong>
+      </div>
+      <div class="modal-b">
+        <div class="field">
+          <label>First & Last Name</label>
+          <input id="displayNameInput" placeholder="e.g. Michael Hall" autocomplete="name" />
+        </div>
+        <div class="note">This name will show on posts and replies instead of your email.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnSaveName">Save</button>
       </div>
     </div>
   </div>

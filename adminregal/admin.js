@@ -12,6 +12,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  updateDoc,
   onSnapshot,
   query,
   orderBy
@@ -44,6 +45,7 @@ const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;"
 
 let user = null;
 let posts = [];
+let profiles = [];
 
 $("btnLogin").addEventListener("click", async ()=>{
   const email = $("loginEmail").value.trim();
@@ -112,6 +114,50 @@ function render(){
 }
 
 ["q","board"].forEach(id => $(id).addEventListener("input", render));
+["uq"].forEach(id => $(id).addEventListener("input", renderUsers));
+
+function renderUsers(){
+  const qText = ($("uq").value || "").toLowerCase().trim();
+  let list = profiles.slice();
+  if (qText){
+    list = list.filter(p => (`${p.name||""} ${p.email||""} ${p.uid||""}`.toLowerCase()).includes(qText));
+  }
+  $("userCountLine").textContent = `${list.length} users`;
+  let html = `<table style="width:100%;border-collapse:collapse"><thead><tr>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Name</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Email</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">UID</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Last Seen</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Status</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)"></th>
+  </tr></thead><tbody>`;
+
+  for (const p of list){
+    const last = p.lastSeenAtMs ? new Date(p.lastSeenAtMs).toLocaleString() : "—";
+    html += `<tr>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.name || "—")}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.email || "—")}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.uid || "—")}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(last)}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${p.banned ? "BANNED" : "ACTIVE"}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">
+        <button class="btn ${p.banned ? "" : "danger"}" data-ban="${esc(p.uid)}" data-state="${p.banned ? "unban" : "ban"}">${p.banned ? "Unban" : "Ban"}</button>
+      </td>
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  $("usersWrap").innerHTML = html;
+  $("usersWrap").querySelectorAll("[data-ban]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const uid = btn.getAttribute("data-ban");
+      const state = btn.getAttribute("data-state");
+      const willBan = state === "ban";
+      if (!confirm(`${willBan ? "BAN" : "UNBAN"} this user?`)) return;
+      await updateDoc(doc(db, "profiles", uid), { banned: willBan, bannedAtMs: Date.now() });
+    });
+  });
+}
+
 
 onAuthStateChanged(auth, (u)=>{
   user = u;
@@ -133,5 +179,11 @@ onAuthStateChanged(auth, (u)=>{
   onSnapshot(qy, (snap)=>{
     posts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     render();
+  });
+
+  const pq = query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc"));
+  onSnapshot(pq, (snap)=>{
+    profiles = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderUsers();
   });
 });

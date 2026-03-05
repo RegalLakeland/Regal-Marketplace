@@ -66,6 +66,24 @@
       </div>
     </section>
   </main>
+  <main class="layout" style="grid-template-columns:1fr; gap:16px;">
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-title">Users</div>
+        <div class="meta" id="userCountLine">0</div>
+      </div>
+      <div class="panel-b">
+        <div class="field">
+          <label>Search users</label>
+          <input id="uq" placeholder="Search name / email…" />
+        </div>
+        <div style="height:12px"></div>
+        <div id="usersWrap" style="overflow:auto;max-height:52vh;"></div>
+        <div class="note" style="margin-top:10px;">IP address cannot be reliably collected by a static website. Use ban by account (email/uid).</div>
+      </div>
+    </section>
+  </main>
+
 
   <div class="overlay" id="loginOverlay">
     <div class="modal">

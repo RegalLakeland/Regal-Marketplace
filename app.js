@@ -3,6 +3,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/fireba
 import {
   getAuth,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
@@ -20,7 +22,8 @@ import {
   orderBy,
   serverTimestamp,
   where,
-  getDocs
+  getDocs,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
 import {
@@ -61,8 +64,36 @@ const show = (id) => { $(id).style.display = "flex"; };
 const hide = (id) => { $(id).style.display = "none"; };
 const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
+// Auth tabs UI
+function showPane(which){
+  const loginPane = document.getElementById("loginPane");
+  const signupPane = document.getElementById("signupPane");
+  const tabLogin = document.getElementById("tabLogin");
+  const tabSignup = document.getElementById("tabSignup");
+  if (which === "login"){
+    loginPane.style.display = "block";
+    signupPane.style.display = "none";
+    tabLogin.classList.add("active");
+    tabSignup.classList.remove("active");
+  } else {
+    loginPane.style.display = "none";
+    signupPane.style.display = "block";
+    tabSignup.classList.add("active");
+    tabLogin.classList.remove("active");
+  }
+}
+document.getElementById("tabLogin")?.addEventListener("click", ()=>showPane("login"));
+document.getElementById("tabSignup")?.addEventListener("click", ()=>showPane("signup"));
+
+function isAllowedEmail(email){
+  const e = String(email||"").trim().toLowerCase();
+  return e.endsWith("@regallakeland.com");
+}
+
+
 let user = null;
 let isAdmin = false;
+let profile = null;
 let listings = [];
 let activeBoard = "ALL";
 let openThreadId = null;
@@ -98,6 +129,29 @@ function prettyTime(ts){
     return d.toLocaleString();
   }catch{ return "—";}
 }
+
+
+async function loadProfile(){
+  const refDoc = doc(db, "profiles", user.uid);
+  const snap = await getDoc(refDoc);
+  profile = snap.exists() ? snap.data() : null;
+  return profile;
+}
+
+async function upsertPresence(extra = {}){
+  const refDoc = doc(db, "profiles", user.uid);
+  const payload = { uid:user.uid, email:user.email, lastSeenAtMs: Date.now(), ...extra };
+  await setDoc(refDoc, payload, { merge:true });
+}
+
+function displayName(){
+  const n = (profile?.name || "").trim();
+  if (n) return n;
+  return (user?.email || "").split("@")[0] || "Employee";
+}
+
+function isBanned(){ return !!profile?.banned; }
+
 
 function countByBoard(list){
   const map = { ALL: list.length };
@@ -255,7 +309,7 @@ function renderReplies(replies){
     div.innerHTML = `
       <div class="replyTop">
         <div class="replyUser">${esc(r.displayName || r.userEmail || "—")}</div>
-        <div class="replyTime">${esc(prettyTime(r.createdAt))}</div>
+        <div class="replyTime">${esc(prettyTime(r.createdAt ?? r.createdAtMs))}</div>
       </div>
       <div class="replyText">${esc(r.text || "")}</div>
     `;
@@ -293,7 +347,7 @@ async function createPost(){
   await addDoc(collection(db, "listings"), {
     uid: user.uid,
     userEmail: user.email,
-    displayName: user.email.split("@")[0],
+    displayName: displayName(),
     category: $("fBoard").value,
     status: $("fStatus").value,
     title,
@@ -303,7 +357,7 @@ async function createPost(){
     contact: $("fContact").value.trim(),
     photo: photoUrl,
     replies: [],
-    createdAt: serverTimestamp(),
+    createdAtMs: Date.now(),
     createdAtMs: Date.now()
   });
 
@@ -333,13 +387,18 @@ async function sendReply(){
   const replies = Array.isArray(data.replies) ? data.replies.slice() : [];
   replies.push({
     userEmail: user.email,
-    displayName: user.email.split("@")[0],
+    displayName: displayName(),
     text: txt,
-    createdAt: serverTimestamp()
+    createdAtMs: Date.now()
   });
 
-  await updateDoc(refDoc, { replies });
-  $("replyText").value = "";
+  try{
+    await updateDoc(refDoc, { replies });
+    $("replyText").value = "";
+  }catch(e){
+    console.error(e);
+    alert("Reply failed to post. Ask Michael to check Firestore rules or internet.");
+  }
 }
 
 async function adminDelete(id){
@@ -358,14 +417,51 @@ $("btnLogin").addEventListener("click", async ()=>{
   const email = $("loginEmail").value.trim();
   const pass = $("loginPassword").value.trim();
   if (!email || !pass) return alert("Enter email and password.");
+  if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
   try{
-    await signInWithEmailAndPassword(auth, email, pass);
+    const cred = await signInWithEmailAndPassword(auth, email, pass);
+    // If not verified, block access until verified
+    if (!cred.user.emailVerified){
+      $("verifyNote").style.display = "block";
+      $("btnResendVerify").style.display = "inline-flex";
+      alert("Please verify your email before using the marketplace. Check your inbox.");
+      await signOut(auth);
+      return;
+    }
   }catch(e){
+    console.error(e);
     alert("Login failed. Check email/password.");
   }
 });
 
-$("btnLogout").addEventListener("click", async ()=>{
+$("btnSignup")?.addEventListener("click", async ()=>{
+  const email = $("signupEmail").value.trim();
+  const p1 = $("signupPassword").value.trim();
+  const p2 = $("signupPassword2").value.trim();
+  const msg = $("signupMsg");
+  msg.style.display = "none";
+  msg.textContent = "";
+  if (!email || !p1 || !p2) return alert("Fill out email and both password boxes.");
+  if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
+  if (p1.length < 8) return alert("Password must be at least 8 characters.");
+  if (p1 !== p2) return alert("Passwords do not match.");
+  try{
+    const cred = await createUserWithEmailAndPassword(auth, email, p1);
+    await sendEmailVerification(cred.user);
+    msg.style.display = "block";
+    msg.textContent = "Account created! Verification email sent. Verify your email, then return to Login.";
+    alert("Account created. Check your email to verify before logging in.");
+    await signOut(auth);
+    showPane("login");
+    $("loginEmail").value = email;
+    $("loginPassword").value = "";
+    $("verifyNote").style.display = "block";
+    $("btnResendVerify").style.display = "inline-flex";
+  }catch(e){
+    console.error(e);
+    alert(e?.message || "Signup failed.");
+  }
+});\n\n$("btnLogout").addEventListener("click", async ()=>{
   await signOut(auth);
   location.reload();
 });
@@ -373,6 +469,24 @@ $("btnLogout").addEventListener("click", async ()=>{
 $("btnNew").addEventListener("click", ()=> show("postOverlay"));
 $("btnSavePost").addEventListener("click", ()=> createPost());
 $("btnSendReply").addEventListener("click", ()=> sendReply());
+        
+function showNameOverlay(){
+  $("displayNameInput").value = profile?.name || "";
+  $("nameOverlay").style.display = "flex";
+  $("displayNameInput").focus();
+}
+function hideNameOverlay(){ $("nameOverlay").style.display = "none"; }
+
+$("btnSaveName").addEventListener("click", async ()=>{
+  const name = ($("displayNameInput").value || "").trim();
+  if (!name) return alert("Please enter your first and last name.");
+  await upsertPresence({ name });
+  await loadProfile();
+  hideNameOverlay();
+  $("pillUser").textContent = `Signed in: ${displayName()}`;
+  render();
+});
+
 
 document.body.addEventListener("click", (e)=>{
   const btn = e.target.closest("[data-close]");
@@ -396,8 +510,14 @@ document.body.addEventListener("click", (e)=>{
 ["q","st","sort"].forEach(id => $(id).addEventListener("input", render));
 
 // Auth + realtime listener
-onAuthStateChanged(auth, (u)=>{
+onAuthStateChanged(auth, async (u)=>{
   user = u;
+  if (user && !user.emailVerified){
+    alert("Please verify your email before using the marketplace.");
+    await signOut(auth);
+    show("loginOverlay");
+    return;
+  }
   if (!user){
     $("pillUser").textContent = "Not signed in";
     show("loginOverlay");
@@ -405,9 +525,32 @@ onAuthStateChanged(auth, (u)=>{
   }
 
   hide("loginOverlay");
-  $("pillUser").textContent = `Signed in: ${user.email}`;
+  $("pillUser").textContent = `Signed in: ${displayName()}`;
   isAdmin = ADMINS.has(user.email.toLowerCase());
   $("adminLink").style.display = isAdmin ? "inline-flex" : "none";
+  
+  (async ()=>{
+    try{
+      await loadProfile();
+      await upsertPresence({});
+      if (isBanned()){
+        alert("Access removed by admin.");
+        await signOut(auth);
+        return;
+      }
+      if (!profile?.name || !String(profile.name).trim()){
+        showNameOverlay();
+      } else {
+        $("pillUser").textContent = `Signed in: ${displayName()}`;
+      }
+    }catch(e){
+      console.error(e);
+    }
+  })();
+
+
+  // presence heartbeat
+  setInterval(async ()=>{ try{ await upsertPresence({}); }catch{} }, 60_000);
 
   // realtime listings
   const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
