@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Regal Lakeland Employee Marketplace</title>
+<title>Regal Employee Marketplace</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -20,8 +20,9 @@
 <h1>Regal Employee Marketplace</h1>
 
 <div class="header-right">
-<span id="username"></span>
+<span id="userDisplay"></span>
 <button id="postBtn">+ Post</button>
+<a href="admin.html" id="adminLink" class="hidden">Admin</a>
 </div>
 </header>
 
@@ -35,6 +36,7 @@
 <button class="board">Garage Sales</button>
 <button class="board">Events</button>
 <button class="board">Work News</button>
+<button class="board">Local Services</button>
 </aside>
 
 <main id="feed"></main>
@@ -46,7 +48,16 @@
 <h2>Create Post</h2>
 <input id="title" placeholder="Title">
 <input id="price" placeholder="Price">
+<select id="category">
+<option>Free Items</option>
+<option>Buy / Sell</option>
+<option>Garage Sales</option>
+<option>Events</option>
+<option>Work News</option>
+<option>Local Services</option>
+</select>
 <textarea id="desc" placeholder="Description"></textarea>
+<input type="file" id="imageUpload">
 <button onclick="createPost()">Post</button>
 <button onclick="closePost()">Cancel</button>
 </div>
@@ -56,12 +67,13 @@
 <div class="modal-box">
 <h2 id="threadTitle"></h2>
 <div id="threadComments"></div>
-<textarea id="replyText" placeholder="Write a reply"></textarea>
+<textarea id="replyText" placeholder="Write reply"></textarea>
 <button onclick="sendReply()">Reply</button>
 <button onclick="closeThread()">Close</button>
 </div>
 </div>
 
 <script src="app.js"></script>
+
 </body>
 </html>
