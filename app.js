@@ -1,695 +1,644 @@
-import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
-  getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, where, getDocs
-} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  signOut,
+  updateProfile,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendEmailVerification, sendPasswordResetEmail, signOut
-} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+  getFirestore,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import {
-  getStorage, ref as sRef, uploadBytes, getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-// --- HARD STOP if Firebase config hasn't been filled in ---
-const isPlaceholderConfig = (cfg) => {
-  if (!cfg) return true;
-  const vals = [cfg.apiKey, cfg.authDomain, cfg.projectId, cfg.appId];
-  return vals.some(v => !v || String(v).includes("PASTE_"));
-};
+// -------------------------
+// Helpers
+// -------------------------
+const $ = (id) => document.getElementById(id);
+const qs = (sel, root = document) => root.querySelector(sel);
+const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-if (isPlaceholderConfig(firebaseConfig)) {
-  document.documentElement.style.background = "#0b1220";
-  document.body.innerHTML = `
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial">
-      <div style="max-width:820px;width:100%;background:rgba(20,30,50,.75);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:22px;color:#eaf2ff;box-shadow:0 25px 60px rgba(0,0,0,.45)">
-        <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">
-          <div style="width:42px;height:42px;border-radius:12px;background:#1ee16b;color:#04210f;display:flex;align-items:center;justify-content:center;font-weight:900">RH</div>
-          <div>
-            <div style="font-size:20px;font-weight:800;letter-spacing:.2px">Setup required</div>
-            <div style="opacity:.8">Your Firebase keys are not filled in yet — login and posts can't work until you add them.</div>
-          </div>
-        </div>
-        <ol style="line-height:1.5;opacity:.95">
-          <li>Open <b>Firebase Console</b> > your project > <b>Project settings</b> (gear).</li>
-          <li>Scroll to <b>Your apps</b> > select your <b>Web app</b> > copy the <b>firebaseConfig</b> values.</li>
-          <li>In GitHub repo > open <b>firebase-config.js</b> > click the pencil <b>Edit</b>.</li>
-          <li>Replace the placeholders (PASTE_...) with your real values > <b>Commit changes</b>.</li>
-          <li>In Firebase Console > <b>Authentication</b> > <b>Settings</b> > <b>Authorized domains</b> > add: <code style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:6px">regallakeland.github.io</code></li>
-        </ol>
-        <div style="margin-top:14px;font-size:12px;opacity:.75">Once those are saved, refresh this page.</div>
-      </div>
-    </div>`;
-  throw new Error("Firebase config placeholders not replaced.");
+function show(el) { el.classList.add("show"); el.setAttribute("aria-hidden", "false"); }
+function hide(el) { el.classList.remove("show"); el.setAttribute("aria-hidden", "true"); }
+
+function notice(msg, type = "") {
+  const box = $("authNotice");
+  box.textContent = msg || "";
+  box.className = "notice" + (type ? ` ${type}` : "");
+  if (!msg) box.className = "notice";
 }
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-let storage = null;
-try { storage = getStorage(app); } catch { storage = null; }
+function normalizeEmail(e) { return (e || "").trim().toLowerCase(); }
 
-const $ = (id)=>document.getElementById(id);
-const esc = (s)=>String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
-
-const DOMAIN = "@regallakeland.com";
-
-const BOARD_DEFS = [
-  { key: "ALL", name:"All", desc:"Everything in one place" },
-  { key: "FREE", name:"Free Items", desc:"Giveaways • curb alerts" },
-  { key: "BUYSELL", name:"Buy / Sell", desc:"Items for sale" },
-  { key: "GARAGE", name:"Garage Sales", desc:"Yard sales • moving sales" },
-  { key: "EVENTS", name:"Events", desc:"BBQ • meetups • birthdays" },
-  { key: "WORK", name:"Work News", desc:"Updates • announcements" },
-  { key: "SERVICES", name:"Local Services", desc:"Side work • help needed" },
-];
-
-let user = null;
-let profile = null;
-let isAdmin = false;
-
-let listings = [];
-let activeBoard = "ALL";
-let openThreadId = null;
-let openThreadUnsub = null;
-let notifs = [];
-
-function show(id){ $(id).style.display = "flex"; }
-function hide(id){ $(id).style.display = "none"; }
-
-function isAllowedEmail(email){
-  const e = String(email||"").trim().toLowerCase();
-  return e.endsWith(DOMAIN);
+function allowedEmail(email) {
+  const dom = normalizeEmail(email).split("@")[1] || "";
+  return (window.ALLOWED_EMAIL_DOMAINS || []).some((d) => d.toLowerCase() === dom);
 }
 
-function prettyTime(ms){
-  if (!ms) return "—";
-  const d = new Date(ms);
-  return d.toLocaleString();
+function isAdmin(email) {
+  const e = normalizeEmail(email);
+  return (window.ADMIN_EMAILS || []).map((x) => x.toLowerCase()).includes(e);
 }
 
-async function loadProfile(){
-  const refDoc = doc(db, "profiles", user.uid);
-  const snap = await getDoc(refDoc);
-  profile = snap.exists() ? snap.data() : null;
-  return profile;
-}
+// -------------------------
+// Background slideshow
+// -------------------------
+const bgRoot = $("bg");
+const bgLayerA = document.createElement("div");
+const bgLayerB = document.createElement("div");
+bgLayerA.className = "bg-layer";
+bgLayerB.className = "bg-layer";
+const dim = document.createElement("div");
+// dim class is applied via ::before gradient; keep as safety overlay
+bgRoot.appendChild(bgLayerA);
+bgRoot.appendChild(bgLayerB);
 
-async function upsertProfile(extra={}){
-  const refDoc = doc(db, "profiles", user.uid);
-  const payload = {
-    uid: user.uid,
-    email: user.email,
-    lastSeenAtMs: Date.now(),
-    ...extra
-  };
-  await setDoc(refDoc, payload, { merge:true });
-}
-
-function displayName(){
-  const n = (profile?.name || "").trim();
-  if (n) return n;
-  return (user?.email || "").split("@")[0] || "Employee";
-}
-
-function fmtPrice(v){
-  if (v === null || v === undefined || v === "") return "";
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "";
-  if (n <= 0) return "FREE";
-  return "$" + n.toFixed(n % 1 === 0 ? 0 : 2);
-}
-function catLabel(c){
-  return ({
-    FREE:"Free Items", BUYSELL:"Buy / Sell", GARAGE:"Garage Sales",
-    EVENTS:"Events", WORK:"Work News", SERVICES:"Local Services"
-  })[c] || c;
-}
-
-function countByBoard(list){
-  const map = { ALL: list.length };
-  for (const b of BOARD_DEFS) map[b.key] = (b.key==="ALL")?list.length:0;
-  for (const x of list){
-    if (x.board && map[x.board] !== undefined) map[x.board]++;
-  }
-  return map;
-}
-
-function setActiveBoard(key){
-  activeBoard = key;
-  const def = BOARD_DEFS.find(b=>b.key===key) || BOARD_DEFS[0];
-  $("boardPill").textContent = def.name;
-  $("marketTitle").textContent = def.key==="ALL" ? "Marketplace" : def.name;
-  [...$("boards").querySelectorAll(".boardBtn")].forEach(btn=>{
-    btn.classList.toggle("active", btn.dataset.key === key);
+async function imageExists(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
   });
-  render();
 }
 
-function renderBoards(){
-  const wrap = $("boards");
-  const counts = countByBoard(listings);
-  wrap.innerHTML = "";
-  for (const b of BOARD_DEFS){
-    const btn = document.createElement("button");
-    btn.className = "boardBtn";
-    btn.type = "button";
-    btn.dataset.key = b.key;
-    btn.innerHTML = `
-      <div class="boardLeft">
-        <div class="boardName">${esc(b.name)}</div>
-        <div class="boardDesc">${esc(b.desc)}</div>
-      </div>
-      <div class="boardCount">${counts[b.key] ?? 0}</div>
-    `;
-    btn.addEventListener("click", ()=>setActiveBoard(b.key));
-    wrap.appendChild(btn);
+async function initBackground() {
+  // Try both folder cases (Images vs images)
+  const sets = [
+    ["Images/regal1.jpg", "Images/regal2.jpg", "Images/regal3.jpg"],
+    ["images/regal1.jpg", "images/regal2.jpg", "images/regal3.jpg"],
+  ];
+
+  let imgs = null;
+  for (const set of sets) {
+    if (await imageExists(set[0])) { imgs = set; break; }
   }
-  setActiveBoard(activeBoard);
-}
-
-function applyFilters(list){
-  const q = $("q").value.trim().toLowerCase();
-  const st = $("st").value;
-  const sort = $("sort").value;
-
-  let out = list.slice();
-  if (activeBoard !== "ALL") out = out.filter(x=> x.board === activeBoard);
-
-  if (q){
-    out = out.filter(x => (`${x.title} ${x.desc} ${x.location} ${x.contact} ${x.displayName}`.toLowerCase()).includes(q));
-  }
-  if (st === "ACTIVE") out = out.filter(x => x.status !== "SOLD");
-  if (st === "SOLD") out = out.filter(x => x.status === "SOLD");
-
-  if (sort === "NEW") out.sort((a,b)=> (b.createdAtMs||0) - (a.createdAtMs||0));
-  if (sort === "OLD") out.sort((a,b)=> (a.createdAtMs||0) - (b.createdAtMs||0));
-  if (sort === "PRICE_ASC") out.sort((a,b)=> (Number(a.price)||0) - (Number(b.price)||0));
-  if (sort === "PRICE_DESC") out.sort((a,b)=> (Number(b.price)||0) - (Number(a.price)||0));
-  return out;
-}
-
-function render(){
-  const cards = $("cards");
-  const empty = $("empty");
-  const filtered = applyFilters(listings);
-
-  $("countLine").textContent = `${filtered.length} shown • ${listings.length} total`;
-  cards.innerHTML = "";
-  if (filtered.length === 0){
-    empty.style.display = "block";
+  if (!imgs) {
+    // no images in repo; keep gradient background
     return;
   }
-  empty.style.display = "none";
 
-  for (const x of filtered){
-    const priceText = fmtPrice(x.price);
-    const isFree = priceText === "FREE" || x.board === "FREE" || Number(x.price) === 0;
-    const badgeClass = x.status === "SOLD" ? "sold" : (isFree ? "free" : "");
+  let idx = 0;
+  let showingA = true;
 
-    const el = document.createElement("div");
-    el.className = "card";
-    el.innerHTML = `
-      <div class="thumb">
-        ${x.photoURL ? `<img src="${x.photoURL}" alt="">` : `<div style="color:rgba(156,163,175,.85);font-weight:1000;font-size:12px">No photo</div>`}
-        <div class="badge ${badgeClass} ${x.status==="SOLD" ? "sold" : (isFree ? "free" : "")}">${x.status==="SOLD" ? "SOLD" : (isFree ? "FREE" : "AVAILABLE")}</div>
-      </div>
-      <div class="card-b">
-        <div class="row">
-          <div class="name">${esc(x.title)}</div>
-          <div class="price">${esc(priceText || "—")}</div>
-        </div>
-        <div class="meta">${esc(catLabel(x.board))}${x.location ? ` • ${esc(x.location)}` : ""}</div>
-        <div class="desc">${esc(x.desc||"").slice(0, 220)}${(x.desc||"").length>220 ? "…" : ""}</div>
-      </div>
-      <div class="card-f">
-        <span class="tag">By: ${esc(x.displayName || x.userEmail || "—")}</span>
-        <span class="tag">${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
-        <button class="btn mini" data-act="thread" data-id="${esc(x.id)}" type="button">Open Thread</button>
-      </div>
-    `;
-    cards.appendChild(el);
+  function paint(url) {
+    const showLayer = showingA ? bgLayerA : bgLayerB;
+    const hideLayer = showingA ? bgLayerB : bgLayerA;
+
+    showLayer.style.backgroundImage = `url('${url}')`;
+    showLayer.classList.add("show");
+    hideLayer.classList.remove("show");
+    showingA = !showingA;
   }
+
+  paint(imgs[idx]);
+  setInterval(() => {
+    idx = (idx + 1) % imgs.length;
+    paint(imgs[idx]);
+  }, 6000);
 }
 
-function showPane(which){
-  if (which === "login"){
-    $("loginPane").style.display = "block";
-    $("signupPane").style.display = "none";
-    $("tabLogin").classList.add("active");
-    $("tabSignup").classList.remove("active");
-  } else {
-    $("loginPane").style.display = "none";
-    $("signupPane").style.display = "block";
-    $("tabSignup").classList.add("active");
-    $("tabLogin").classList.remove("active");
-  }
+// -------------------------
+// Firebase init (config safety)
+// -------------------------
+const cfg = window.FIREBASE_CONFIG;
+
+function configLooksValid(c) {
+  if (!c) return false;
+  const required = ["apiKey", "authDomain", "projectId", "storageBucket", "appId"];
+  return required.every((k) => typeof c[k] === "string" && c[k] && !c[k].includes("PASTE_"));
 }
 
-async function requireProfileSetup(){
-  await loadProfile();
-  // If banned, kick
-  if (profile?.banned){
-    alert("Access removed by admin.");
-    await signOut(auth);
-    show("authOverlay");
+let app, auth, db, storage;
+
+function openAuthModal(defaultTab = "login") {
+  show($("authModal"));
+  setAuthTab(defaultTab);
+}
+
+function setAuthTab(tab) {
+  qsa(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+  $("tab-login").classList.toggle("hidden", tab !== "login");
+  $("tab-signup").classList.toggle("hidden", tab !== "signup");
+  notice("");
+}
+
+function hardStopConfig() {
+  // Make it obvious why login does nothing
+  openAuthModal("login");
+  notice(
+    "Firebase is not configured (apiKey not valid). Open firebase-config.js in GitHub and paste your Firebase Web App config values.",
+    "bad"
+  );
+  // disable buttons to prevent confusion
+  $("btnLogin").disabled = true;
+  $("btnSignup").disabled = true;
+  $("btnForgot").disabled = true;
+}
+
+function initFirebase() {
+  if (!configLooksValid(cfg)) {
+    hardStopConfig();
     return false;
   }
-  // Force name + rules agreement once
-  const hasName = !!String(profile?.name||"").trim();
-  const agreed = !!profile?.agreedRules;
-  if (!hasName || !agreed){
-    $("displayNameInput").value = profile?.name || "";
-    $("agreeRules").checked = !!profile?.agreedRules;
-    $("profileWarn").style.display = "none";
-    show("profileOverlay");
+  app = initializeApp(cfg);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+  return true;
+}
+
+// -------------------------
+// UI state
+// -------------------------
+let currentUser = null;
+let currentBoard = "all";
+let currentStatus = "active";
+let currentSort = "newest";
+let unsubscribePosts = null;
+
+function setAuthPill() {
+  const pill = $("authPill");
+  if (!currentUser) {
+    pill.textContent = "Not signed in";
+    pill.className = "pill pill-muted";
+    return;
+  }
+  const name = currentUser.displayName || currentUser.email;
+  pill.textContent = `${name}` + (isAdmin(currentUser.email) ? " • Admin" : "");
+  pill.className = "pill pill-ok";
+}
+
+function requireLogin(actionName = "do that") {
+  if (!currentUser) {
+    openAuthModal("login");
+    notice(`Please login to ${actionName}.`, "bad");
+    return false;
+  }
+  if (!currentUser.emailVerified) {
+    openAuthModal("login");
+    notice("Please verify your email before using the marketplace. Check your inbox.", "bad");
     return false;
   }
   return true;
 }
 
-async function saveProfileSetup(){
-  const name = ($("displayNameInput").value||"").trim();
-  const agreed = $("agreeRules").checked;
-  if (!name){
-    $("profileWarn").style.display = "block";
-    $("profileWarn").textContent = "Please enter your first and last name.";
-    return;
-  }
-  if (!agreed){
-    $("profileWarn").style.display = "block";
-    $("profileWarn").textContent = "You must agree to the rules to continue.";
-    return;
-  }
-  await upsertProfile({ name, agreedRules:true, agreedAtMs: Date.now() });
-  await loadProfile();
-  hide("profileOverlay");
-  $("pillUser").textContent = `Signed in: ${displayName()}`;
+// -------------------------
+// Posts + Threads
+// -------------------------
+function postsQuery() {
+  const postsCol = collection(db, "posts");
+
+  const filters = [];
+  if (currentBoard !== "all") filters.push(where("board", "==", currentBoard));
+
+  if (currentStatus !== "all") filters.push(where("status", "==", currentStatus));
+
+  const sort = currentSort === "oldest" ? orderBy("createdAt", "asc") : orderBy("createdAt", "desc");
+
+  return query(postsCol, ...filters, sort);
 }
 
-async function uploadPhotoIfAny(file, postId){
-  if (!file) return "";
-  if (!storage) return "";
-  if (!file.type.startsWith("image/")) return "";
-  const maxBytes = 2.5 * 1024 * 1024;
-  if (file.size > maxBytes) throw new Error("Image too large. Keep it under 2.5 MB.");
-  const path = `postPhotos/${postId}/${Date.now()}_${file.name}`.replaceAll(" ", "_");
-  const r = sRef(storage, path);
-  await uploadBytes(r, file);
-  return await getDownloadURL(r);
-}
+function renderFeed(posts) {
+  const feed = $("feed");
+  feed.innerHTML = "";
 
-function clearPostForm(){
-  $("fBoard").value = "FREE";
-  $("fStatus").value = "ACTIVE";
-  $("fTitle").value = "";
-  $("fPrice").value = "";
-  $("fLocation").value = "";
-  $("fDesc").value = "";
-  $("fContact").value = "";
-  $("fPhoto").value = "";
-  $("postWarn").style.display = "none";
-}
-
-async function createPost(){
-  $("postWarn").style.display = "none";
-
-  const title = $("fTitle").value.trim();
-  if (!title){
-    $("postWarn").style.display = "block";
-    $("postWarn").textContent = "Title is required.";
+  if (!posts.length) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "No posts yet.";
+    feed.appendChild(empty);
+    $("resultCount").textContent = "0 shown";
     return;
   }
-  const priceRaw = $("fPrice").value.trim();
-  let price = "";
-  if (priceRaw !== ""){
-    const n = Number(priceRaw);
-    if (!Number.isFinite(n) || n < 0){
-      $("postWarn").style.display = "block";
-      $("postWarn").textContent = "Price must be 0 or more.";
-      return;
+
+  for (const p of posts) {
+    const card = document.createElement("article");
+    card.className = "card";
+
+    const media = document.createElement("div");
+    media.className = "card-media";
+
+    if (Array.isArray(p.photoUrls) && p.photoUrls.length) {
+      const img = document.createElement("img");
+      img.src = p.photoUrls[0];
+      img.alt = p.title || "Photo";
+      media.appendChild(img);
+    } else {
+      media.textContent = "No photo";
     }
-    price = n;
+
+    const body = document.createElement("div");
+    body.className = "card-body";
+
+    const title = document.createElement("div");
+    title.className = "card-title";
+    title.textContent = p.title || "(no title)";
+
+    const sub = document.createElement("div");
+    sub.className = "card-sub";
+    const price = (p.price || "").toString().trim();
+    const who = p.authorName || p.authorEmail || "";
+    sub.textContent = `${price ? price + " • " : ""}${prettyBoard(p.board)} • ${who}`;
+
+    const actions = document.createElement("div");
+    actions.className = "card-actions";
+
+    const tag = document.createElement("div");
+    tag.className = "tag";
+    tag.textContent = p.status === "closed" ? "Closed" : "Active";
+
+    const openBtn = document.createElement("button");
+    openBtn.className = "btn";
+    openBtn.textContent = "Open Thread";
+    openBtn.type = "button";
+    openBtn.dataset.action = "open-thread";
+    openBtn.dataset.id = p.id;
+
+    actions.appendChild(tag);
+    actions.appendChild(openBtn);
+
+    body.appendChild(title);
+    body.appendChild(sub);
+    body.appendChild(actions);
+
+    card.appendChild(media);
+    card.appendChild(body);
+
+    feed.appendChild(card);
   }
 
-  // Create doc first (so we can store image under doc id)
-  const col = collection(db, "listings");
-  const docRef = await addDoc(col, {
-    uid: user.uid,
-    userEmail: user.email,
-    displayName: displayName(),
-    board: $("fBoard").value,
-    title,
-    price,
-    location: $("fLocation").value.trim(),
-    desc: $("fDesc").value.trim(),
-    contact: $("fContact").value.trim(),
-    status: $("fStatus").value,
-    photoURL: "",
-    createdAtMs: Date.now(),
-    replies: [],
-    lastReplyAtMs: 0,
-    lastReplyBy: ""
+  $("resultCount").textContent = `${posts.length} shown`;
+}
+
+function prettyBoard(b) {
+  const map = { free: "Free Items", sell: "Buy / Sell", garage: "Garage Sales", events: "Events", work: "Work News" };
+  return map[b] || "All";
+}
+
+function startPostsListener() {
+  if (unsubscribePosts) unsubscribePosts();
+
+  const q = postsQuery();
+  unsubscribePosts = onSnapshot(q, (snap) => {
+    const posts = [];
+    snap.forEach((d) => posts.push({ id: d.id, ...d.data() }));
+
+    // search filter client-side
+    const needle = ($("searchInput").value || "").trim().toLowerCase();
+    const filtered = needle
+      ? posts.filter((p) => (p.title || "").toLowerCase().includes(needle) || (p.desc || "").toLowerCase().includes(needle))
+      : posts;
+
+    renderFeed(filtered);
   });
+}
 
-  // Upload image (optional)
-  try{
-    const file = $("fPhoto").files && $("fPhoto").files[0];
-    if (file){
-      const url = await uploadPhotoIfAny(file, docRef.id);
-      if (url){
-        await updateDoc(doc(db, "listings", docRef.id), { photoURL: url });
-      }
-    }
-  }catch(e){
-    console.error(e);
-    $("postWarn").style.display = "block";
-    $("postWarn").textContent = e.message || "Photo upload failed.";
+// Thread modal
+let openThreadId = null;
+let unsubscribeThread = null;
+
+async function openThread(postId) {
+  if (!requireLogin("open threads")) return;
+
+  openThreadId = postId;
+  show($("threadModal"));
+
+  const postRef = doc(db, "posts", postId);
+  const postSnap = await getDoc(postRef);
+  if (!postSnap.exists()) {
+    $("tTitle").textContent = "Thread";
+    $("tMeta").textContent = "Post not found.";
+    $("tBody").textContent = "";
+    $("tComments").innerHTML = "";
     return;
   }
 
-  hide("postOverlay");
-  clearPostForm();
-}
+  const p = postSnap.data();
+  $("tTitle").textContent = p.title || "Thread";
+  $("tMeta").textContent = `${prettyBoard(p.board)} • ${p.price || ""} • ${p.authorName || p.authorEmail || ""}`;
+  $("tBody").textContent = p.desc || "";
 
-function openThread(id){
-  openThreadId = id;
-  $("replyText").value = "";
-  $("replyOk").style.display = "none";
-  $("replyWarn").style.display = "none";
-  $("threadReplies").innerHTML = "";
-  show("threadOverlay");
-
-  if (openThreadUnsub) { openThreadUnsub(); openThreadUnsub = null; }
-
-  openThreadUnsub = onSnapshot(doc(db, "listings", id), (snap)=>{
-    if (!snap.exists()){
-      $("threadTitle").textContent = "Thread";
-      $("threadMeta").textContent = "";
-      $("threadBody").textContent = "This post was removed.";
-      $("threadReplies").innerHTML = "";
-      return;
-    }
-    const x = { id:snap.id, ...snap.data() };
-    $("threadTitle").textContent = x.title || "Thread";
-    $("threadMeta").textContent = `${catLabel(x.board)} • Posted by ${x.displayName || x.userEmail || "—"} • ${prettyTime(x.createdAtMs)}`;
-    $("threadBody").innerHTML = `
-      <div class="row" style="margin-bottom:8px">
-        <div class="price">${esc(fmtPrice(x.price) || "—")}</div>
-        <div class="pill">${esc(x.status || "ACTIVE")}</div>
-      </div>
-      <div>${esc(x.desc||"")}</div>
-      ${x.photoURL ? `<div style="height:10px"></div><img src="${x.photoURL}" alt="" style="width:100%;border-radius:14px;border:1px solid rgba(255,255,255,.10)"/>` : ""}
-      <div style="height:10px"></div>
-      <div class="note">Contact: <b>${esc(x.contact || "—")}</b>${x.location ? ` • Location: <b>${esc(x.location)}</b>` : ""}</div>
-    `;
-
-    const replies = Array.isArray(x.replies) ? x.replies : [];
-    const wrap = $("threadReplies");
+  if (unsubscribeThread) unsubscribeThread();
+  const commentsCol = collection(db, "posts", postId, "comments");
+  const cq = query(commentsCol, orderBy("createdAt", "asc"));
+  unsubscribeThread = onSnapshot(cq, (snap) => {
+    const wrap = $("tComments");
     wrap.innerHTML = "";
-    if (replies.length === 0){
-      wrap.innerHTML = `<div class="note">No replies yet. Be the first.</div>`;
-      return;
-    }
-    for (const r of replies){
-      const el = document.createElement("div");
-      el.className = "reply";
-      el.innerHTML = `
-        <div class="replyTop">
-          <div class="replyBy">${esc(r.by || "—")}</div>
-          <div class="replyAt">${esc(prettyTime(r.atMs))}</div>
-        </div>
-        <div class="replyText">${esc(r.text || "")}</div>
-      `;
-      wrap.appendChild(el);
-    }
+    snap.forEach((d) => {
+      const c = d.data();
+      const div = document.createElement("div");
+      div.className = "comment";
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${c.authorName || c.authorEmail || ""}`;
+      const body = document.createElement("div");
+      body.textContent = c.text || "";
+      div.appendChild(meta);
+      div.appendChild(body);
+      wrap.appendChild(div);
+    });
   });
 }
 
-async function sendReply(){
-  $("replyOk").style.display = "none";
-  $("replyWarn").style.display = "none";
-
-  const text = ($("replyText").value||"").trim();
-  if (!text){
-    $("replyWarn").style.display = "block";
-    $("replyWarn").textContent = "Type a reply first.";
-    return;
-  }
+async function sendReply() {
+  if (!requireLogin("reply")) return;
   if (!openThreadId) return;
 
-  try{
-    const refDoc = doc(db, "listings", openThreadId);
-    const snap = await getDoc(refDoc);
-    if (!snap.exists()) return;
-    const data = snap.data();
-    const replies = Array.isArray(data.replies) ? data.replies : [];
-    replies.push({ by: displayName(), uid: user.uid, atMs: Date.now(), text });
-    await updateDoc(refDoc, {
-      replies,
-      lastReplyAtMs: Date.now(),
-      lastReplyBy: displayName()
-    });
-    $("replyText").value = "";
-    $("replyOk").style.display = "block";
-    $("replyOk").textContent = "Reply posted.";
-    // In-app notification for post owner (best-effort)
-    if (data.uid && data.uid !== user.uid){
-      const nref = doc(collection(db, "profiles", data.uid, "notifications"));
-      await setDoc(nref, {
-        type: "reply",
-        postId: openThreadId,
-        postTitle: data.title || "",
-        from: displayName(),
-        atMs: Date.now(),
-        read: false
-      });
-    }
-  }catch(e){
-    console.error(e);
-    $("replyWarn").style.display = "block";
-    $("replyWarn").textContent = "Reply failed. Check Firestore rules / connection.";
-  }
+  const text = ($("tReply").value || "").trim();
+  if (!text) return;
+
+  await addDoc(collection(db, "posts", openThreadId, "comments"), {
+    text,
+    authorEmail: currentUser.email,
+    authorName: currentUser.displayName || "",
+    createdAt: serverTimestamp(),
+  });
+
+  $("tReply").value = "";
 }
 
-function renderNotifs(){
-  const wrap = $("notifList");
-  wrap.innerHTML = "";
-  if (notifs.length === 0){
-    wrap.innerHTML = `<div class="note">No notifications.</div>`;
+function closeThread() {
+  hide($("threadModal"));
+  openThreadId = null;
+  if (unsubscribeThread) unsubscribeThread();
+  unsubscribeThread = null;
+}
+
+// Create post
+async function createPost() {
+  if (!requireLogin("post")) return;
+
+  const title = ($("pTitle").value || "").trim();
+  const board = $("pBoard").value;
+  const price = ($("pPrice").value || "").trim();
+  const contact = ($("pContact").value || "").trim();
+  const desc = ($("pDesc").value || "").trim();
+
+  if (!title || !desc) {
+    alert("Please enter a title and description.");
     return;
   }
-  for (const n of notifs){
-    const el = document.createElement("div");
-    el.className = "notifItem";
-    el.innerHTML = `
-      <strong>${esc(n.from || "Someone")} replied</strong>
-      <div class="meta">${esc(n.postTitle || "Post")} • ${esc(prettyTime(n.atMs))}</div>
-      <div style="height:8px"></div>
-      <button class="btn mini" type="button" data-open="${esc(n.postId)}">Open Thread</button>
-    `;
-    el.querySelector("[data-open]").addEventListener("click", ()=>{
-      hide("notifOverlay");
-      openThread(n.postId);
+
+  // photos: limit 3
+  const files = Array.from($("pPhotos").files || []).slice(0, 3);
+  const photoUrls = [];
+
+  // Upload photos (optional)
+  for (const f of files) {
+    const safeName = f.name.replace(/[^a-z0-9_.-]/gi, "_");
+    const path = `postPhotos/${currentUser.uid}/${Date.now()}_${safeName}`;
+    const r = ref(storage, path);
+    await uploadBytes(r, f);
+    const url = await getDownloadURL(r);
+    photoUrls.push(url);
+  }
+
+  await addDoc(collection(db, "posts"), {
+    title,
+    board,
+    price,
+    contact,
+    desc,
+    photoUrls,
+    authorEmail: currentUser.email,
+    authorName: currentUser.displayName || "",
+    status: "active",
+    createdAt: serverTimestamp(),
+  });
+
+  closePost();
+}
+
+function openPost() {
+  if (!requireLogin("post")) return;
+  show($("postModal"));
+}
+
+function closePost() {
+  hide($("postModal"));
+  $("pTitle").value = "";
+  $("pPrice").value = "";
+  $("pContact").value = "";
+  $("pDesc").value = "";
+  $("pPhotos").value = "";
+}
+
+// -------------------------
+// Auth
+// -------------------------
+async function doLogin() {
+  const email = normalizeEmail($("loginEmail").value);
+  const pass = $("loginPass").value || "";
+
+  if (!email || !pass) {
+    notice("Enter email and password.", "bad");
+    return;
+  }
+  if (!allowedEmail(email)) {
+    notice("Use your work email (@regallakeland.com).", "bad");
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    notice("Logged in.", "ok");
+    hide($("authModal"));
+  } catch (e) {
+    notice(e?.message || "Login failed.", "bad");
+  }
+}
+
+async function doForgot() {
+  const email = normalizeEmail($("loginEmail").value);
+  if (!email) {
+    notice("Enter your email first.", "bad");
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    notice("Password reset email sent.", "ok");
+  } catch (e) {
+    notice(e?.message || "Reset failed.", "bad");
+  }
+}
+
+async function doSignup() {
+  const first = ($("suFirst").value || "").trim();
+  const last = ($("suLast").value || "").trim();
+  const email = normalizeEmail($("suEmail").value);
+  const pass = $("suPass").value || "";
+  const pass2 = $("suPass2").value || "";
+  const agree = $("suAgree").checked;
+
+  if (!first || !last) {
+    notice("Enter first and last name.", "bad");
+    return;
+  }
+  if (!agree) {
+    notice("You must agree to the rules.", "bad");
+    return;
+  }
+  if (!allowedEmail(email)) {
+    notice("Use your work email (@regallakeland.com).", "bad");
+    return;
+  }
+  if (pass.length < 8) {
+    notice("Password must be at least 8 characters.", "bad");
+    return;
+  }
+  if (pass !== pass2) {
+    notice("Passwords do not match.", "bad");
+    return;
+  }
+
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(cred.user, { displayName: `${first} ${last}` });
+    await sendEmailVerification(cred.user);
+
+    // Create user profile doc
+    await addDoc(collection(db, "profiles"), {
+      uid: cred.user.uid,
+      email,
+      name: `${first} ${last}`,
+      createdAt: serverTimestamp(),
+      // NOTE: GitHub Pages cannot securely capture IP addresses.
+      // IP collection requires a server (Cloud Functions / backend).
     });
-    wrap.appendChild(el);
+
+    notice("Account created. Verify your email (check inbox) then login.", "ok");
+    setAuthTab("login");
+    $("loginEmail").value = email;
+  } catch (e) {
+    notice(e?.message || "Signup failed.", "bad");
   }
 }
 
-async function markNotifsRead(){
-  if (!user) return;
-  const qy = query(collection(db, "profiles", user.uid, "notifications"), where("read","==",false));
-  const snap = await getDocs(qy);
-  for (const d of snap.docs){
-    await updateDoc(d.ref, { read:true });
-  }
-}
+// -------------------------
+// Wiring
+// -------------------------
+function wireUI() {
+  // Modals
+  $("authClose").onclick = () => hide($("authModal"));
+  $("postClose").onclick = () => closePost();
+  $("threadClose").onclick = () => closeThread();
 
-/* =========================
-   Wire UI
-========================= */
-document.addEventListener("DOMContentLoaded", ()=>{
-  $("tabLogin").addEventListener("click", ()=>showPane("login"));
-  $("tabSignup").addEventListener("click", ()=>showPane("signup"));
+  // Tabs
+  qsa(".tab").forEach((t) => (t.onclick = () => setAuthTab(t.dataset.tab)));
 
-  $("btnLogin").addEventListener("click", async ()=>{
-    const email = $("loginEmail").value.trim();
-    const pass = $("loginPassword").value.trim();
-    if (!email || !pass) return alert("Enter email and password.");
-    if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
-    try{
-      const cred = await signInWithEmailAndPassword(auth, email, pass);
-      if (!cred.user.emailVerified){
-        $("verifyNote").style.display = "block";
-        $("btnResendVerify").style.display = "inline-flex";
-        alert("Please verify your email. Check your inbox.");
-        await signOut(auth);
-        return;
-      }
-    }catch(e){
-      console.error(e);
-      alert("Login failed. Check email/password.");
-    }
-  });
+  // Auth actions
+  $("btnLogin").onclick = doLogin;
+  $("btnForgot").onclick = doForgot;
+  $("btnSignup").onclick = doSignup;
 
-  $("btnResendVerify").addEventListener("click", async ()=>{
-    const email = $("loginEmail").value.trim();
-    const pass = $("loginPassword").value.trim();
-    if (!email || !pass) return alert("Enter your email + password, then click Resend.");
-    try{
-      const cred = await signInWithEmailAndPassword(auth, email, pass);
-      await sendEmailVerification(cred.user);
-      alert("Verification email sent. Check your inbox (and spam).");
-      await signOut(auth);
-    }catch(e){
-      console.error(e);
-      alert("Could not resend verification. Double-check email/password.");
-    }
-  });
+  // Posting
+  $("btnNewPost").onclick = () => openPost();
+  $("btnPost").onclick = () => createPost();
 
-  $("btnForgotPw").addEventListener("click", async ()=>{
-    const email = $("loginEmail").value.trim();
-    if (!email) return alert("Enter your email first.");
-    if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
-    try{
-      await sendPasswordResetEmail(auth, email);
-      alert("Password reset email sent. Check your inbox (and spam).");
-    }catch(e){
-      console.error(e);
-      alert(e?.message || "Could not send reset email.");
-    }
-  });
+  // Thread reply
+  $("btnReply").onclick = () => sendReply();
 
-  $("btnSignup").addEventListener("click", async ()=>{
-    const email = $("signupEmail").value.trim();
-    const p1 = $("signupPassword").value.trim();
-    const p2 = $("signupPassword2").value.trim();
-    $("signupMsg").style.display = "none";
-    if (!email || !p1 || !p2) return alert("Fill out email and both password boxes.");
-    if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
-    if (p1.length < 8) return alert("Password must be at least 8 characters.");
-    if (p1 !== p2) return alert("Passwords do not match.");
-    try{
-      const cred = await createUserWithEmailAndPassword(auth, email, p1);
-      await sendEmailVerification(cred.user);
-      $("signupMsg").style.display = "block";
-      $("signupMsg").textContent = "Account created! Verification email sent. Verify your email, then return to Login.";
-      alert("Account created. Verify your email before logging in.");
-      await signOut(auth);
-      showPane("login");
-      $("loginEmail").value = email;
-      $("loginPassword").value = "";
-      $("verifyNote").style.display = "block";
-      $("btnResendVerify").style.display = "inline-flex";
-    }catch(e){
-      console.error(e);
-      alert(e?.message || "Signup failed.");
-    }
-  });
-
-  $("btnSaveProfile").addEventListener("click", saveProfileSetup);
-
-  $("btnLogout").addEventListener("click", async ()=>{
-    await signOut(auth);
-  });
-
-  $("btnNewPost").addEventListener("click", ()=>{
-    if (!user) return show("authOverlay");
-    show("postOverlay");
-  });
-  $("btnClosePost").addEventListener("click", ()=> hide("postOverlay"));
-  $("btnSavePost").addEventListener("click", createPost);
-
-  $("btnCloseThread").addEventListener("click", ()=> hide("threadOverlay"));
-  $("btnSendReply").addEventListener("click", sendReply);
-
-  $("btnNotif").addEventListener("click", async ()=>{
-    show("notifOverlay");
-    renderNotifs();
-    await markNotifsRead();
-  });
-  $("btnCloseNotif").addEventListener("click", ()=> hide("notifOverlay"));
-
-  ["q","st","sort"].forEach(id => $(id).addEventListener("input", render));
-
-  // Card click actions
-  $("cards").addEventListener("click", (e)=>{
-    const btn = e.target.closest("[data-act]");
+  // Board selection
+  $("boardList").addEventListener("click", (e) => {
+    const btn = e.target.closest(".board");
     if (!btn) return;
-    const act = btn.getAttribute("data-act");
-    const id = btn.getAttribute("data-id");
-    if (act === "thread") openThread(id);
-  });
-});
-
-/* =========================
-   Auth + Realtime
-========================= */
-onAuthStateChanged(auth, async (u)=>{
-  user = u;
-  if (!user){
-    // logged out
-    isAdmin = false;
-    profile = null;
-    $("pillUser").textContent = "Not signed in";
-    $("btnLogout").style.display = "none";
-    $("adminLink").style.display = "none";
-    showPane("login");
-    show("authOverlay");
-    return;
-  }
-
-  // Block if email not verified (extra safety)
-  if (!user.emailVerified){
-    alert("Please verify your email before using the marketplace.");
-    await signOut(auth);
-    show("authOverlay");
-    return;
-  }
-
-  isAdmin = ADMIN_EMAILS.has(String(user.email||"").toLowerCase());
-  $("adminLink").style.display = isAdmin ? "inline-flex" : "none";
-  $("btnLogout").style.display = "inline-flex";
-
-  await upsertProfile({}); // update lastSeen
-  const ok = await requireProfileSetup();
-  if (!ok){
-    // still allow listeners but keep overlay on
-  } else {
-    hide("profileOverlay");
-  }
-
-  $("pillUser").textContent = `Signed in: ${displayName()}`;
-  hide("authOverlay");
-
-  // Presence heartbeat
-  setInterval(async ()=>{ try{ await upsertProfile({}); }catch{} }, 60_000);
-
-  // Listings listener
-  const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
-  onSnapshot(qy, async (snap)=>{
-    // refresh profile to enforce bans
-    try{
-      await loadProfile();
-      if (profile?.banned){
-        alert("Access removed by admin.");
-        await signOut(auth);
-        show("authOverlay");
-        return;
-      }
-    }catch{}
-    listings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-    renderBoards();
-    render();
+    qsa(".board").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentBoard = btn.dataset.board;
+    startPostsListener();
   });
 
-  // Notifications listener
-  const nqy = query(collection(db, "profiles", user.uid, "notifications"), orderBy("atMs","desc"));
-  onSnapshot(nqy, (snap)=>{
-    notifs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-    const unread = notifs.some(n=>n.read === false);
-    $("notifDot").style.display = unread ? "inline-block" : "none";
+  // Filters
+  $("statusSelect").addEventListener("change", () => {
+    currentStatus = $("statusSelect").value;
+    startPostsListener();
   });
-});
+  $("sortSelect").addEventListener("change", () => {
+    currentSort = $("sortSelect").value;
+    startPostsListener();
+  });
+  $("searchInput").addEventListener("input", () => {
+    // just re-render by restarting listener (cheap + simple)
+    startPostsListener();
+  });
+
+  // Feed action delegation
+  $("feed").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.dataset.action === "open-thread") {
+      openThread(btn.dataset.id);
+    }
+  });
+
+  // Auth pill click: open auth modal / logout
+  $("authPill").addEventListener("click", async () => {
+    if (!currentUser) {
+      openAuthModal("login");
+      return;
+    }
+    // quick action menu: shift-click logs out
+    if (confirm("Logout?")) {
+      await signOut(auth);
+    }
+  });
+}
+
+async function main() {
+  await initBackground();
+  wireUI();
+
+  const ok = initFirebase();
+  if (!ok) return;
+
+  // Start auth listener
+  onAuthStateChanged(auth, async (u) => {
+    currentUser = u;
+    setAuthPill();
+
+    if (!u) {
+      // Not signed in: open login
+      openAuthModal("login");
+      return;
+    }
+
+    // Enforce allowed domain
+    if (!allowedEmail(u.email)) {
+      alert("This site requires a work email.");
+      await signOut(auth);
+      return;
+    }
+
+    // Enforce verification
+    if (!u.emailVerified) {
+      openAuthModal("login");
+      notice("Verify your email before using the marketplace (check inbox).", "bad");
+      return;
+    }
+
+    hide($("authModal"));
+    startPostsListener();
+  });
+}
+
+main();

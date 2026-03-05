@@ -3,321 +3,211 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Regal Lakeland Employee Marketplace</title>
+  <title>Regal Employee Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Background slideshow -->
-  <div class="bg-slideshow" aria-hidden="true">
-    <div class="bg-img i1"></div>
-    <div class="bg-img i2"></div>
-    <div class="bg-img i3"></div>
-  </div>
-  <div class="bg-overlay" aria-hidden="true"></div>
+  <!-- Background slideshow layer -->
+  <div id="bg" class="bg" aria-hidden="true"></div>
 
-  <!-- Auth Overlay -->
-  <div class="overlay" id="authOverlay">
-    <div class="modal">
-      <div class="modal-h">
-        <div class="brandmark">
-          <div class="brand-badge">Regal</div>
-          <div>
-            <div class="brand-title">Employee Marketplace</div>
-            <div class="brand-sub">Private • Verified work email required</div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-b">
-        <div class="authTabs">
-          <button class="tabBtn active" id="tabLogin" type="button">Login</button>
-          <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
-        </div>
-
-        <!-- Login -->
-        <div id="loginPane">
-          <div class="field">
-            <label>Email</label>
-            <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
-          </div>
-          <div class="field">
-            <label>Password</label>
-            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
-          </div>
-
-          <div class="note warn" id="verifyNote" style="display:none">
-            Your email is not verified yet. Check your inbox and click the verification link, then return and log in.
-          </div>
-
-          <div class="rowBtns">
-            <button class="btn primary" id="btnLogin" type="button">Login</button>
-            <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Resend Verification Email</button>
-          </div>
-
-          <div class="rowBtns" style="justify-content:flex-start;margin-top:10px">
-            <button class="btn link" id="btnForgotPw" type="button">Forgot password? Send reset email</button>
-          </div>
-
-          <div class="note" style="margin-top:10px">
-            Allowed domain: <b>@regallakeland.com</b>
-          </div>
-        </div>
-
-        <!-- Signup -->
-        <div id="signupPane" style="display:none">
-          <div class="note">
-            Create an account using your work email. You must verify your email before you can use the marketplace.
-          </div>
-          <div style="height:10px"></div>
-          <div class="field">
-            <label>Work Email</label>
-            <input id="signupEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
-          </div>
-          <div class="field">
-            <label>Password</label>
-            <input id="signupPassword" type="password" placeholder="Create a password (8+ chars)" autocomplete="new-password" />
-          </div>
-          <div class="field">
-            <label>Confirm Password</label>
-            <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
-          </div>
-          <div class="note ok" id="signupMsg" style="display:none"></div>
-          <div class="rowBtns">
-            <button class="btn primary" id="btnSignup" type="button">Create Account</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Name + Rules Overlay -->
-  <div class="overlay" id="profileOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Welcome — one-time setup</strong>
-      </div>
-      <div class="modal-b">
-        <div class="field">
-          <label>First & Last Name</label>
-          <input id="displayNameInput" placeholder="e.g. Michael Hall" autocomplete="name" />
-        </div>
-
-        <div style="height:10px"></div>
-        <div class="rulesBox">
-          <div class="rulesTitle">Rules</div>
-          <ul>
-            <li>Work friends only • no spam</li>
-            <li>No harassment, hate, or drama</li>
-            <li>Include a contact method on posts</li>
-            <li>Admins can remove posts and ban access anytime</li>
-          </ul>
-        </div>
-
-        <label class="checkRow">
-          <input type="checkbox" id="agreeRules" />
-          <span>I agree to the rules above</span>
-        </label>
-
-        <div class="note warn" id="profileWarn" style="display:none"></div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSaveProfile" type="button">Continue</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Topbar -->
+  <!-- Top bar -->
   <header class="topbar">
     <div class="brand">
-      <div class="logo">RH</div>
-      <div class="title">
-        <div class="h1">Regal Employee Marketplace</div>
-        <div class="sub">Free items • Buy/Sell • Garage sales • Events • Work news</div>
+      <div class="brand-badge">RH</div>
+      <div class="brand-text">
+        <div class="brand-title">Regal Employee Marketplace</div>
+        <div class="brand-sub">Private • Verified work email required</div>
       </div>
     </div>
 
-    <div class="actions">
-      <span class="pill" id="pillUser">Not signed in</span>
-      <button class="btn" id="btnNotif" type="button" title="Notifications">
-        🔔 <span class="notifDot" id="notifDot" style="display:none"></span>
-      </button>
-      <button class="btn primary" id="btnNewPost" type="button">+ Post</button>
-      <a class="btn ghost" id="adminLink" href="/adminregal/" style="display:none">Admin</a>
-      <button class="btn danger" id="btnLogout" type="button" style="display:none">Logout</button>
+    <div class="topbar-actions">
+      <div id="authPill" class="pill pill-muted">Not signed in</div>
+      <button id="btnNewPost" class="btn btn-primary" type="button">+ Post</button>
     </div>
   </header>
 
-  <!-- Layout -->
-  <div class="wrap">
-    <div class="layout">
-      <aside class="panel">
-        <div class="panel-h">
-          <h2>Boards</h2>
-          <span class="pill" id="boardPill">All</span>
-        </div>
-        <div class="panel-b">
-          <div class="boards" id="boards"></div>
-          <div class="note" style="margin-top:12px">
-            Tip: Pick a board. Easier than filters for most people.
-          </div>
-        </div>
-      </aside>
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="panel-title">Boards</div>
+        <nav id="boardList" class="board-list">
+          <button class="board active" data-board="all" type="button">All</button>
+          <button class="board" data-board="free" type="button">Free Items</button>
+          <button class="board" data-board="sell" type="button">Buy / Sell</button>
+          <button class="board" data-board="garage" type="button">Garage Sales</button>
+          <button class="board" data-board="events" type="button">Events</button>
+          <button class="board" data-board="work" type="button">Work News</button>
+        </nav>
+        <div class="panel-tip">Tip: pick a board. Easier than filters for most people.</div>
+      </div>
 
-      <main class="panel">
-        <div class="panel-h">
+      <div class="panel rules">
+        <div class="panel-title">Rules</div>
+        <ul>
+          <li>Work friends only</li>
+          <li>No drama / no spam</li>
+          <li>Include a contact method in your post</li>
+          <li>Admins can remove posts and ban access</li>
+        </ul>
+      </div>
+    </aside>
+
+    <section class="content">
+      <div class="panel content-panel">
+        <div class="content-head">
           <div>
-            <h2 id="marketTitle">Marketplace</h2>
-            <span class="pill" id="countLine">0 shown • 0 total</span>
+            <div class="panel-title">Marketplace</div>
+            <div id="resultCount" class="muted">0 shown</div>
           </div>
           <div class="filters">
-            <div class="field">
-              <label>Search</label>
-              <input id="q" placeholder="Search items, descriptions, locations…" />
-            </div>
-            <div class="field">
-              <label>Status</label>
-              <select id="st">
-                <option value="ACTIVE">Active</option>
-                <option value="ALL">All</option>
-                <option value="SOLD">Sold</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Sort</label>
-              <select id="sort">
-                <option value="NEW">Newest</option>
-                <option value="OLD">Oldest</option>
-                <option value="PRICE_ASC">Price ↑</option>
-                <option value="PRICE_DESC">Price ↓</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel-b">
-          <div class="cards" id="cards"></div>
-          <div id="empty" class="note" style="display:none;margin-top:12px;">
-            No listings match your filters.
-          </div>
-        </div>
-      </main>
-    </div>
-  </div>
-
-  <!-- New Post Modal -->
-  <div class="overlay" id="postOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Create Post</strong>
-        <button class="btn ghost" id="btnClosePost" type="button">Close</button>
-      </div>
-      <div class="modal-b">
-        <div class="grid2">
-          <div class="field">
-            <label>Board</label>
-            <select id="fBoard">
-              <option value="FREE">Free Items</option>
-              <option value="BUYSELL">Buy / Sell</option>
-              <option value="GARAGE">Garage Sales</option>
-              <option value="EVENTS">Events</option>
-              <option value="WORK">Work News</option>
-              <option value="SERVICES">Local Services</option>
+            <input id="searchInput" class="input" placeholder="Search titles, descriptions…" />
+            <select id="statusSelect" class="input">
+              <option value="active">Active</option>
+              <option value="closed">Closed</option>
+              <option value="all">All</option>
             </select>
-          </div>
-          <div class="field">
-            <label>Status</label>
-            <select id="fStatus">
-              <option value="ACTIVE">Active</option>
-              <option value="SOLD">Sold</option>
+            <select id="sortSelect" class="input">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
             </select>
           </div>
         </div>
 
-        <div class="field">
-          <label>Title</label>
-          <input id="fTitle" placeholder="e.g. Free couch, Garage sale Saturday…" />
-        </div>
+        <div id="feed" class="feed"></div>
+      </div>
+    </section>
+  </main>
 
+  <!-- AUTH MODAL (login + create account) -->
+  <div id="authModal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title">Employee Marketplace</div>
+        <button id="authClose" class="icon-btn" type="button" aria-label="Close">✕</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="login" type="button">Login</button>
+        <button class="tab" data-tab="signup" type="button">Create Account</button>
+      </div>
+
+      <div id="authNotice" class="notice"></div>
+
+      <div id="tab-login" class="tabpane">
+        <label class="label">Work Email</label>
+        <input id="loginEmail" class="input" placeholder="name@regallakeland.com" autocomplete="username" />
+        <label class="label">Password</label>
+        <input id="loginPass" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+        <div class="row">
+          <button id="btnLogin" class="btn btn-primary" type="button">Login</button>
+          <button id="btnForgot" class="btn btn-ghost" type="button">Forgot password</button>
+        </div>
+      </div>
+
+      <div id="tab-signup" class="tabpane hidden">
         <div class="grid2">
-          <div class="field">
-            <label>Price (optional)</label>
-            <input id="fPrice" inputmode="decimal" placeholder="0 for free, 25, 100…" />
+          <div>
+            <label class="label">First Name</label>
+            <input id="suFirst" class="input" placeholder="First" autocomplete="given-name" />
           </div>
-          <div class="field">
-            <label>Location (optional)</label>
-            <input id="fLocation" placeholder="Lakeland, Plant City…" />
+          <div>
+            <label class="label">Last Name</label>
+            <input id="suLast" class="input" placeholder="Last" autocomplete="family-name" />
           </div>
         </div>
 
-        <div class="field">
-          <label>Description</label>
-          <textarea id="fDesc" placeholder="Details: condition, pickup time, etc."></textarea>
-        </div>
+        <label class="label">Work Email</label>
+        <input id="suEmail" class="input" placeholder="name@regallakeland.com" autocomplete="username" />
+        <label class="label">Password</label>
+        <input id="suPass" class="input" type="password" placeholder="Create a password" autocomplete="new-password" />
+        <label class="label">Confirm Password</label>
+        <input id="suPass2" class="input" type="password" placeholder="Confirm password" autocomplete="new-password" />
 
-        <div class="field">
-          <label>Contact</label>
-          <input id="fContact" placeholder="Text/call/email or where to find you at work" />
-        </div>
+        <label class="checkbox">
+          <input id="suAgree" type="checkbox" />
+          <span>I agree to the workplace rules and understand admins can moderate content.</span>
+        </label>
 
-        <div class="field">
-          <label>Photo (optional)</label>
-          <input id="fPhoto" type="file" accept="image/*" />
-          <div class="note" id="photoNote">You can upload one photo per post.</div>
-        </div>
-
-        <div class="note warn" id="postWarn" style="display:none"></div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSavePost" type="button">Post</button>
+        <button id="btnSignup" class="btn btn-primary" type="button">Create Account</button>
+        <div class="muted small">After creating your account, you must verify your email before posting.</div>
       </div>
     </div>
   </div>
 
-  <!-- Thread Modal -->
-  <div class="overlay" id="threadOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong id="threadTitle">Thread</strong>
-        <button class="btn ghost" id="btnCloseThread" type="button">Close</button>
+  <!-- NEW POST MODAL -->
+  <div id="postModal" class="modal" aria-hidden="true">
+    <div class="modal-card wide">
+      <div class="modal-head">
+        <div class="modal-title">Create Post</div>
+        <button id="postClose" class="icon-btn" type="button" aria-label="Close">✕</button>
       </div>
-      <div class="modal-b">
-        <div id="threadMeta" class="threadMeta"></div>
-        <div id="threadBody" class="threadBody"></div>
 
-        <div style="height:12px"></div>
-        <div class="repliesTitle">Replies</div>
-        <div id="threadReplies" class="replies"></div>
-
-        <div style="height:12px"></div>
-        <div class="field">
-          <label>Add a reply</label>
-          <textarea id="replyText" placeholder="Write a reply…"></textarea>
+      <div class="grid2">
+        <div>
+          <label class="label">Title</label>
+          <input id="pTitle" class="input" placeholder="e.g., iPhone charger" />
         </div>
-        <div class="rowBtns">
-          <button class="btn primary" id="btnSendReply" type="button">Reply</button>
+        <div>
+          <label class="label">Board</label>
+          <select id="pBoard" class="input">
+            <option value="free">Free Items</option>
+            <option value="sell">Buy / Sell</option>
+            <option value="garage">Garage Sales</option>
+            <option value="events">Events</option>
+            <option value="work">Work News</option>
+          </select>
         </div>
+      </div>
 
-        <div class="note ok" id="replyOk" style="display:none"></div>
-        <div class="note warn" id="replyWarn" style="display:none"></div>
+      <div class="grid2">
+        <div>
+          <label class="label">Price (optional)</label>
+          <input id="pPrice" class="input" placeholder="$0.00" />
+        </div>
+        <div>
+          <label class="label">Contact (optional)</label>
+          <input id="pContact" class="input" placeholder="Text/call/email" />
+        </div>
+      </div>
+
+      <label class="label">Description</label>
+      <textarea id="pDesc" class="input" rows="5" placeholder="Add details (condition, pickup location, etc.)"></textarea>
+
+      <label class="label">Photos (optional)</label>
+      <input id="pPhotos" class="input" type="file" accept="image/*" multiple />
+      <div id="photoHint" class="muted small">You can attach up to 3 photos (auto-resized).</div>
+
+      <div class="row end">
+        <button id="btnPost" class="btn btn-primary" type="button">Post</button>
       </div>
     </div>
   </div>
 
-  <!-- Notifications Modal -->
-  <div class="overlay" id="notifOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Notifications</strong>
-        <button class="btn ghost" id="btnCloseNotif" type="button">Close</button>
+  <!-- THREAD MODAL -->
+  <div id="threadModal" class="modal" aria-hidden="true">
+    <div class="modal-card wide">
+      <div class="modal-head">
+        <div class="modal-title" id="tTitle">Thread</div>
+        <button id="threadClose" class="icon-btn" type="button" aria-label="Close">✕</button>
       </div>
-      <div class="modal-b">
-        <div class="note">In-app notifications show when someone replies to your post.</div>
-        <div style="height:10px"></div>
-        <div id="notifList" class="notifList"></div>
+
+      <div id="tMeta" class="muted small"></div>
+      <div id="tBody" class="thread-body"></div>
+
+      <div class="divider"></div>
+      <div id="tComments" class="comments"></div>
+
+      <div class="divider"></div>
+      <label class="label">Reply</label>
+      <textarea id="tReply" class="input" rows="3" placeholder="Write a reply…"></textarea>
+      <div class="row end">
+        <button id="btnReply" class="btn btn-primary" type="button">Reply</button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="firebase-config.js"></script>
+  <!-- IMPORTANT: firebase-config.js must be valid JS. Do NOT paste JSON by itself. -->
+  <script src="firebase-config.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
