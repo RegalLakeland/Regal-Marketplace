@@ -7,11 +7,43 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendEmailVerification, signOut
+  sendEmailVerification, sendPasswordResetEmail, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import {
   getStorage, ref as sRef, uploadBytes, getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
+// --- HARD STOP if Firebase config hasn't been filled in ---
+const isPlaceholderConfig = (cfg) => {
+  if (!cfg) return true;
+  const vals = [cfg.apiKey, cfg.authDomain, cfg.projectId, cfg.appId];
+  return vals.some(v => !v || String(v).includes("PASTE_"));
+};
+
+if (isPlaceholderConfig(firebaseConfig)) {
+  document.documentElement.style.background = "#0b1220";
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial">
+      <div style="max-width:820px;width:100%;background:rgba(20,30,50,.75);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:22px;color:#eaf2ff;box-shadow:0 25px 60px rgba(0,0,0,.45)">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">
+          <div style="width:42px;height:42px;border-radius:12px;background:#1ee16b;color:#04210f;display:flex;align-items:center;justify-content:center;font-weight:900">RH</div>
+          <div>
+            <div style="font-size:20px;font-weight:800;letter-spacing:.2px">Setup required</div>
+            <div style="opacity:.8">Your Firebase keys are not filled in yet — login and posts can't work until you add them.</div>
+          </div>
+        </div>
+        <ol style="line-height:1.5;opacity:.95">
+          <li>Open <b>Firebase Console</b> > your project > <b>Project settings</b> (gear).</li>
+          <li>Scroll to <b>Your apps</b> > select your <b>Web app</b> > copy the <b>firebaseConfig</b> values.</li>
+          <li>In GitHub repo > open <b>firebase-config.js</b> > click the pencil <b>Edit</b>.</li>
+          <li>Replace the placeholders (PASTE_...) with your real values > <b>Commit changes</b>.</li>
+          <li>In Firebase Console > <b>Authentication</b> > <b>Settings</b> > <b>Authorized domains</b> > add: <code style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:6px">regallakeland.github.io</code></li>
+        </ol>
+        <div style="margin-top:14px;font-size:12px;opacity:.75">Once those are saved, refresh this page.</div>
+      </div>
+    </div>`;
+  throw new Error("Firebase config placeholders not replaced.");
+}
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -514,6 +546,19 @@ document.addEventListener("DOMContentLoaded", ()=>{
     }catch(e){
       console.error(e);
       alert("Could not resend verification. Double-check email/password.");
+    }
+  });
+
+  $("btnForgotPw").addEventListener("click", async ()=>{
+    const email = $("loginEmail").value.trim();
+    if (!email) return alert("Enter your email first.");
+    if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
+    try{
+      await sendPasswordResetEmail(auth, email);
+      alert("Password reset email sent. Check your inbox (and spam).");
+    }catch(e){
+      console.error(e);
+      alert(e?.message || "Could not send reset email.");
     }
   });
 
