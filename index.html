@@ -1,41 +1,39 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Regal Honda Employee Marketplace</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Regal Lakeland Employee Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-
-  <!-- Background slideshow (uses /Images/regal1.jpg etc) -->
+  <!-- Background slideshow -->
   <div class="bg-slideshow" aria-hidden="true">
-    <div class="bg bg1"></div>
-    <div class="bg bg2"></div>
-    <div class="bg bg3"></div>
-    <div class="bg-overlay"></div>
+    <div class="bg-img i1"></div>
+    <div class="bg-img i2"></div>
+    <div class="bg-img i3"></div>
   </div>
+  <div class="bg-overlay" aria-hidden="true"></div>
 
-  <!-- LOGIN / SIGNUP -->
-  <div class="overlay" id="loginOverlay">
+  <!-- Auth Overlay -->
+  <div class="overlay" id="authOverlay">
     <div class="modal">
       <div class="modal-h">
         <div class="brandmark">
           <div class="brand-badge">Regal</div>
           <div>
             <div class="brand-title">Employee Marketplace</div>
-            <div class="brand-sub">Private • Work friends only</div>
+            <div class="brand-sub">Private • Verified work email required</div>
           </div>
         </div>
       </div>
-
       <div class="modal-b">
         <div class="authTabs">
           <button class="tabBtn active" id="tabLogin" type="button">Login</button>
           <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
         </div>
 
+        <!-- Login -->
         <div id="loginPane">
           <div class="field">
             <label>Email</label>
@@ -45,18 +43,25 @@
             <label>Password</label>
             <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
           </div>
-          <div class="note" id="verifyNote" style="display:none">
-            Your email is not verified yet. Check your inbox and click the verification link, then come back and log in.
+
+          <div class="note warn" id="verifyNote" style="display:none">
+            Your email is not verified yet. Check your inbox and click the verification link, then return and log in.
           </div>
+
           <div class="rowBtns">
-            <button class="btn primary" id="btnLogin">Login</button>
+            <button class="btn primary" id="btnLogin" type="button">Login</button>
             <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Resend Verification Email</button>
+          </div>
+
+          <div class="note" style="margin-top:10px">
+            Allowed domain: <b>@regallakeland.com</b>
           </div>
         </div>
 
+        <!-- Signup -->
         <div id="signupPane" style="display:none">
           <div class="note">
-            Create an account using your work email. You must verify your email before you can post or view listings.
+            Create an account using your work email. You must verify your email before you can use the marketplace.
           </div>
           <div style="height:10px"></div>
           <div class="field">
@@ -65,139 +70,141 @@
           </div>
           <div class="field">
             <label>Password</label>
-            <input id="signupPassword" type="password" placeholder="Create a password" autocomplete="new-password" />
+            <input id="signupPassword" type="password" placeholder="Create a password (8+ chars)" autocomplete="new-password" />
           </div>
           <div class="field">
             <label>Confirm Password</label>
             <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
           </div>
-          <div class="note" id="signupMsg" style="display:none"></div>
-          <div class="modal-actions" style="padding:0; border:0; justify-content:flex-start">
+          <div class="note ok" id="signupMsg" style="display:none"></div>
+          <div class="rowBtns">
             <button class="btn primary" id="btnSignup" type="button">Create Account</button>
           </div>
         </div>
       </div>
-
-      <div class="modal-actions">
-        <div class="note" style="margin:0">
-          Allowed domain: <b>@regallakeland.com</b>
-        </div>
-      </div>
-    </div>
-  </div>
-      </div>
-      <div class="modal-b">
-        <div class="field">
-          <label>Email</label>
-          <input id="loginEmail" type="email" placeholder="name@regallakeland.com" autocomplete="username" />
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
-        </div>
-        <div class="note">
-          Tip: If you don’t have an account yet, ask an admin to create you in Firebase → Authentication → Users.
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnLogin">Login</button>
-      </div>
     </div>
   </div>
 
-
-  <!-- NAME SETUP (first login) -->
-  <div class="overlay" id="nameOverlay" style="display:none">
+  <!-- Name + Rules Overlay -->
+  <div class="overlay" id="profileOverlay" style="display:none">
     <div class="modal">
       <div class="modal-h">
-        <strong>Set Your Display Name</strong>
+        <strong>Welcome — one-time setup</strong>
       </div>
       <div class="modal-b">
         <div class="field">
           <label>First & Last Name</label>
           <input id="displayNameInput" placeholder="e.g. Michael Hall" autocomplete="name" />
         </div>
-        <div class="note">This name will show on posts and replies instead of your email.</div>
+
+        <div style="height:10px"></div>
+        <div class="rulesBox">
+          <div class="rulesTitle">Rules</div>
+          <ul>
+            <li>Work friends only • no spam</li>
+            <li>No harassment, hate, or drama</li>
+            <li>Include a contact method on posts</li>
+            <li>Admins can remove posts and ban access anytime</li>
+          </ul>
+        </div>
+
+        <label class="checkRow">
+          <input type="checkbox" id="agreeRules" />
+          <span>I agree to the rules above</span>
+        </label>
+
+        <div class="note warn" id="profileWarn" style="display:none"></div>
       </div>
       <div class="modal-actions">
-        <button class="btn primary" id="btnSaveName">Save</button>
+        <button class="btn primary" id="btnSaveProfile" type="button">Continue</button>
       </div>
     </div>
   </div>
 
-  <!-- APP -->
+  <!-- Topbar -->
   <header class="topbar">
-    <div class="left">
-      <div class="logo">
-        <span class="logo-dot"></span>
-        <span class="logo-text">Regal Honda</span>
-      </div>
+    <div class="brand">
+      <div class="logo">RH</div>
       <div class="title">
-        <div class="h1">Employee Marketplace</div>
-        <div class="h2">Free items • Buy/Sell • Garage Sales • Events • Work News</div>
+        <div class="h1">Regal Employee Marketplace</div>
+        <div class="sub">Free items • Buy/Sell • Garage sales • Events • Work news</div>
       </div>
     </div>
 
-    <div class="right">
+    <div class="actions">
       <span class="pill" id="pillUser">Not signed in</span>
-      <button class="btn" id="btnNew">+ Post</button>
-      <a class="btn ghost" id="adminLink" href="adminregal/" style="display:none">Admin</a>
-      <button class="btn danger" id="btnLogout">Logout</button>
+      <button class="btn" id="btnNotif" type="button" title="Notifications">
+        🔔 <span class="notifDot" id="notifDot" style="display:none"></span>
+      </button>
+      <button class="btn primary" id="btnNewPost" type="button">+ Post</button>
+      <a class="btn ghost" id="adminLink" href="/adminregal/" style="display:none">Admin</a>
+      <button class="btn danger" id="btnLogout" type="button" style="display:none">Logout</button>
     </div>
   </header>
 
-  <main class="layout">
-    <aside class="panel boards">
-      <div class="panel-h">
-        <div class="panel-title">Boards</div>
-        <div class="pill" id="boardPill">All</div>
-      </div>
-      <div class="panel-b" id="boards"></div>
-    </aside>
-
-    <section class="panel feed">
-      <div class="panel-h">
-        <div class="panel-title" id="feedTitle">Marketplace</div>
-        <div class="meta" id="countLine">0 shown • 0 total</div>
-      </div>
-
-      <div class="panel-b">
-        <div class="filters">
-          <div class="field">
-            <label>Search</label>
-            <input id="q" placeholder="Search title, description, location, contact…" />
+  <!-- Layout -->
+  <div class="wrap">
+    <div class="layout">
+      <aside class="panel">
+        <div class="panel-h">
+          <h2>Boards</h2>
+          <span class="pill" id="boardPill">All</span>
+        </div>
+        <div class="panel-b">
+          <div class="boards" id="boards"></div>
+          <div class="note" style="margin-top:12px">
+            Tip: Pick a board. Easier than filters for most people.
           </div>
-          <div class="field">
-            <label>Status</label>
-            <select id="st">
-              <option value="ACTIVE">Active</option>
-              <option value="ALL">All</option>
-              <option value="SOLD">Sold</option>
-            </select>
+        </div>
+      </aside>
+
+      <main class="panel">
+        <div class="panel-h">
+          <div>
+            <h2 id="marketTitle">Marketplace</h2>
+            <span class="pill" id="countLine">0 shown • 0 total</span>
           </div>
-          <div class="field">
-            <label>Sort</label>
-            <select id="sort">
-              <option value="NEW">Newest</option>
-              <option value="OLD">Oldest</option>
-              <option value="PRICE_ASC">Price ↑</option>
-              <option value="PRICE_DESC">Price ↓</option>
-            </select>
+          <div class="filters">
+            <div class="field">
+              <label>Search</label>
+              <input id="q" placeholder="Search items, descriptions, locations…" />
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="st">
+                <option value="ACTIVE">Active</option>
+                <option value="ALL">All</option>
+                <option value="SOLD">Sold</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Sort</label>
+              <select id="sort">
+                <option value="NEW">Newest</option>
+                <option value="OLD">Oldest</option>
+                <option value="PRICE_ASC">Price ↑</option>
+                <option value="PRICE_DESC">Price ↓</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div class="cards" id="cards"></div>
-        <div class="note" id="empty" style="display:none;margin-top:12px;">No listings match your filters.</div>
-      </div>
-    </section>
-  </main>
+        <div class="panel-b">
+          <div class="cards" id="cards"></div>
+          <div id="empty" class="note" style="display:none;margin-top:12px;">
+            No listings match your filters.
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
 
-  <!-- CREATE POST MODAL -->
+  <!-- New Post Modal -->
   <div class="overlay" id="postOverlay" style="display:none">
-    <div class="modal wide">
+    <div class="modal">
       <div class="modal-h">
         <strong>Create Post</strong>
-        <button class="btn ghost" data-close="postOverlay">Close</button>
+        <button class="btn ghost" id="btnClosePost" type="button">Close</button>
       </div>
       <div class="modal-b">
         <div class="grid2">
@@ -223,7 +230,7 @@
 
         <div class="field">
           <label>Title</label>
-          <input id="fTitle" placeholder="e.g. Free couch • Garage sale Saturday…" />
+          <input id="fTitle" placeholder="e.g. Free couch, Garage sale Saturday…" />
         </div>
 
         <div class="grid2">
@@ -239,53 +246,74 @@
 
         <div class="field">
           <label>Description</label>
-          <textarea id="fDesc" placeholder="Condition, pickup window, details…"></textarea>
+          <textarea id="fDesc" placeholder="Details: condition, pickup time, etc."></textarea>
         </div>
 
-        <div class="grid2">
-          <div class="field">
-            <label>Contact</label>
-            <input id="fContact" placeholder="Text/call/email or where to find you at work" />
-          </div>
-          <div class="field">
-            <label>Photo (optional)</label>
-            <input id="fPhoto" type="file" accept="image/*" />
-          </div>
+        <div class="field">
+          <label>Contact</label>
+          <input id="fContact" placeholder="Text/call/email or where to find you at work" />
         </div>
 
-        <div class="note">Posts are visible to logged-in employees only. Admins can delete posts.</div>
+        <div class="field">
+          <label>Photo (optional)</label>
+          <input id="fPhoto" type="file" accept="image/*" />
+          <div class="note" id="photoNote">You can upload one photo per post.</div>
+        </div>
+
+        <div class="note warn" id="postWarn" style="display:none"></div>
       </div>
       <div class="modal-actions">
-        <button class="btn primary" id="btnSavePost">Post</button>
+        <button class="btn primary" id="btnSavePost" type="button">Post</button>
       </div>
     </div>
   </div>
 
-  <!-- THREAD MODAL -->
+  <!-- Thread Modal -->
   <div class="overlay" id="threadOverlay" style="display:none">
-    <div class="modal wide">
+    <div class="modal">
       <div class="modal-h">
         <strong id="threadTitle">Thread</strong>
-        <button class="btn ghost" data-close="threadOverlay">Close</button>
+        <button class="btn ghost" id="btnCloseThread" type="button">Close</button>
       </div>
       <div class="modal-b">
-        <div id="threadMeta" class="meta" style="margin-bottom:10px;"></div>
+        <div id="threadMeta" class="threadMeta"></div>
         <div id="threadBody" class="threadBody"></div>
 
-        <div class="note" style="margin:10px 0;">Replies (everyone can respond)</div>
+        <div style="height:12px"></div>
+        <div class="repliesTitle">Replies</div>
         <div id="threadReplies" class="replies"></div>
 
-        <div class="field" style="margin-top:10px;">
-          <label>Write a reply</label>
-          <textarea id="replyText" placeholder="Type your reply…"></textarea>
+        <div style="height:12px"></div>
+        <div class="field">
+          <label>Add a reply</label>
+          <textarea id="replyText" placeholder="Write a reply…"></textarea>
         </div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSendReply">Reply</button>
+        <div class="rowBtns">
+          <button class="btn primary" id="btnSendReply" type="button">Reply</button>
+        </div>
+
+        <div class="note ok" id="replyOk" style="display:none"></div>
+        <div class="note warn" id="replyWarn" style="display:none"></div>
       </div>
     </div>
   </div>
 
+  <!-- Notifications Modal -->
+  <div class="overlay" id="notifOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Notifications</strong>
+        <button class="btn ghost" id="btnCloseNotif" type="button">Close</button>
+      </div>
+      <div class="modal-b">
+        <div class="note">In-app notifications show when someone replies to your post.</div>
+        <div style="height:10px"></div>
+        <div id="notifList" class="notifList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="firebase-config.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,41 +1,45 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
-    }
+    function signedIn() { return request.auth != null; }
 
-    function emailOk() {
+    function employee() {
       return signedIn()
         && request.auth.token.email != null
         && request.auth.token.email_verified == true
         && request.auth.token.email.matches('.*@regallakeland\\.com$');
     }
 
-    // Listings (marketplace posts)
-    match /listings/{id} {
-      allow read: if emailOk();
-
-      // Create: verified employee only; must stamp their own uid/email
-      allow create: if emailOk()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.userEmail == request.auth.token.email;
-
-      // Update: owner can edit their post; admins could be added here later via custom claims
-      allow update: if emailOk() && request.resource.data.uid == request.auth.uid;
-
-      // Delete: owner can delete their own post (admin deletion handled in admin UI by signing in as admin; still needs rules)
-      allow delete: if emailOk() && resource.data.uid == request.auth.uid;
+    function isAdmin() {
+      return employee() && (
+        request.auth.token.email == 'michael.h@regallakeland.com' ||
+        request.auth.token.email == 'janni.r@regallakeland.com' ||
+        request.auth.token.email == 'chrissy.h@regallakeland.com' ||
+        request.auth.token.email == 'amy.m@regallakeland.com'
+      );
     }
 
-    // Profiles (names, bans, presence)
     match /profiles/{uid} {
-      allow read: if emailOk();
-      // User can write their own profile (name/lastSeen). Banned flag should be admin-only (requires backend/custom claims)
-      allow create, update: if emailOk() && request.auth.uid == uid;
-      allow delete: if false;
+      allow read: if employee();
+      allow create, update: if employee() && request.auth.uid == uid;
+      // Admin can ban/unban any profile
+      allow update: if isAdmin();
+    }
+
+    match /profiles/{uid}/notifications/{nid} {
+      allow read, create: if employee() && request.auth.uid == uid;
+      allow update: if employee() && request.auth.uid == uid;
+      allow delete: if employee() && request.auth.uid == uid;
+    }
+
+    match /listings/{id} {
+      allow read: if employee();
+      allow create: if employee()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email;
+      allow update: if employee() && request.auth.uid == resource.data.uid;
+      allow delete: if (employee() && request.auth.uid == resource.data.uid) || isAdmin();
     }
   }
 }

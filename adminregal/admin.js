@@ -1,188 +1,164 @@
+import { firebaseConfig, ADMIN_EMAILS } from "../firebase-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
-  getAuth,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-
-import {
-  getFirestore,
-  collection,
-  deleteDoc,
-  doc,
-  updateDoc,
-  onSnapshot,
-  query,
-  orderBy
+  getFirestore, collection, doc, getDoc, onSnapshot, query, orderBy, updateDoc, deleteDoc, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
-  authDomain: "regal-lakeland-marketplace.firebaseapp.com",
-  projectId: "regal-lakeland-marketplace",
-  storageBucket: "regal-lakeland-marketplace.firebasestorage.app",
-  messagingSenderId: "1014346693296",
-  appId: "1:1014346693296:web:fc76118d1a8db347945975"
-};
-
-const ADMINS = new Set([
-  "Michael.H@regallakeland.com",
-  "janni.r@regallakeland.com",
-  "chrissy.h@regallakeland.com",
-  "amy.m@regallakeland.com"
-].map(x => x.toLowerCase()));
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-const $ = (id) => document.getElementById(id);
-const show = (id) => { $(id).style.display = "flex"; };
-const hide = (id) => { $(id).style.display = "none"; };
-const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+const $ = (id)=>document.getElementById(id);
+const esc = (s)=>String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
 let user = null;
 let posts = [];
 let profiles = [];
 
-$("btnLogin").addEventListener("click", async ()=>{
-  const email = $("loginEmail").value.trim();
-  const pass = $("loginPassword").value.trim();
-  if (!email || !pass) return alert("Enter email and password.");
-  try{
-    await signInWithEmailAndPassword(auth, email, pass);
-  }catch(e){
-    alert("Login failed.");
+function prettyTime(ms){
+  if (!ms) return "—";
+  return new Date(ms).toLocaleString();
+}
+
+function isAdminEmail(email){
+  return ADMIN_EMAILS.has(String(email||"").toLowerCase());
+}
+
+function applyPostFilters(list){
+  const q = ($("pq").value||"").toLowerCase().trim();
+  const b = $("pboard").value;
+  let out = list.slice();
+  if (b !== "ALL") out = out.filter(x=> x.board === b);
+  if (q){
+    out = out.filter(x => (`${x.title} ${x.displayName} ${x.userEmail} ${x.uid}`.toLowerCase()).includes(q));
   }
-});
+  return out;
+}
 
-$("btnLogout").addEventListener("click", async ()=>{
-  await signOut(auth);
-  location.reload();
-});
+function renderPosts(){
+  const list = applyPostFilters(posts);
+  $("postCount").textContent = `${list.length}`;
 
-function render(){
-  const qText = ($("q").value || "").toLowerCase().trim();
-  const board = $("board").value;
-
-  let list = posts.slice();
-  if (board !== "ALL") list = list.filter(p => p.category === board);
-  if (qText) list = list.filter(p => (`${p.title} ${p.userEmail}`.toLowerCase()).includes(qText));
-
-  $("countLine").textContent = `${list.length} posts`;
-
-  let html = `
-    <table style="width:100%;border-collapse:collapse">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Title</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Board</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Posted By</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Photo</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)"></th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
+  let html = `<table><thead><tr>
+    <th>Title</th><th>Board</th><th>By</th><th>Email</th><th>Created</th><th>Replies</th><th></th>
+  </tr></thead><tbody>`;
 
   for (const p of list){
-    html += `
-      <tr>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.title || "")}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.category || "")}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.userEmail || "")}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${p.photo ? "Yes" : "No"}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">
-          <button class="btn danger" data-del="${esc(p.id)}">Delete</button>
-        </td>
-      </tr>
-    `;
+    html += `<tr>
+      <td>${esc(p.title||"")}</td>
+      <td>${esc(p.board||"")}</td>
+      <td>${esc(p.displayName||"—")}</td>
+      <td>${esc(p.userEmail||"—")}</td>
+      <td>${esc(prettyTime(p.createdAtMs))}</td>
+      <td>${esc((p.replies||[]).length)}</td>
+      <td>
+        <button class="btn mini danger" data-del="${esc(p.id)}">Delete</button>
+        <button class="btn mini" data-ban="${esc(p.uid)}">Ban User</button>
+      </td>
+    </tr>`;
   }
-
   html += `</tbody></table>`;
-  $("tableWrap").innerHTML = html;
+  $("postsTable").innerHTML = html;
 
-  $("tableWrap").querySelectorAll("[data-del]").forEach(btn=>{
+  $("postsTable").querySelectorAll("[data-del]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       const id = btn.getAttribute("data-del");
       if (!confirm("Delete this post?")) return;
       await deleteDoc(doc(db, "listings", id));
     });
   });
+
+  $("postsTable").querySelectorAll("[data-ban]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const uid = btn.getAttribute("data-ban");
+      if (!confirm("Ban this user?")) return;
+      await updateDoc(doc(db, "profiles", uid), { banned:true, bannedAtMs: Date.now() });
+      alert("User banned.");
+    });
+  });
 }
 
-["q","board"].forEach(id => $(id).addEventListener("input", render));
-["uq"].forEach(id => $(id).addEventListener("input", renderUsers));
+function applyUserFilters(list){
+  const q = ($("uq").value||"").toLowerCase().trim();
+  if (!q) return list;
+  return list.filter(p => (`${p.name||""} ${p.email||""} ${p.uid||""}`.toLowerCase()).includes(q));
+}
 
 function renderUsers(){
-  const qText = ($("uq").value || "").toLowerCase().trim();
-  let list = profiles.slice();
-  if (qText){
-    list = list.filter(p => (`${p.name||""} ${p.email||""} ${p.uid||""}`.toLowerCase()).includes(qText));
-  }
-  $("userCountLine").textContent = `${list.length} users`;
-  let html = `<table style="width:100%;border-collapse:collapse"><thead><tr>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Name</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Email</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">UID</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Last Seen</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Status</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)"></th>
-  </tr></thead><tbody>`;
+  const list = applyUserFilters(profiles);
+  $("userCount").textContent = `${list.length}`;
 
+  let html = `<table><thead><tr>
+    <th>Name</th><th>Email</th><th>UID</th><th>Last Seen</th><th>Status</th><th></th>
+  </tr></thead><tbody>`;
   for (const p of list){
-    const last = p.lastSeenAtMs ? new Date(p.lastSeenAtMs).toLocaleString() : "—";
     html += `<tr>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.name || "—")}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.email || "—")}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.uid || "—")}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(last)}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${p.banned ? "BANNED" : "ACTIVE"}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">
-        <button class="btn ${p.banned ? "" : "danger"}" data-ban="${esc(p.uid)}" data-state="${p.banned ? "unban" : "ban"}">${p.banned ? "Unban" : "Ban"}</button>
+      <td>${esc(p.name||"—")}</td>
+      <td>${esc(p.email||"—")}</td>
+      <td>${esc(p.uid||"—")}</td>
+      <td>${esc(prettyTime(p.lastSeenAtMs))}</td>
+      <td>${p.banned ? "BANNED" : "ACTIVE"}</td>
+      <td>
+        <button class="btn mini ${p.banned ? "" : "danger"}" data-toggle="${esc(p.uid)}" data-b="${p.banned ? "1":"0"}">
+          ${p.banned ? "Unban" : "Ban"}
+        </button>
       </td>
     </tr>`;
   }
   html += `</tbody></table>`;
-  $("usersWrap").innerHTML = html;
-  $("usersWrap").querySelectorAll("[data-ban]").forEach(btn=>{
+  $("usersTable").innerHTML = html;
+
+  $("usersTable").querySelectorAll("[data-toggle]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
-      const uid = btn.getAttribute("data-ban");
-      const state = btn.getAttribute("data-state");
-      const willBan = state === "ban";
+      const uid = btn.getAttribute("data-toggle");
+      const banned = btn.getAttribute("data-b") === "1";
+      const willBan = !banned;
       if (!confirm(`${willBan ? "BAN" : "UNBAN"} this user?`)) return;
       await updateDoc(doc(db, "profiles", uid), { banned: willBan, bannedAtMs: Date.now() });
     });
   });
 }
 
+document.addEventListener("DOMContentLoaded", ()=>{
+  ["pq","pboard"].forEach(id => $(id).addEventListener("input", renderPosts));
+  ["uq"].forEach(id => $(id).addEventListener("input", renderUsers));
+  $("btnAdminLogout").addEventListener("click", async ()=>{
+    await signOut(auth);
+  });
+});
 
 onAuthStateChanged(auth, (u)=>{
   user = u;
   if (!user){
-    $("pillUser").textContent = "Not signed in";
-    show("loginOverlay");
+    $("adminUserPill").textContent = "Not signed in";
+    $("btnAdminLogout").style.display = "none";
+    alert("Admin login required. Go back to main site and log in.");
     return;
   }
-  if (!ADMINS.has(user.email.toLowerCase())){
-    alert("This account is not an admin.");
+  if (!user.emailVerified){
+    alert("Verify your email first.");
+    signOut(auth);
+    return;
+  }
+  if (!isAdminEmail(user.email)){
+    alert("Access denied.");
     signOut(auth);
     return;
   }
 
-  hide("loginOverlay");
-  $("pillUser").textContent = `Admin: ${user.email}`;
+  $("adminUserPill").textContent = `Admin: ${user.email}`;
+  $("btnAdminLogout").style.display = "inline-flex";
 
-  const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
-  onSnapshot(qy, (snap)=>{
+  const postQ = query(collection(db, "listings"), orderBy("createdAtMs","desc"));
+  onSnapshot(postQ, (snap)=>{
     posts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-    render();
+    renderPosts();
   });
 
-  const pq = query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc"));
-  onSnapshot(pq, (snap)=>{
+  const profQ = query(collection(db, "profiles"), orderBy("lastSeenAtMs","desc"));
+  onSnapshot(profQ, (snap)=>{
     profiles = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     renderUsers();
   });
