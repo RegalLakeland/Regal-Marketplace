@@ -1,67 +1,114 @@
 
-const postsContainer = document.getElementById("posts")
-const modal = document.getElementById("postModal")
+let posts = JSON.parse(localStorage.getItem("posts") || "[]")
 
-const boards = document.querySelectorAll("#boards li")
+let username = localStorage.getItem("username")
 
-let posts = JSON.parse(localStorage.getItem("posts")||"[]")
+if(!username){
+username = prompt("Enter your name")
+localStorage.setItem("username", username)
+}
 
-function render(board="all"){
-postsContainer.innerHTML=""
+document.getElementById("username").innerText = username
 
-posts.filter(p=> board==="all" || p.board===board).forEach(p=>{
+const feed = document.getElementById("feed")
 
-let card=document.createElement("div")
-card.className="card"
+function render(){
+
+feed.innerHTML = ""
+
+posts.forEach(p=>{
+
+let card = document.createElement("div")
+card.className="post"
 
 card.innerHTML=`
 <h3>${p.title}</h3>
 <div>$${p.price||""}</div>
 <p>${p.desc}</p>
-<small>${p.board}</small>
-<div class="comments"></div>
-<input placeholder="reply">
+<button onclick="openThread('${p.id}')">Open Thread</button>
 `
 
-postsContainer.appendChild(card)
+feed.appendChild(card)
 
 })
-}
-
-boards.forEach(b=>{
-b.onclick=()=>{
-
-boards.forEach(x=>x.classList.remove("active"))
-b.classList.add("active")
-
-render(b.dataset.board)
 
 }
-})
 
-document.getElementById("newPost").onclick=()=>{
-modal.classList.remove("hidden")
+render()
+
+postBtn.onclick = ()=>{
+postModal.classList.remove("hidden")
 }
 
-document.getElementById("closePost").onclick=()=>{
-modal.classList.add("hidden")
+function closePost(){
+postModal.classList.add("hidden")
 }
 
-document.getElementById("savePost").onclick=()=>{
+function createPost(){
 
 let post={
-title:document.getElementById("title").value,
-price:document.getElementById("price").value,
-desc:document.getElementById("desc").value,
-board:document.getElementById("boardSelect").value
+id:Date.now().toString(),
+title:title.value,
+price:price.value,
+desc:desc.value,
+comments:[]
 }
 
-posts.unshift(post)
+posts.push(post)
+
 localStorage.setItem("posts",JSON.stringify(posts))
 
-modal.classList.add("hidden")
+closePost()
 render()
 
 }
 
-render()
+let currentThread=null
+
+function openThread(id){
+
+currentThread=id
+
+let post = posts.find(p=>p.id==id)
+
+threadTitle.innerText=post.title
+
+let html=""
+
+post.comments.forEach(c=>{
+
+html+=`
+<div class="comment">
+<b>${c.user}</b>
+<div>${c.text}</div>
+</div>
+`
+
+})
+
+threadComments.innerHTML=html
+
+threadModal.classList.remove("hidden")
+
+}
+
+function closeThread(){
+threadModal.classList.add("hidden")
+}
+
+function sendReply(){
+
+let txt = replyText.value
+
+let post = posts.find(p=>p.id==currentThread)
+
+post.comments.push({
+user:username,
+text:txt
+})
+
+localStorage.setItem("posts",JSON.stringify(posts))
+
+openThread(currentThread)
+
+}

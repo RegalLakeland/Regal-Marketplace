@@ -1,47 +1,45 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Regal Employee Marketplace</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regal Lakeland Employee Marketplace</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
 
-<div class="bg">
-<div class="slide" style="background-image:url('./Images/regal1.jpg')"></div>
-<div class="slide" style="background-image:url('./Images/regal2.jpg')"></div>
-<div class="slide" style="background-image:url('./Images/regal3.jpg')"></div>
+<div class="slideshow">
+<img src="Images/regal1.jpg">
+<img src="Images/regal2.jpg">
+<img src="Images/regal3.jpg">
 </div>
 
-<header class="topbar">
-<div class="brand">
+<header>
 <div class="logo">RH</div>
 <h1>Regal Employee Marketplace</h1>
-</div>
 
-<div class="top-actions">
-<button id="newPost">+ Post</button>
+<div class="header-right">
+<span id="username"></span>
+<button id="postBtn">+ Post</button>
 </div>
 </header>
 
-<div class="layout">
+<div class="container">
 
-<aside class="sidebar">
+<aside class="boards">
 <h3>Boards</h3>
-<ul id="boards">
-<li data-board="all" class="active">All</li>
-<li data-board="free">Free Items</li>
-<li data-board="sell">Buy / Sell</li>
-<li data-board="garage">Garage Sales</li>
-<li data-board="events">Events</li>
-<li data-board="work">Work News</li>
-</ul>
+<button class="board active">All</button>
+<button class="board">Free Items</button>
+<button class="board">Buy / Sell</button>
+<button class="board">Garage Sales</button>
+<button class="board">Events</button>
+<button class="board">Work News</button>
 </aside>
 
-<main class="feed">
+<main id="feed"></main>
+
+</div>
 
 <div id="postModal" class="modal hidden">
 <div class="modal-box">
@@ -49,24 +47,19 @@
 <input id="title" placeholder="Title">
 <input id="price" placeholder="Price">
 <textarea id="desc" placeholder="Description"></textarea>
-
-<select id="boardSelect">
-<option value="free">Free Items</option>
-<option value="sell">Buy / Sell</option>
-<option value="garage">Garage Sales</option>
-<option value="events">Events</option>
-<option value="work">Work News</option>
-</select>
-
-<button id="savePost">Post</button>
-<button id="closePost">Cancel</button>
+<button onclick="createPost()">Post</button>
+<button onclick="closePost()">Cancel</button>
 </div>
 </div>
 
-<div id="posts" class="cards"></div>
-
-</main>
-
+<div id="threadModal" class="modal hidden">
+<div class="modal-box">
+<h2 id="threadTitle"></h2>
+<div id="threadComments"></div>
+<textarea id="replyText" placeholder="Write a reply"></textarea>
+<button onclick="sendReply()">Reply</button>
+<button onclick="closeThread()">Close</button>
+</div>
 </div>
 
 <script src="app.js"></script>
