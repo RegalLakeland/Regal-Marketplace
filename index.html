@@ -1,0 +1,80 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regal Honda Employee Marketplace</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header>
+<div class="brand">Regal Honda Employee Marketplace</div>
+
+<div class="header-right">
+<span id="userEmail"></span>
+<button id="btnNew">New Post</button>
+<button id="btnLogout">Logout</button>
+</div>
+</header>
+
+<div class="container">
+
+<div class="sidebar">
+<h3>Boards</h3>
+<button class="board" data-board="all">All</button>
+<button class="board" data-board="free">Free Items</button>
+<button class="board" data-board="sell">Buy / Sell</button>
+<button class="board" data-board="garage">Garage Sales</button>
+<button class="board" data-board="events">Events</button>
+</div>
+
+<div class="feed">
+
+<input id="search" placeholder="Search listings">
+
+<div id="cards" class="cards"></div>
+
+</div>
+
+</div>
+
+<!-- LOGIN -->
+<div class="overlay" id="loginOverlay">
+<div class="modal">
+<h2>Employee Login</h2>
+<input id="loginEmail" placeholder="Email">
+<input id="loginPassword" type="password" placeholder="Password">
+<button id="btnLogin">Login</button>
+</div>
+</div>
+
+<!-- CREATE POST -->
+<div class="overlay" id="postOverlay" style="display:none">
+<div class="modal">
+
+<h2>Create Post</h2>
+
+<select id="board">
+<option value="free">Free Items</option>
+<option value="sell">Buy / Sell</option>
+<option value="garage">Garage Sale</option>
+<option value="events">Event</option>
+</select>
+
+<input id="title" placeholder="Title">
+<input id="price" placeholder="Price">
+<input id="photo" type="file">
+<textarea id="desc" placeholder="Description"></textarea>
+
+<button id="btnSave">Post</button>
+
+</div>
+</div>
+
+<script type="module" src="app.js"></script>
+
+</body>
+</html>
