@@ -93,8 +93,9 @@ async function uploadPhotos(postId, files){
   const urls = [];
   for(const file of files){
     const ref = storage.ref(`posts/${postId}/${Date.now()}_${file.name}`);
-    await ref.put(file);
-    urls.push(await ref.getDownloadURL());
+    const snap = await ref.put(file);
+    const url = await snap.ref.getDownloadURL();
+    urls.push(url);
   }
   return urls;
 }
@@ -305,8 +306,12 @@ document.addEventListener("DOMContentLoaded", () => {
   $("postBoard").onchange = togglePrice;
 
   $("btnSavePost").onclick = async () => {
+    const saveBtn = $("btnSavePost");
+    const originalLabel = editingId ? "Update Post" : "Save Post";
     try{
       setMsg("postMsg");
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
       if(!me) throw new Error("Login first.");
       const board = $("postBoard").value;
       const title = $("postTitle").value.trim();
@@ -330,8 +335,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if(!snap.exists) throw new Error("Post not found.");
         const existing = snap.data();
         let photoURLs = existing.photoURLs || [];
-        if(files.length) photoURLs = await uploadPhotos(editingId, files);
-
+        if(files.length){
+          try{
+            photoURLs = await uploadPhotos(editingId, files);
+          }catch(err){
+            console.error(err);
+            throw new Error("Image upload failed. Enable Firebase Storage and publish storage.rules.");
+          }
+        }
         await ref.update({
           board, title, location, desc, contact, status, price,
           photoURLs,
@@ -350,7 +361,17 @@ document.addEventListener("DOMContentLoaded", () => {
           pinned: false,
           createdAtMs: Date.now()
         });
-        const photoURLs = files.length ? await uploadPhotos(ref.id, files) : [];
+
+        let photoURLs = [];
+        if(files.length){
+          try{
+            photoURLs = await uploadPhotos(ref.id, files);
+          }catch(err){
+            console.error(err);
+            await ref.delete();
+            throw new Error("Image upload failed. Enable Firebase Storage, add regallakeland.github.io to authorized domains, and publish storage.rules.");
+          }
+        }
         if(photoURLs.length){
           await ref.update({ photoURLs });
         }
@@ -360,10 +381,13 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => {
         hide("postModal");
         resetPostForm();
-      }, 500);
+      }, 250);
     }catch(e){
       console.error(e);
       setMsg("postMsg", e.message || "Post failed.", "error");
+    }finally{
+      saveBtn.disabled = false;
+      saveBtn.textContent = editingId ? "Update Post" : "Save Post";
     }
   };
 

@@ -25,3 +25,9 @@ This build uses:
 - mark sold
 - replies
 - admin pin/delete/ban at admin.html
+
+
+Fix 1:
+- clearer image upload errors
+- post modal closes after successful save
+- save button disables while posting
