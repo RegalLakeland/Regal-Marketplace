@@ -1,23 +1,13 @@
-Regal Employee Marketplace Complete Bundle
+Regal Employee Marketplace Complete Bundle v2
 
-This ZIP includes:
-- index.html
-- admin.html
-- styles.css
-- app.js
-- admin.js
-- firebase-config.js
-- firestore.rules
-- storage.rules
-- Images/regal1.jpg
-- Images/regal2.jpg
-- Images/regal3.jpg
+What changed:
+- Existing auth users can now log in even if they were created by an older build.
+- Missing profile documents are auto-created after login.
+- Email verification is no longer used as a hard login blocker in this demo bundle.
+- Background paths point to ./Images/regal1.jpg ./Images/regal2.jpg ./Images/regal3.jpg
 
-Upload all files in the root of your repo, and keep the Images folder exactly named "Images".
-
-Important:
-- Replace the placeholder Images files with your real dealership photos.
-- In Firebase Authentication, enable Email/Password.
+Still required:
+- Replace the placeholder Images files with your real dealership images.
+- Enable Email/Password in Firebase Authentication.
 - Add regallakeland.github.io to Authorized Domains.
 - Publish firestore.rules and storage.rules.
-- Email verification is required before login succeeds.

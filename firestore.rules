@@ -1,14 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
     function employee() {
       return request.auth != null
         && request.auth.token.email != null
-        && request.auth.token.email.matches('.*@regallakeland\\.com$')
-        && request.auth.token.email_verified == true;
+        && request.auth.token.email.matches('.*@regallakeland\\.com$');
     }
-
     function isAdmin() {
       return employee() && (
         request.auth.token.email == 'michael.h@regallakeland.com' ||
@@ -17,23 +14,18 @@ service cloud.firestore {
         request.auth.token.email == 'amy.m@regallakeland.com'
       );
     }
-
     match /profiles/{uid} {
       allow read: if employee();
       allow create: if employee() && request.auth.uid == uid;
       allow update: if (employee() && request.auth.uid == uid) || isAdmin();
       allow delete: if isAdmin();
     }
-
     match /posts/{postId} {
       allow read: if employee();
-      allow create: if employee()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerEmail == request.auth.token.email;
+      allow create: if employee() && request.resource.data.ownerUid == request.auth.uid;
       allow update: if (employee() && request.auth.uid == resource.data.ownerUid) || isAdmin();
       allow delete: if isAdmin();
     }
-
     match /moderationAlerts/{alertId} {
       allow read: if isAdmin();
       allow create: if employee();

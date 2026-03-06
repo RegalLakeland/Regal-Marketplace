@@ -1,4 +1,4 @@
-import { firebaseConfig, ADMIN_EMAILS, SECTION_GROUPS, PROFANITY_WORDS } from "./firebase-config.js";
+import { firebaseConfig, ADMIN_EMAILS, DEFAULT_TABS, PROFANITY_WORDS } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
@@ -27,8 +27,22 @@ let composeImages = [];
 let editingId = null;
 let replyTargetId = null;
 let postsUnsub = null;
+let tabsUnsub = null;
+let currentTabs = [...DEFAULT_TABS];
 
-function getSectionById(id){ return SECTION_GROUPS.flatMap(g => g.sections).find(s => s.id === id); }
+function slugify(text){
+  return String(text || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+function groupTabs(tabs){
+  const groups = {};
+  for (const tab of tabs) {
+    const group = tab.group || "Marketplace";
+    if (!groups[group]) groups[group] = [];
+    groups[group].push(tab);
+  }
+  return Object.entries(groups).map(([title, sections]) => ({ title, sections }));
+}
+function getSectionById(id){ return currentTabs.find(s => s.id === id); }
 function validWorkEmail(email){ return String(email || "").toLowerCase().endsWith("@regallakeland.com"); }
 function initials(name){ return String(name || "?").split(" ").filter(Boolean).slice(0,2).map(x => x[0].toUpperCase()).join(""); }
 function formatDate(v){
@@ -54,6 +68,16 @@ function bindSlideshow(){
 }
 bindSlideshow();
 
+async function ensureTabsDoc(){
+  const refTabs = doc(db, "settings", "tabs");
+  const snap = await getDoc(refTabs);
+  if (!snap.exists()) {
+    await setDoc(refTabs, {
+      tabs: DEFAULT_TABS,
+      updatedAt: serverTimestamp()
+    });
+  }
+}
 function syncAuthUI(){
   const loggedIn = !!currentUser && !!currentProfile;
   byId("authGate").hidden = loggedIn;
@@ -147,8 +171,7 @@ function resetComposer(){
   hideNotice("composeMsg");
 }
 function populateSections(selected = ""){
-  const sections = SECTION_GROUPS.flatMap(g => g.sections);
-  byId("composeSection").innerHTML = sections.map(s => `<option value="${s.id}" ${selected===s.id?"selected":""}>${esc(s.name)}</option>`).join("");
+  byId("composeSection").innerHTML = currentTabs.map(s => `<option value="${s.id}" ${selected===s.id?"selected":""}>${esc(s.name)}</option>`).join("");
 }
 function openComposer(postId = null){
   resetComposer();
@@ -204,7 +227,7 @@ function renderClassic(){
             <div class="grid-body">
               <div class="grid-title">${esc(post.title)}</div>
               <div class="price-pill">${esc(post.price || "FREE")}</div>
-              <div class="meta">${esc(getSectionById(post.sectionId)?.name || "")} • ${esc(post.location || "Lakeland")} • ${esc(post.authorName || "")}</div>
+              <div class="meta">${esc(getSectionById(post.sectionId)?.name || post.sectionId || "")} • ${esc(post.location || "Lakeland")} • ${esc(post.authorName || "")}</div>
               <div class="body-text">${esc(post.body || "").slice(0, 160)}${(post.body || "").length > 160 ? "..." : ""}</div>
               <div class="actions">
                 <button class="btn open-post" data-id="${post.id}" type="button">Open</button>
@@ -254,7 +277,8 @@ function boardRowHtml(section){
 }
 function renderBoards(){
   const appRoot = byId("appRoot");
-  appRoot.innerHTML = SECTION_GROUPS.map(group => `
+  const groups = groupTabs(currentTabs);
+  appRoot.innerHTML = groups.map(group => `
     <div class="section-group-title">${esc(group.title)}</div>
     <div class="board-table">${group.sections.map(boardRowHtml).join("")}</div>
   `).join("");
@@ -297,9 +321,9 @@ function renderSection(sectionId){
   const posts = getPostsBySection(sectionId);
   const appRoot = byId("appRoot");
   appRoot.innerHTML = `
-    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / ${esc(section.name)}</div>
+    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / ${esc(section?.name || sectionId)}</div>
     <div class="header-row">
-      <div><h2>${esc(section.name)}</h2><div class="sub">${esc(section.desc)}</div></div>
+      <div><h2>${esc(section?.name || sectionId)}</h2><div class="sub">${esc(section?.desc || "")}</div></div>
       <input id="sectionSearch" class="search" placeholder="Search this section...">
     </div>
     <div id="topicTable" class="topic-table">${posts.length ? posts.map(topicRowHtml).join("") : `<div class="empty">No threads in this section yet.</div>`}</div>
@@ -331,7 +355,7 @@ async function renderThread(postId){
   const gallery = post.imageUrls?.length ? `<div class="gallery">${post.imageUrls.map(url => `<img src="${url}" alt="">`).join("")}</div>` : "";
   const appRoot = byId("appRoot");
   appRoot.innerHTML = `
-    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / <a href="#" id="crumbSection">${esc(section.name)}</a> / ${esc(post.title)}</div>
+    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / <a href="#" id="crumbSection">${esc(section?.name || post.sectionId)}</a> / ${esc(post.title)}</div>
     <div class="thread-card">
       <div class="thread-top">
         <div>
@@ -351,7 +375,7 @@ async function renderThread(postId){
         <button id="replyBtn" class="btn primary" type="button">Reply</button>
         ${canEdit ? `<button id="editBtn" class="btn" type="button">Edit</button><button id="soldBtn" class="btn" type="button">${post.status==="sold"?"Mark Active":"Mark Sold"}</button>` : ""}
         ${isAdmin() ? `<button id="deleteBtn" class="btn danger" type="button">Delete</button>` : ""}
-        <button id="backBtn" class="btn" type="button">Back to ${esc(section.name)}</button>
+        <button id="backBtn" class="btn" type="button">Back to ${esc(section?.name || post.sectionId)}</button>
       </div>
     </div>
     <div class="replies-wrap"><div class="reply-title">Replies</div>${replyHtml}</div>
@@ -363,11 +387,11 @@ async function renderThread(postId){
   });
   byId("crumbSection").addEventListener("click", (e) => {
     e.preventDefault();
-    forumView = { type: "section", sectionId: section.id, threadId: null };
+    forumView = { type: "section", sectionId: post.sectionId, threadId: null };
     render();
   });
   byId("backBtn").addEventListener("click", () => {
-    forumView = { type: "section", sectionId: section.id, threadId: null };
+    forumView = { type: "section", sectionId: post.sectionId, threadId: null };
     render();
   });
   byId("replyBtn").addEventListener("click", () => {
@@ -505,6 +529,18 @@ function subscribePosts(){
     render();
   });
 }
+function subscribeTabs(){
+  if(tabsUnsub) tabsUnsub();
+  const refTabs = doc(db, "settings", "tabs");
+  tabsUnsub = onSnapshot(refTabs, async (snap) => {
+    if (!snap.exists()) {
+      await ensureTabsDoc();
+      return;
+    }
+    currentTabs = (snap.data().tabs || DEFAULT_TABS).filter(t => t && t.id && t.name);
+    render();
+  });
+}
 
 byId("loginTab").onclick = () => switchAuthTab("login");
 byId("signupTab").onclick = () => switchAuthTab("signup");
@@ -529,23 +565,31 @@ onAuthStateChanged(auth, async (user) => {
     syncAuthUI();
     return;
   }
-  if(!user.emailVerified){
-    showNotice("authMsg", "Verify your email first, then log in.");
-    await signOut(auth);
-    return;
-  }
   currentUser = user;
   currentProfile = await ensureProfile(user.uid);
+
   if(!currentProfile){
-    await signOut(auth);
-    showNotice("authMsg", "Profile missing. Create the account again.");
-    return;
+    const fallbackName = (user.email || "Employee").split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    await setDoc(doc(db, "profiles", user.uid), {
+      uid: user.uid,
+      displayName: fallbackName,
+      displayNameLower: fallbackName.toLowerCase(),
+      email: user.email,
+      role: ADMIN_EMAILS.includes((user.email || "").toLowerCase()) ? "admin" : "user",
+      banned: false,
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    currentProfile = await ensureProfile(user.uid);
   }
+
   if(currentProfile.banned){
-    await signOut(auth);
     showNotice("authMsg", "This account has been banned.");
+    await signOut(auth);
     return;
   }
+
+  await ensureTabsDoc();
   syncAuthUI();
+  subscribeTabs();
   subscribePosts();
 });
