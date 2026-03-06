@@ -1,162 +1,42 @@
 
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Regal Employee Marketplace</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8">
+<title>Regal Employee Marketplace</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="bg-slideshow"><div class="bg bg1"></div><div class="bg bg2"></div><div class="bg bg3"></div></div>
-  <div class="bg-overlay"></div>
 
-  <div class="overlay" id="authOverlay">
-    <div class="modal authModal">
-      <div class="modal-h"><strong>Employee Marketplace</strong></div>
-      <div class="modal-b">
-        <div class="authTabs">
-          <button class="tabBtn active" id="tabLogin" type="button">Login</button>
-          <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
-        </div>
+<header>
+<h1>Regal Employee Marketplace</h1>
+<button id="logoutBtn" style="display:none">Logout</button>
+</header>
 
-        <div id="loginPane">
-          <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></div>
-          <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
-          <div class="rowBtns">
-            <button class="btn primary" id="btnLogin" type="button">Login</button>
-            <button class="btn ghost" id="btnForgotPassword" type="button">Forgot Password</button>
-          </div>
-          <div class="note warn" id="authWarn" style="display:none"></div>
-        </div>
+<div id="loginBox">
+<h2>Login</h2>
+<input id="email" placeholder="email">
+<input id="password" type="password" placeholder="password">
+<button id="loginBtn">Login</button>
+<button id="signupBtn">Create Account</button>
+</div>
 
-        <div id="signupPane" style="display:none">
-          <div class="field"><label>First & Last Name</label><input id="signupName" type="text" placeholder="Jordan Reyes"></div>
-          <div class="field"><label>Work Email</label><input id="signupEmail" type="email" placeholder="first.last@regallakeland.com"></div>
-          <div class="field"><label>Password</label><input id="signupPassword" type="password"></div>
-          <div class="field"><label>Confirm Password</label><input id="signupPassword2" type="password"></div>
-          <label class="checkRow"><input type="checkbox" id="agreeRules"><span>I agree to the rules.</span></label>
-          <div class="rowBtns"><button class="btn primary" id="btnSignup" type="button">Create Account</button></div>
-          <div class="note" id="signupMsg" style="display:none"></div>
-        </div>
+<div id="marketplace" style="display:none">
 
-        <div class="rulesBox">
-          <div class="rulesTitle">Rules</div>
-          <ul>
-            <li>Work friends only</li>
-            <li>No drama / no spam</li>
-            <li>Include contact info in your post</li>
-            <li>Admins can remove posts and ban access</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
+<h2>Create Post</h2>
+<input id="title" placeholder="title">
+<input id="price" placeholder="price">
+<textarea id="description" placeholder="description"></textarea>
+<input id="image" type="file">
+<button id="postBtn">Post</button>
 
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">RH</div>
-      <div class="title">
-        <div class="h1">Regal Employee Marketplace</div>
-        <div class="sub">Private • Verified work email required</div>
-      </div>
-    </div>
-    <div class="actions">
-      <span class="pill" id="userPill">Not signed in</span>
-      <button class="btn primary" id="btnNewPost" type="button" style="display:none">+ Post</button>
-      <a class="btn ghost" id="adminLink" href="adminregal/" style="display:none">Admin</a>
-      <button class="btn danger" id="btnLogout" type="button" style="display:none">Logout</button>
-    </div>
-  </header>
+<h2>Posts</h2>
+<div id="posts"></div>
 
-  <div class="wrap">
-    <div class="layout">
-      <aside class="panel">
-        <div class="panel-h"><h2>Boards</h2><span class="pill" id="boardPill">All</span></div>
-        <div class="panel-b"><div class="boards" id="boards"></div></div>
-      </aside>
+</div>
 
-      <main class="panel">
-        <div class="panel-h">
-          <div><h2 id="marketTitle">Marketplace</h2><span class="pill" id="countLine">0 shown • 0 total</span></div>
-          <div class="filters">
-            <div class="field"><label>Search</label><input id="q" placeholder="Search titles, descriptions..."></div>
-            <div class="field"><label>Status</label><select id="st"><option value="ACTIVE">Active</option><option value="ALL">All</option><option value="SOLD">Sold</option></select></div>
-            <div class="field"><label>Sort</label><select id="sort"><option value="PINNED_NEW">Pinned + Newest</option><option value="NEW">Newest</option><option value="OLD">Oldest</option><option value="PRICE_ASC">Price ↑</option><option value="PRICE_DESC">Price ↓</option></select></div>
-          </div>
-        </div>
-        <div class="panel-b">
-          <div class="cards" id="cards"></div>
-          <div class="note" id="empty" style="display:none;margin-top:12px">No listings match your filters.</div>
-        </div>
-      </main>
-    </div>
-  </div>
+<script src="firebase-config.js"></script>
+<script type="module" src="app.js"></script>
 
-  <div class="overlay" id="postOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h"><strong id="postModalTitle">Create Post</strong><button class="btn ghost" id="btnClosePost" type="button">Close</button></div>
-      <div class="modal-b">
-        <div class="grid2">
-          <div class="field">
-            <label>Board</label>
-            <select id="fBoard">
-              <option value="FREE">Free Items</option>
-              <option value="BUYSELL">Buy / Sell</option>
-              <option value="GARAGE">Garage Sales</option>
-              <option value="EVENTS">Events</option>
-              <option value="WORK">Work News</option>
-              <option value="SERVICES">Local Services</option>
-            </select>
-          </div>
-          <div class="field"><label>Status</label><select id="fStatus"><option value="ACTIVE">Active</option><option value="SOLD">Sold</option></select></div>
-        </div>
-        <div class="field"><label>Title</label><input id="fTitle" placeholder="What are you posting?"></div>
-        <div class="grid2">
-          <div class="field" id="priceField"><label>Price</label><input id="fPrice" inputmode="decimal" placeholder="25"></div>
-          <div class="field"><label>Location (optional)</label><input id="fLocation" placeholder="Lakeland, Plant City..."></div>
-        </div>
-        <div class="field"><label>Description</label><textarea id="fDesc" placeholder="Condition, details, pickup info..."></textarea></div>
-        <div class="field"><label>Contact</label><input id="fContact" placeholder="Phone, text, email, or where to find you at work"></div>
-        <div class="field"><label>Photos (optional, max 10)</label><input id="fPhotos" type="file" accept="image/*" multiple></div>
-        <div class="note warn" id="postWarn" style="display:none"></div>
-        <div class="note ok" id="postOk" style="display:none"></div>
-      </div>
-      <div class="modal-actions"><button class="btn primary" id="btnSavePost" type="button">Save Post</button></div>
-    </div>
-  </div>
-
-  <div class="overlay" id="threadOverlay" style="display:none">
-    <div class="modal threadModal">
-      <div class="modal-h"><strong id="threadTitle">Thread</strong><button class="btn ghost" id="btnCloseThread" type="button">Close</button></div>
-      <div class="modal-b">
-        <div id="threadMeta" class="meta"></div>
-        <div id="threadGallery" class="gallery"></div>
-        <div id="threadBody" class="threadBody"></div>
-        <div class="rowBtns" style="margin-top:12px">
-          <a class="btn primary" id="btnContactSeller" href="#" target="_blank" rel="noreferrer" style="display:none">Contact Seller</a>
-          <button class="btn ghost" id="btnReportPost" type="button">Report Post</button>
-        </div>
-        <div style="height:12px"></div>
-        <div class="repliesTitle">Replies</div>
-        <div id="threadReplies" class="replies"></div>
-        <div style="height:12px"></div>
-        <div class="field"><label>Add a reply</label><textarea id="replyText" placeholder="Write a reply..."></textarea></div>
-        <div class="rowBtns"><button class="btn primary" id="btnSendReply" type="button">Reply</button></div>
-        <div class="note ok" id="replyOk" style="display:none"></div>
-        <div class="note warn" id="replyWarn" style="display:none"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="overlay" id="notifOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h"><strong>Notifications</strong><button class="btn ghost" id="btnCloseNotifications" type="button">Close</button></div>
-      <div class="modal-b"><div id="notifList"></div></div>
-    </div>
-  </div>
-
-  <script src="firebase-config.js"></script>
-  <script type="module" src="app.js"></script>
 </body>
 </html>
