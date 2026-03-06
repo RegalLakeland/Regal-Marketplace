@@ -1,26 +1,45 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if a user is an admin
-    function isAdmin(userId) {
-      // IMPORTANT: Replace with your actual Admin User IDs (UIDs)
-      let adminUids = ["YOUR_ADMIN_UID_HERE", "ANOTHER_ADMIN_UID_HERE"];
-      return userId in adminUids;
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Only authenticated users from the specific domain can read or write posts.
+    // The NEW way to check for an admin. Reads the user's profile from the 'users' collection.
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // --- Users Collection Rules ---
+    match /users/{userId} {
+      // Anyone can create their own user profile (e.g., on signup).
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      
+      // Users can only read their own profile. Admins can read anyone's profile.
+      allow get: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
+      
+      // Users can update their own non-sensitive info. Admins can update anything.
+      allow update: if (isSignedIn() && request.auth.uid == userId && !('isAdmin' in request.resource.data)) || isAdmin();
+      
+      // Only admins can delete users.
+      allow delete: if isAdmin();
+    }
+
+    // --- Posts Collection Rules ---
     match /posts/{postId} {
-      allow read: if request.auth != null && request.auth.token.email.matches('.*@regallakeland.com$');
-      
-      // Allow create if user is authenticated and from the correct domain
-      allow create: if request.auth != null && request.auth.token.email.matches('.*@regallakeland.com$');
-      
-      // Allow update or delete only if the user is the author of the post OR if the user is an admin.
-      allow update, delete: if request.auth != null && 
-                              (request.auth.uid == resource.data.authorId || isAdmin(request.auth.uid));
-    }
+      allow get: if isSignedIn(); // Any signed-in user can view posts.
+      allow list: if isSignedIn(); // Any signed-in user can list posts.
 
-    // Rules for other collections would go here
+      // Users can create posts. The 'isDeleted' flag must be false initially.
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid && request.resource.data.isDeleted == false;
+
+      // Users can update their own posts. Admins can update any post (e.g., to soft-delete or restore).
+      allow update: if (isSignedIn() && resource.data.authorId == request.auth.uid) || isAdmin();
+
+      // Only admins can permanently delete a post document.
+      allow delete: if isAdmin();
+    }
   }
 }

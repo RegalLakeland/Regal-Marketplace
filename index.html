@@ -1,163 +1,162 @@
-<!DOCTYPE html>
+
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Regal Lakeland Employee Marketplace</title>
-    <link rel="stylesheet" href="style.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Regal Employee Marketplace</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="bg-slideshow"><div class="bg bg1"></div><div class="bg bg2"></div><div class="bg bg3"></div></div>
+  <div class="bg-overlay"></div>
 
-    <!-- Background slideshow -->
-    <div class="slideshow" aria-hidden="true">
-        <div class="slideshow-image"></div>
-        <div class="slideshow-image"></div>
-        <div class="slideshow-image"></div>
-    </div>
-    <div class="overlay"></div>
-
-    <!-- LOGIN / SIGNUP OVERLAY -->
-    <div class="modal-overlay" id="login-overlay">
-        <div class="modal-container">
-            <div class="modal-header">
-                <h2>Welcome to the Regal Lakeland Marketplace</h2>
-            </div>
-            <div class="modal-body">
-                <div class="auth-tabs">
-                    <button class="tab-btn active" data-tab="login">Login</button>
-                    <button class="tab-btn" data-tab="register">Register</button>
-                </div>
-
-                <!-- Login Form -->
-                <form id="login-form" class="auth-form active">
-                    <input type="email" id="login-email" placeholder="Email (@regallakeland.com)" required autocomplete="username">
-                    <input type="password" id="login-password" placeholder="Password" required autocomplete="current-password">
-                    <button type="submit" class="btn primary">Login</button>
-                    <p class="form-link">
-                        <a href="#" id="forgot-password-link">Forgot Password?</a>
-                    </p>
-                </form>
-
-                <!-- Register Form -->
-                <form id="register-form" class="auth-form">
-                    <input type="text" id="register-username" placeholder="Choose a Display Name" required>
-                    <input type="email" id="register-email" placeholder="Email (@regallakeland.com)" required autocomplete="email">
-                    <input type="password" id="register-password" placeholder="Create Password" required autocomplete="new-password">
-                    <button type="submit" class="btn primary">Register</button>
-                </form>
-            </div>
+  <div class="overlay" id="authOverlay">
+    <div class="modal authModal">
+      <div class="modal-h"><strong>Employee Marketplace</strong></div>
+      <div class="modal-b">
+        <div class="authTabs">
+          <button class="tabBtn active" id="tabLogin" type="button">Login</button>
+          <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
         </div>
-    </div>
 
-    <!-- MAIN APPLICATION CONTAINER -->
-    <div id="main-view" style="display: none;">
-        <header class="top-bar">
-            <div class="logo-title">
-                <h1>Regal Lakeland Marketplace</h1>
-            </div>
-            <div class="user-controls">
-                <span id="user-display"></span>
-                <button id="admin-dashboard-btn" class="btn ghost" style="display:none;">Admin</button>
-                <button id="logout-btn" class="btn danger">Logout</button>
-            </div>
-        </header>
-
-        <main class="app-layout">
-            <aside class="left-panel">
-                <div class="panel-header">
-                    <h2>Boards</h2>
-                </div>
-                <div class="panel-body">
-                    <ul id="category-list" class="category-list">
-                        <li class="active" data-category="all">All Posts</li>
-                        <li data-category="buy-sell">Buy / Sell</li>
-                        <li data-category="free">Free Items</li>
-                        <li data-category="garage-sale">Garage Sales</li>
-                        <li data-category="events">Events</li>
-                        <li data-category="work-news">Work News</li>
-                        <li data-category="services">Services</li>
-                    </ul>
-                </div>
-            </aside>
-
-            <section class="main-content">
-                <div class="content-header">
-                     <div class="view-toggle">
-                        <span>Forum View</span>
-                        <label class="switch">
-                            <input type="checkbox" id="view-toggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                        <span>Marketplace View</span>
-                    </div>
-                    <button id="create-post-btn" class="btn primary">+ Create Post</button>
-                </div>
-                <div id="content-area" class="marketplace-grid">
-                    <!-- Dynamic content (posts) will be loaded here -->
-                </div>
-                 <div id="empty-state" class="empty-state" style="display: none;">
-                    <h3>No posts found.</h3>
-                    <p>Be the first to create a post in this category!</p>
-                </div>
-            </section>
-        </main>
-    </div>
-    
-    <!-- POST CREATION/EDIT MODAL -->
-    <div id="post-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-container wide">
-            <div class="modal-header">
-                <h2 id="modal-title">Create New Post</h2>
-                <button class="close-btn">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="post-form">
-                    <input type="hidden" id="post-id">
-                    <div class="form-grid">
-                        <input type="text" id="post-title" placeholder="Title of your post" required class="full-width">
-                        <textarea id="post-description" placeholder="Describe your item, event, or announcement..." rows="5" required class="full-width"></textarea>
-                        <input type="number" id="post-price" placeholder="Price (leave blank for FREE)">
-                        <input type="text" id="post-location" placeholder="Location (e.g., Lakeland, office)">
-                        <select id="post-category" required>
-                            <option value="" disabled selected>Select a category...</option>
-                            <option value="buy-sell">Buy / Sell</option>
-                            <option value="free">Free Items</option>
-                            <option value="garage-sale">Garage Sales</option>
-                            <option value="events">Events</option>
-                            <option value="work-news">Work News</option>
-                            <option value="services">Services</option>
-                        </select>
-                         <input type="text" id="post-contact" placeholder="Contact Info (optional)">
-                    </div>
-                    <div class="form-group">
-                        <label>Images (up to 4)</label>
-                        <input type="file" id="post-images" multiple accept="image/*">
-                        <div id="image-previews"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" id="save-post-btn" class="btn primary">Save Post</button>
-                    </div>
-                </form>
-            </div>
+        <div id="loginPane">
+          <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></div>
+          <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
+          <div class="rowBtns">
+            <button class="btn primary" id="btnLogin" type="button">Login</button>
+            <button class="btn ghost" id="btnForgotPassword" type="button">Forgot Password</button>
+          </div>
+          <div class="note warn" id="authWarn" style="display:none"></div>
         </div>
-    </div>
 
-    <!-- POST DETAIL VIEW (MODAL) -->
-    <div id="detail-view-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-container wide">
-             <div class="modal-header">
-                <h2 id="detail-title"></h2>
-                <button class="close-detail-btn">&times;</button>
-            </div>
-            <div id="detail-view-content" class="modal-body">
-                <!-- Detailed post content will be injected here by JS -->
-            </div>
+        <div id="signupPane" style="display:none">
+          <div class="field"><label>First & Last Name</label><input id="signupName" type="text" placeholder="Jordan Reyes"></div>
+          <div class="field"><label>Work Email</label><input id="signupEmail" type="email" placeholder="first.last@regallakeland.com"></div>
+          <div class="field"><label>Password</label><input id="signupPassword" type="password"></div>
+          <div class="field"><label>Confirm Password</label><input id="signupPassword2" type="password"></div>
+          <label class="checkRow"><input type="checkbox" id="agreeRules"><span>I agree to the rules.</span></label>
+          <div class="rowBtns"><button class="btn primary" id="btnSignup" type="button">Create Account</button></div>
+          <div class="note" id="signupMsg" style="display:none"></div>
         </div>
+
+        <div class="rulesBox">
+          <div class="rulesTitle">Rules</div>
+          <ul>
+            <li>Work friends only</li>
+            <li>No drama / no spam</li>
+            <li>Include contact info in your post</li>
+            <li>Admins can remove posts and ban access</li>
+          </ul>
+        </div>
+      </div>
     </div>
-    
-    <script type="module" src="main.js"></script>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">RH</div>
+      <div class="title">
+        <div class="h1">Regal Employee Marketplace</div>
+        <div class="sub">Private • Verified work email required</div>
+      </div>
+    </div>
+    <div class="actions">
+      <span class="pill" id="userPill">Not signed in</span>
+      <button class="btn primary" id="btnNewPost" type="button" style="display:none">+ Post</button>
+      <a class="btn ghost" id="adminLink" href="adminregal/" style="display:none">Admin</a>
+      <button class="btn danger" id="btnLogout" type="button" style="display:none">Logout</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="layout">
+      <aside class="panel">
+        <div class="panel-h"><h2>Boards</h2><span class="pill" id="boardPill">All</span></div>
+        <div class="panel-b"><div class="boards" id="boards"></div></div>
+      </aside>
+
+      <main class="panel">
+        <div class="panel-h">
+          <div><h2 id="marketTitle">Marketplace</h2><span class="pill" id="countLine">0 shown • 0 total</span></div>
+          <div class="filters">
+            <div class="field"><label>Search</label><input id="q" placeholder="Search titles, descriptions..."></div>
+            <div class="field"><label>Status</label><select id="st"><option value="ACTIVE">Active</option><option value="ALL">All</option><option value="SOLD">Sold</option></select></div>
+            <div class="field"><label>Sort</label><select id="sort"><option value="PINNED_NEW">Pinned + Newest</option><option value="NEW">Newest</option><option value="OLD">Oldest</option><option value="PRICE_ASC">Price ↑</option><option value="PRICE_DESC">Price ↓</option></select></div>
+          </div>
+        </div>
+        <div class="panel-b">
+          <div class="cards" id="cards"></div>
+          <div class="note" id="empty" style="display:none;margin-top:12px">No listings match your filters.</div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="overlay" id="postOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-h"><strong id="postModalTitle">Create Post</strong><button class="btn ghost" id="btnClosePost" type="button">Close</button></div>
+      <div class="modal-b">
+        <div class="grid2">
+          <div class="field">
+            <label>Board</label>
+            <select id="fBoard">
+              <option value="FREE">Free Items</option>
+              <option value="BUYSELL">Buy / Sell</option>
+              <option value="GARAGE">Garage Sales</option>
+              <option value="EVENTS">Events</option>
+              <option value="WORK">Work News</option>
+              <option value="SERVICES">Local Services</option>
+            </select>
+          </div>
+          <div class="field"><label>Status</label><select id="fStatus"><option value="ACTIVE">Active</option><option value="SOLD">Sold</option></select></div>
+        </div>
+        <div class="field"><label>Title</label><input id="fTitle" placeholder="What are you posting?"></div>
+        <div class="grid2">
+          <div class="field" id="priceField"><label>Price</label><input id="fPrice" inputmode="decimal" placeholder="25"></div>
+          <div class="field"><label>Location (optional)</label><input id="fLocation" placeholder="Lakeland, Plant City..."></div>
+        </div>
+        <div class="field"><label>Description</label><textarea id="fDesc" placeholder="Condition, details, pickup info..."></textarea></div>
+        <div class="field"><label>Contact</label><input id="fContact" placeholder="Phone, text, email, or where to find you at work"></div>
+        <div class="field"><label>Photos (optional, max 10)</label><input id="fPhotos" type="file" accept="image/*" multiple></div>
+        <div class="note warn" id="postWarn" style="display:none"></div>
+        <div class="note ok" id="postOk" style="display:none"></div>
+      </div>
+      <div class="modal-actions"><button class="btn primary" id="btnSavePost" type="button">Save Post</button></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="threadOverlay" style="display:none">
+    <div class="modal threadModal">
+      <div class="modal-h"><strong id="threadTitle">Thread</strong><button class="btn ghost" id="btnCloseThread" type="button">Close</button></div>
+      <div class="modal-b">
+        <div id="threadMeta" class="meta"></div>
+        <div id="threadGallery" class="gallery"></div>
+        <div id="threadBody" class="threadBody"></div>
+        <div class="rowBtns" style="margin-top:12px">
+          <a class="btn primary" id="btnContactSeller" href="#" target="_blank" rel="noreferrer" style="display:none">Contact Seller</a>
+          <button class="btn ghost" id="btnReportPost" type="button">Report Post</button>
+        </div>
+        <div style="height:12px"></div>
+        <div class="repliesTitle">Replies</div>
+        <div id="threadReplies" class="replies"></div>
+        <div style="height:12px"></div>
+        <div class="field"><label>Add a reply</label><textarea id="replyText" placeholder="Write a reply..."></textarea></div>
+        <div class="rowBtns"><button class="btn primary" id="btnSendReply" type="button">Reply</button></div>
+        <div class="note ok" id="replyOk" style="display:none"></div>
+        <div class="note warn" id="replyWarn" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="notifOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-h"><strong>Notifications</strong><button class="btn ghost" id="btnCloseNotifications" type="button">Close</button></div>
+      <div class="modal-b"><div id="notifList"></div></div>
+    </div>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
