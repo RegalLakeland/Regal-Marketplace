@@ -1,14 +1,13 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Regal Lakeland Internal Marketplace & Forum</title>
+    <title>Regal Lakeland Marketplace</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Background Slideshow -->
+
     <div class="slideshow">
         <div class="slideshow-image"></div>
         <div class="slideshow-image"></div>
@@ -16,108 +15,96 @@
     </div>
     <div class="overlay"></div>
 
-    <!-- Main Container -->
     <div id="app-container">
-        <!-- Login/Register View -->
-        <div id="auth-view" class="view">
+
+        <!-- Authentication View -->
+        <div id="auth-view">
             <div id="auth-container">
                 <div id="login-form">
                     <h2>Login</h2>
-                    <input type="email" id="login-email" placeholder="Email" required>
-                    <input type="password" id="login-password" placeholder="Password" required>
+                    <input type="email" id="login-email" placeholder="Email (@regallakeland.com)">
+                    <input type="password" id="login-password" placeholder="Password">
                     <button id="login-btn">Login</button>
-                    <p>Forgot Password? <a href="#" id="forgot-password-link">Reset</a></p>
-                    <p>Don't have an account? <a href="#" id="show-register-link">Register</a></p>
+                    <p>Don't have an account? <a href="#" id="show-register">Register</a></p>
+                    <p><a href="#" id="forgot-password-link">Forgot Password?</a></p>
                 </div>
                 <div id="register-form" style="display: none;">
                     <h2>Register</h2>
-                    <input type="email" id="register-email" placeholder="Work Email (@regallakeland.com)" required>
-                    <input type="password" id="register-password" placeholder="Password" required>
-                    <input type="text" id="register-username" placeholder="Username" required>
+                    <input type="text" id="register-username" placeholder="Your Name">
+                    <input type="email" id="register-email" placeholder="Email (@regallakeland.com)">
+                    <input type="password" id="register-password" placeholder="Password">
                     <button id="register-btn">Register</button>
-                    <p>Already have an account? <a href="#" id="show-login-link">Login</a></p>
+                    <p>Already have an account? <a href="#" id="show-login">Login</a></p>
                 </div>
             </div>
         </div>
 
-        <!-- Main App View -->
-        <div id="main-view" class="view" style="display: none;">
+        <!-- Main Application View -->
+        <div id="main-view" style="display: none;">
             <header>
-                <h1>Regal Lakeland Marketplace & Forum</h1>
                 <div class="user-info">
                     <span id="user-display"></span>
                     <button id="logout-btn">Logout</button>
-                    <button id="admin-dashboard-btn" style="display: none;">Admin</button>
+                    <button id="admin-dashboard-btn" style="display: none;">Admin Dashboard</button>
                 </div>
+                <h1>Regal Lakeland Marketplace & Forum</h1>
             </header>
-
             <div class="controls">
                 <button id="create-post-btn">Create Post</button>
                 <div class="toggle-switch">
                     <span>Forum View</span>
                     <label class="switch">
                         <input type="checkbox" id="view-toggle" checked>
-                        <span class="slider round"></span>
+                        <span class="slider"></span>
                     </label>
                     <span>Marketplace View</span>
                 </div>
             </div>
-
-            <main id="content-area">
-                <!-- Posts will be injected here -->
-            </main>
+            <div id="content-area" class="marketplace-grid">
+                <!-- Posts will be dynamically loaded here -->
+            </div>
         </div>
 
         <!-- Post Detail View -->
-        <div id="detail-view" class="view" style="display: none;">
-            <!-- Post detail will be injected here -->
+        <div id="detail-view" style="display: none;">
+            <!-- Detailed post content will be loaded here -->
+        </div>
+        
+        <!-- Admin View -->
+        <div id="admin-view" style="display: none;">
+            <!-- Admin content will be loaded from admin.html -->
         </div>
 
-        <!-- Admin Dashboard View -->
-        <div id="admin-view" class="view" style="display: none;">
-            <h2>Admin Dashboard</h2>
-            <div id="admin-content">
-                <div id="admin-users">
-                    <h3>Users</h3>
-                    <ul id="user-list"></ul>
-                </div>
-                <div id="admin-posts">
-                    <h3>Posts</h3>
-                    <ul id="post-list-admin"></ul>
-                </div>
-            </div>
-            <button id="admin-back-btn">Back to App</button>
-        </div>
+
     </div>
 
-    <!-- Create/Edit Post Modal -->
+    <!-- Post Creation/Edit Modal -->
     <div id="post-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close-btn">&times;</span>
             <h2 id="modal-title">Create Post</h2>
             <input type="hidden" id="post-id">
-            <input type="text" id="post-title" placeholder="Title" required>
-            <textarea id="post-description" placeholder="Description" required></textarea>
-            <input type="number" id="post-price" placeholder="Price (optional)">
+            <input type="text" id="post-title" placeholder="Title">
+            <textarea id="post-description" placeholder="Description"></textarea>
+            <input type="number" id="post-price" placeholder="Price (leave blank for FREE)">
             <input type="text" id="post-location" placeholder="Location">
-            <input type="text" id="post-contact" placeholder="Contact Info">
+            <input type="text" id="post-contact" placeholder="Contact Info (Phone or Email)">
             <select id="post-category">
-                <option value="Buy / Sell">Buy / Sell</option>
-                <option value="Free Items">Free Items</option>
-                <option value="Garage Sales">Garage Sales</option>
-                <option value="Events">Events</option>
-                <option value="Work News">Work News</option>
-                <option value="Services">Services</option>
+                <option value="buy-sell">Buy / Sell</option>
+                <option value="free">Free Items</option>
+                <option value="garage-sale">Garage Sales</option>
+                <option value="events">Events</option>
+                <option value="work-news">Work News</option>
+                <option value="services">Services</option>
             </select>
-            <input type="file" id="post-images" multiple>
+            <label for="post-images">Upload Images (up to 5):</label>
+            <input type="file" id="post-images" multiple accept="image/*">
             <div id="image-previews"></div>
             <button id="save-post-btn">Save Post</button>
         </div>
     </div>
 
-    <!-- App Scripts -->
     <script type="module" src="firebase-config.js"></script>
     <script type="module" src="main.js"></script>
-    <script type="module" src="admin.js"></script>
 </body>
 </html>

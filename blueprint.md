@@ -2,55 +2,79 @@
 
 ## 1. Project Overview
 
-This document outlines the plan for creating a private, full-featured web application for Regal Lakeland employees. The application will serve as an internal marketplace for buying, selling, and exchanging items, and as a forum for discussions and announcements. It will be built using modern web technologies and will be powered by a robust Firebase backend, resulting in a polished, completely deployable product that feels like a real enterprise application.
+This document outlines the architecture, features, and implementation plan for a private internal marketplace and forum web application for Regal Lakeland employees. The application is a production-ready, mobile-responsive platform powered by Firebase, with a focus on security, usability, and a professional user experience.
 
-## 2. Implemented Features & Design
+## 2. Core Features & Functionality
 
-### Core Functionality
-*   **Secure Authentication:** User registration and login are restricted to `@regallakeland.com` email addresses, powered by Firebase Authentication. Includes "Forgot Password" and unique username validation.
-*   **Admin Roles:** A hardcoded whitelist (`michael.h@regallakeland.com`, `janni.r@regallakeland.com`, `chrissy.h@regallakeland.com`, `amy.m@regallakeland.com`) grants access to a secure admin dashboard.
-*   **Post Creation:** Users can create posts with title, description, price, location, contact info, multiple images, and select from categories: `Free Items`, `Buy / Sell`, `Garage Sales`, `Events`, `Work News`, `Services`.
-*   **Dynamic Pricing:** If a price is omitted, a "FREE" badge is automatically displayed.
-*   **Post Management:** Users can edit their own posts and toggle a "Sold" / "Active" status.
-*   **Commenting System:** Users can reply to and comment on any post.
+### 2.1. User Authentication & Access Control
 
-### User Interface & Experience
-*   **Dual-View Layout:** A seamless toggle allows users to switch between:
-    *   **Marketplace View (Default):** A modern, image-centric grid layout.
-    *   **Forum View:** A traditional, category-based list layout.
-*   **Responsive Design:** The application is fully responsive, ensuring a great experience on both desktop and mobile devices.
-*   **Branding:** The background features a rotating slideshow of Regal dealership images with a dark overlay, ensuring text and UI elements are always readable and providing a polished, professional feel.
-*   **Intuitive Navigation:** Clear navigation controls, modals for post creation, and a dedicated detail view for each post.
+*   **Email Domain Restriction:** Account creation and login are strictly limited to users with an `@regallakeland.com` email address. This is enforced through Firebase Authentication and Firestore Security Rules.
+*   **Unique Display Names:** Upon registration, users will provide a unique display name that will be associated with their profile and displayed on posts and comments.
+*   **Admin Dashboard:** A hidden, secure admin dashboard is accessible only to a hardcoded whitelist of administrator emails: `michael.h@regallakeland.com`, `janni.r@regallakeland.com`, `chrissy.h@regallakeland.com`, and `amy.m@regallakeland.com`. Admin UIDs need to be updated in `main.js` and `firestore.rules`.
 
-### Admin & Moderation
-*   **Admin Dashboard:** A secure, admin-only area for application management.
-*   **Admin Powers:** Admins can view all users and posts, permanently delete any post, and ban/unban users.
-*   **Automated Profanity Filter:** A system automatically scans post content for profanity and flags it for admin review without blocking the post, ensuring a clean and professional environment.
+### 2.2. Post & Listing Management
 
-## 3. Technical Stack
+*   **Create, Edit, & Mark as Sold:** Authenticated users can create new posts, edit their existing posts, and toggle the status of a post between "Active" and "Sold."
+*   **Rich Post Content:** Each post supports:
+    *   A descriptive title.
+    *   A detailed description.
+    *   Multiple image uploads (handled by Firebase Storage).
+    *   A price field (displays as "FREE" if left blank).
+    *   Location information.
+    *   Contact information.
+    *   A category selector (Free Items, Buy / Sell, Garage Sales, Events, Work News, Services).
+*   **Commenting System:** Users can reply and comment on any post, creating a threaded discussion. Users cannot delete posts.
 
-*   **Frontend:** HTML5, CSS3, JavaScript (ES6+ Modules)
-*   **Backend:** Google Firebase (Authentication, Cloud Firestore, Cloud Storage)
-*   **Project Structure:**
-    *   `index.html`: Main application entry point with templates for each view.
-    *   `style.css`: All styles, including responsive design and animations.
-    *   `main.js`: Core application logic, component rendering, and user-facing Firebase interactions.
-    *   `admin.js`: Logic for the admin dashboard and moderation features.
-    *   `firebase-config.js`: Placeholder for the user's Firebase project configuration.
-    *   `firestore.rules`: Security rules for the Firestore database.
-    *   `storage.rules`: Security rules for Firebase Storage.
-    *   `Images/`: Directory containing background slideshow images.
+### 2.3. User Interface & Experience
+
+*   **Dual View Modes:**
+    *   **Marketplace View (Default):** An "OfferUp-style" grid of cards, with each card prominently displaying an image, title, price, and a "Sold" badge if applicable.
+    *   **Forum View:** A traditional, list-based layout displaying post titles and metadata, suitable for discussions.
+*   **Dynamic Background:** The login and main application views feature a rotating background slideshow using local images (`Images/regal1.jpg`, `Images/regal2.jpg`, `Images/regal3.jpg`) with a dark overlay to ensure text readability.
+*   **Responsive Design:** The application is fully mobile-responsive, providing a seamless experience across desktops, tablets, and smartphones.
+*   **Detailed Post View:** Clicking on a post opens a detailed view with a full image gallery, seller/author details, and the threaded comment section.
+
+### 2.4. Administration & Moderation
+
+*   **Admin Dashboard:** The admin dashboard provides the following capabilities:
+    *   **Post Deletion:** Permanently delete any post from the platform.
+    *   **User Management:** Ban or unban users, preventing them from logging in or interacting with the application.
+    *   **Content Review:** Review content that has been flagged by a built-in profanity filter.
+*   **Profanity Filter:** An automatic profanity filter is planned for a future iteration.
+
+## 3. Technical Architecture & Implementation
+
+### 3.1. Firebase Services
+
+*   **Firebase Authentication:** For user registration, login, and session management.
+*   **Cloud Firestore:** As the primary database for storing user profiles, posts, comments, and other application data.
+*   **Firebase Storage:** For uploading and storing user-generated images.
+*   **Firebase Hosting:** For deploying and serving the web application.
+
+### 3.2. Frontend Development
+
+*   **HTML5:** For the core structure and layout of the application (`index.html`, `admin.html`).
+*   **CSS3:** For styling, including the responsive design, animations, and the dual-view layout (`style.css`).
+*   **JavaScript (ES6+):** For all client-side logic, including Firebase integration, DOM manipulation, and user interactions (`main.js`, `admin.js`, `firebase-config.js`).
+
+### 3.3. Security
+
+*   **Firebase Security Rules:** Strict security rules have been implemented in `firestore.rules` and `storage.rules` to:
+    *   Enforce the `@regallakeland.com` email domain restriction.
+    *   Control read/write access to data based on user authentication and roles (user vs. admin).
+    *   Ensure data integrity and prevent unauthorized access.
+
+## 4. Current Implementation Details
+
+*   **File Structure:** The project is organized into the following files:
+    *   `index.html`: Main application entry point.
+    *   `style.css`: All application styles.
+    *   `main.js`: Core application logic.
+    *   `firebase-config.js`: Firebase project configuration.
+    *   `admin.html`: Admin dashboard UI.
+    *   `admin.js`: Admin dashboard logic.
+    *   `firestore.rules`: Firestore security rules.
+    *   `storage.rules`: Firebase Storage security rules.
     *   `blueprint.md`: This document.
 
-## 4. Current Plan: Project Scaffolding & Initial Build
-
-**Status: IN PROGRESS**
-
-1.  **Create Project Files:** Generate the complete file structure (`index.html`, `style.css`, `main.js`, `admin.js`, `firebase-config.js`, `firestore.rules`, `storage.rules`).
-2.  **Populate HTML Structure:** Write the `index.html` with all necessary templates and elements for every view and feature.
-3.  **Implement Styling:** Create the full `style.css`, including the background slideshow, responsive layouts, and modern enterprise aesthetics.
-4.  **Add Firebase Configuration:** Create the `firebase-config.js` file.
-5.  **Build Core Logic:** Implement all user-facing authentication and marketplace/forum logic in `main.js`.
-6.  **Build Admin Logic:** Implement the admin dashboard, moderation tools, and profanity filter in `admin.js`.
-7.  **Define Security Rules:** Write and save the secure, production-ready rules for Firestore and Storage.
-8.  **Add Image Assets:** Create placeholder image files for the background slideshow.
+*   **Admin UIDs:** The UIDs for the admin users need to be manually added to the `ADMIN_UIDS` array in `main.js` and the `adminUIDs` array in `firestore.rules`.

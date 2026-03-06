@@ -1,29 +1,42 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read and write to their own user document
+
+    // Helper function to check for admin privileges
+    function isAdmin() {
+      // Hardcoded admin UIDs for simplicity. 
+      // In a production app, this might be a custom claim or a role in a separate document.
+      let adminUIDs = ['UID_FOR_MICHAEL', 'UID_FOR_JANNI', 'UID_FOR_CHRISSY', 'UID_FOR_AMY'];
+      return request.auth.uid in adminUIDs;
+    }
+
+    // Users can only be created if they have a @regallakeland.com email
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow create: if request.auth.token.email.matches('.*@regallakeland.com');
+      allow update: if request.auth.uid == userId || isAdmin();
     }
 
-    // Anyone can read posts, but only authenticated users can create them.
-    // Users can only update or delete their own posts.
-    // Admins can delete any post.
+    // Posts can be read by any authenticated user
     match /posts/{postId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth.uid == resource.data.authorId;
-      allow delete: if request.auth.uid == resource.data.authorId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow read: if request.auth != null;
+
+      // Allow create only for authenticated users with verified @regallakeland.com emails
+      allow create: if request.auth != null && request.auth.token.email_verified && request.auth.token.email.matches('.*@regallakeland.com');
+      
+      // Allow update only by the post author or an admin
+      allow update: if request.resource.data.authorId == request.auth.uid || isAdmin();
+      
+      // Only admins can delete posts
+      allow delete: if isAdmin();
     }
 
-    // Comments can be read by anyone.
-    // Authenticated users can create comments.
-    // Users can only update or delete their own comments.
+    // Comments can be read by any authenticated user
     match /posts/{postId}/comments/{commentId} {
-        allow read: if true;
+        allow read: if request.auth != null;
         allow create: if request.auth != null;
-        allow update, delete: if request.auth.uid == resource.data.authorId;
+        allow update: if request.resource.data.authorId == request.auth.uid || isAdmin();
+        allow delete: if isAdmin();
     }
   }
 }
