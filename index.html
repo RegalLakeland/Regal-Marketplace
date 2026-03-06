@@ -3,17 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Regal Employee Marketplace Forum</title>
+  <title>Regal Employee Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="bg-slideshow" aria-hidden="true">
+    <img src="Images/regal1.jpg" class="bg-slide active" alt="">
+    <img src="Images/regal2.jpg" class="bg-slide" alt="">
+    <img src="Images/regal3.jpg" class="bg-slide" alt="">
+  </div>
+  <div class="bg-overlay"></div>
+
   <div class="page-shell">
     <header class="topbar">
       <div class="brand-row">
         <div class="brand-logo">RH</div>
         <div>
           <h1>Regal Employee Marketplace</h1>
-          <div class="subhead">Forum-style internal marketplace • Option 1</div>
+          <div class="subhead">Forum-style internal marketplace</div>
         </div>
       </div>
       <div class="top-actions">
@@ -67,6 +74,13 @@
           <span>Contact</span>
           <input id="composeContact" placeholder="Phone, email, department, or where to find you" />
         </label>
+
+        <label class="full">
+          <span>Images (up to 10)</span>
+          <input id="composeImages" type="file" accept="image/*" multiple />
+        </label>
+
+        <div id="composePreview" class="full preview-grid"></div>
       </div>
 
       <div class="modal-footer">
