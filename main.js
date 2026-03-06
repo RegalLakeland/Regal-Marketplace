@@ -1,4 +1,3 @@
-
 import { auth, db, storage } from './firebase-config.js';
 import { 
     createUserWithEmailAndPassword,
@@ -43,6 +42,7 @@ let currentUser = null;
 onAuthStateChanged(auth, user => {
     if (user) {
         currentUser = user;
+        document.body.classList.remove('login-page-background');
         authView.style.display = 'none';
         mainView.style.display = 'block';
         document.getElementById('user-display').textContent = `Welcome, ${user.displayName || user.email}`;
@@ -50,6 +50,7 @@ onAuthStateChanged(auth, user => {
         loadPosts();
     } else {
         currentUser = null;
+        document.body.classList.add('login-page-background');
         authView.style.display = 'block';
         mainView.style.display = 'none';
         adminView.style.display = 'none';
@@ -240,7 +241,7 @@ async function showPostDetail(postId) {
         // Add event listeners for edit/delete/sold if they exist
         document.getElementById('edit-post-btn')?.addEventListener('click', () => editPost(docSnap));
         document.getElementById('delete-post-btn')?.addEventListener('click', () => deletePost(postId));
-        document.getElementById('toggle-sold-btn')?.addEventListener('click', (). => toggleSoldStatus(postId, data.sold));
+        document.getElementById('toggle-sold-btn')?.addEventListener('click', () => toggleSoldStatus(postId, data.sold));
 
     }
 }
