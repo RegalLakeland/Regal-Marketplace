@@ -1,10 +1,27 @@
-Mobile-safe upload:
-Keep your existing Images folder.
-Keep your existing firebase-config.js.
-Upload these four files to the repo root:
-- index.html
-- styles.css
-- app.js
-- admin.html
+Version 2 complete package
 
-This version is local-mode only so the UI works immediately on GitHub Pages even before Firebase wiring.
+Upload ALL files in this ZIP to the root of your GitHub repo:
+- index.html
+- admin.html
+- styles.css
+- firebase-config.js
+- app.js
+- admin.js
+- firestore.rules
+- storage.rules
+
+After upload:
+1. In Firebase Authentication, enable Email/Password.
+2. In Authentication > Settings > Authorized domains, add regallakeland.github.io
+3. In Firestore, publish firestore.rules
+4. In Storage, publish storage.rules
+
+This build uses:
+- verified @regallakeland.com emails only
+- Firebase Auth
+- Firestore listings + profiles
+- Firebase Storage image uploads
+- edit/delete own posts
+- mark sold
+- replies
+- admin pin/delete/ban at admin.html

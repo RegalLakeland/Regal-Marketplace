@@ -1,10 +1,15 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Regal Employee Marketplace</title>
   <link rel="stylesheet" href="styles.css">
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 </head>
 <body>
   <div class="bg bg1"></div>
@@ -19,10 +24,11 @@
           <div class="logo">RH</div>
           <div>
             <div class="brand-title">Regal Employee Marketplace</div>
-            <div class="brand-sub">From-scratch static build</div>
+            <div class="brand-sub">Verified @regallakeland.com employees only</div>
           </div>
         </div>
       </div>
+
       <div class="modal-body">
         <div class="tabs">
           <button id="tabLogin" class="tab active" type="button">Login</button>
@@ -30,8 +36,8 @@
         </div>
 
         <section id="loginPane">
-          <label class="field"><span>Email</span><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></label>
-          <label class="field"><span>Password</span><input id="loginPassword" type="password" placeholder="••••••••"></label>
+          <label class="field"><span>Work Email</span><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></label>
+          <label class="field"><span>Password</span><input id="loginPassword" type="password" placeholder="Password"></label>
           <div class="row">
             <button id="btnLogin" class="btn primary" type="button">Login</button>
             <button id="btnForgot" class="btn" type="button">Forgot Password</button>
@@ -39,7 +45,7 @@
         </section>
 
         <section id="signupPane" hidden>
-          <label class="field"><span>First & Last Name</span><input id="signupName" type="text" placeholder="Jordan Reyes"></label>
+          <label class="field"><span>Display Name</span><input id="signupName" type="text" placeholder="Michael Hall"></label>
           <label class="field"><span>Work Email</span><input id="signupEmail" type="email" placeholder="first.last@regallakeland.com"></label>
           <label class="field"><span>Password</span><input id="signupPassword" type="password" placeholder="At least 8 characters"></label>
           <label class="field"><span>Confirm Password</span><input id="signupPassword2" type="password" placeholder="Re-enter password"></label>
@@ -48,6 +54,10 @@
         </section>
 
         <div id="authMsg" class="msg" hidden></div>
+
+        <div class="small-note">
+          Accounts require email verification. After creating an account, check your inbox and verify before logging in.
+        </div>
       </div>
     </div>
   </div>
@@ -57,13 +67,13 @@
       <div class="logo">RH</div>
       <div>
         <div class="brand-title">Regal Employee Marketplace</div>
-        <div class="brand-sub">Facebook-style internal marketplace</div>
+        <div class="brand-sub">Internal buy/sell board</div>
       </div>
     </div>
     <div class="row">
       <span id="userPill" class="pill">Not signed in</span>
       <button id="btnNewPost" class="btn primary" type="button" hidden>+ Post</button>
-      <a class="btn" href="admin.html">Admin</a>
+      <a id="adminLink" class="btn" href="admin.html" hidden>Admin</a>
       <button id="btnLogout" class="btn danger" type="button" hidden>Logout</button>
     </div>
   </header>
@@ -79,7 +89,7 @@
         No drama / no spam<br>
         Include contact info<br>
         Free items hide the price<br>
-        Sell items can be marked sold
+        Sale items can be marked sold
       </div>
     </aside>
 
@@ -128,7 +138,7 @@
               <option value="GARAGE">Garage Sales</option>
               <option value="EVENTS">Events</option>
               <option value="WORK">Work News</option>
-              <option value="SERVICES">Local Services</option>
+              <option value="SERVICES">Services</option>
             </select>
           </label>
           <label class="field">
@@ -139,14 +149,18 @@
             </select>
           </label>
         </div>
+
         <label class="field"><span>Title</span><input id="postTitle" placeholder="What are you posting?"></label>
+
         <div class="two-col">
           <label id="priceWrap" class="field"><span>Price</span><input id="postPrice" inputmode="decimal" placeholder="25"></label>
           <label class="field"><span>Location (optional)</span><input id="postLocation" placeholder="Lakeland, Plant City..."></label>
         </div>
+
         <label class="field"><span>Description</span><textarea id="postDesc" placeholder="Condition, details, pickup info..."></textarea></label>
         <label class="field"><span>Contact</span><input id="postContact" placeholder="Phone, text, email, or where to find you at work"></label>
         <label class="field"><span>Photos (up to 10)</span><input id="postPhotos" type="file" accept="image/*" multiple></label>
+
         <div id="postMsg" class="msg" hidden></div>
       </div>
       <div class="modal-foot"><button id="btnSavePost" class="btn primary" type="button">Save Post</button></div>
@@ -163,10 +177,12 @@
         <div id="threadMeta" class="subtle"></div>
         <div id="threadGallery" class="gallery"></div>
         <div id="threadBody" class="thread-body"></div>
+
         <div class="row" style="margin-top:12px;">
           <a id="contactBtn" class="btn primary" href="#" target="_blank" rel="noreferrer" hidden>Contact Seller</a>
           <button id="btnReport" class="btn" type="button">Report Post</button>
         </div>
+
         <div class="reply-title">Replies</div>
         <div id="replyList" class="stack"></div>
         <label class="field"><span>Add a reply</span><textarea id="replyText" placeholder="Write a reply..."></textarea></label>
@@ -176,6 +192,7 @@
     </div>
   </div>
 
+  <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function employee() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.matches('.*@regallakeland\\.com$')
+        && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return employee() && (
+        request.auth.token.email == 'michael.h@regallakeland.com' ||
+        request.auth.token.email == 'janni.r@regallakeland.com' ||
+        request.auth.token.email == 'chrissy.h@regallakeland.com' ||
+        request.auth.token.email == 'amy.m@regallakeland.com'
+      );
+    }
+
+    match /profiles/{uid} {
+      allow read: if employee();
+      allow create, update: if (employee() && request.auth.uid == uid) || isAdmin();
+    }
+
+    match /listings/{id} {
+      allow read: if employee();
+      allow create: if employee()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email;
+      allow update, delete: if (employee() && request.auth.uid == resource.data.uid) || isAdmin();
+    }
+  }
+}

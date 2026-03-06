@@ -1,4 +1,5 @@
-const $ = (id) => document.getElementById(id);
+const WORK_DOMAIN = "@regallakeland.com";
+const ADMIN_SET = new Set(ADMIN_EMAILS.map(x => x.toLowerCase()));
 const BOARDS = [
   { key:"ALL", name:"All", desc:"Everything in one place" },
   { key:"FREE", name:"Free Items", desc:"Giveaways • curb alerts" },
@@ -6,22 +7,19 @@ const BOARDS = [
   { key:"GARAGE", name:"Garage Sales", desc:"Yard sales • moving sales" },
   { key:"EVENTS", name:"Events", desc:"BBQ • meetups • birthdays" },
   { key:"WORK", name:"Work News", desc:"Updates • announcements" },
-  { key:"SERVICES", name:"Local Services", desc:"Side work • help needed" }
+  { key:"SERVICES", name:"Services", desc:"Side work • help needed" }
 ];
-const ADMIN_EMAILS = new Set([
-  "michael.h@regallakeland.com",
-  "janni.r@regallakeland.com",
-  "chrissy.h@regallakeland.com",
-  "amy.m@regallakeland.com"
-]);
+const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
-const okEmail = (email) => String(email || "").toLowerCase().endsWith("@regallakeland.com");
 const phoneLike = /^[+]?[-(). 0-9]{7,}$/;
 
 let me = null;
+let listings = [];
 let activeBoard = "ALL";
 let editingId = null;
 let openThreadId = null;
+let unsubListings = null;
+let unsubThread = null;
 
 function setMsg(id, text="", kind=""){
   const el = $(id);
@@ -33,110 +31,31 @@ function setMsg(id, text="", kind=""){
 function show(id){ $(id).hidden = false; }
 function hide(id){ $(id).hidden = true; }
 function prettyTime(ms){ return ms ? new Date(ms).toLocaleString() : "—"; }
-function isAdmin(){ return !!me && ADMIN_EMAILS.has(String(me.email || "").toLowerCase()); }
+function isAdmin(){ return !!me && ADMIN_SET.has(String(me.email || "").toLowerCase()); }
 function displayName(){ return me?.name || (me?.email || "").split("@")[0] || "Employee"; }
+function validWorkEmail(email){ return String(email || "").toLowerCase().endsWith(WORK_DOMAIN); }
 function priceText(item){
   const n = Number(item.price || 0);
   return (item.board === "FREE" || n <= 0.01) ? "FREE" : "$" + n.toFixed(n % 1 === 0 ? 0 : 2);
 }
-function getUsers(){ try{return JSON.parse(localStorage.getItem("rm_users")||"[]")}catch{return []} }
-function setUsers(v){ localStorage.setItem("rm_users", JSON.stringify(v)); }
-function getPosts(){ try{return JSON.parse(localStorage.getItem("rm_posts")||"[]")}catch{return []} }
-function setPosts(v){ localStorage.setItem("rm_posts", JSON.stringify(v)); }
-function getSession(){ try{return JSON.parse(localStorage.getItem("rm_session")||"null")}catch{return null} }
-function setSession(v){ localStorage.setItem("rm_session", JSON.stringify(v)); }
-function clearSession(){ localStorage.removeItem("rm_session"); }
-
 function boardCounts(){
   const counts = { ALL:0, FREE:0, BUYSELL:0, GARAGE:0, EVENTS:0, WORK:0, SERVICES:0 };
-  for(const item of getPosts()){
+  listings.forEach(item => {
     counts.ALL += 1;
     if(counts[item.board] !== undefined) counts[item.board] += 1;
-  }
+  });
   return counts;
-}
-function renderBoards(){
-  const counts = boardCounts();
-  const wrap = $("boardList");
-  wrap.innerHTML = "";
-  for(const b of BOARDS){
-    const btn = document.createElement("button");
-    btn.className = "board" + (activeBoard === b.key ? " active" : "");
-    btn.type = "button";
-    btn.innerHTML = `<div><div class="board-name">${esc(b.name)}</div><div class="board-desc">${esc(b.desc)}</div></div><div class="board-count">${counts[b.key] || 0}</div>`;
-    btn.onclick = () => {
-      activeBoard = b.key;
-      $("sectionTitle").textContent = b.key === "ALL" ? "Marketplace" : b.name;
-      renderBoards();
-      renderListings();
-    };
-    wrap.appendChild(btn);
-  }
-}
-function filteredPosts(){
-  let arr = getPosts().slice();
-  const q = $("searchBox").value.trim().toLowerCase();
-  const st = $("statusFilter").value;
-  const sort = $("sortFilter").value;
-  if(activeBoard !== "ALL") arr = arr.filter(x => x.board === activeBoard);
-  if(st === "ACTIVE") arr = arr.filter(x => x.status !== "SOLD");
-  if(st === "SOLD") arr = arr.filter(x => x.status === "SOLD");
-  if(q) arr = arr.filter(x => `${x.title} ${x.desc} ${x.location} ${x.contact} ${x.displayName}`.toLowerCase().includes(q));
-  if(sort === "PINNED_NEW") arr.sort((a,b) => (Number(b.pinned || 0) - Number(a.pinned || 0)) || ((b.createdAtMs || 0) - (a.createdAtMs || 0)));
-  if(sort === "NEW") arr.sort((a,b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-  if(sort === "OLD") arr.sort((a,b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
-  if(sort === "PRICE_ASC") arr.sort((a,b) => Number(a.price || 0) - Number(b.price || 0));
-  if(sort === "PRICE_DESC") arr.sort((a,b) => Number(b.price || 0) - Number(a.price || 0));
-  return arr;
-}
-function renderListings(){
-  const listings = filteredPosts();
-  $("counts").textContent = `${listings.length} shown • ${getPosts().length} total`;
-  $("emptyState").hidden = listings.length !== 0;
-  const grid = $("grid");
-  grid.innerHTML = "";
-  for(const item of listings){
-    const mine = me && item.uid === me.uid;
-    const photos = Array.isArray(item.photoURLs) ? item.photoURLs : [];
-    const thumb = photos[0] || "";
-    const sold = item.status === "SOLD";
-    const card = document.createElement("article");
-    card.className = "listing";
-    card.innerHTML = `
-      <div class="thumb">
-        ${thumb ? `<img src="${thumb}" alt="">` : `<div style="padding:14px;color:#9ca3af;font-size:12px;font-weight:800">No photo</div>`}
-        <div class="badge ${sold ? "sold" : ((item.board === "FREE" || Number(item.price || 0) <= 0.01) ? "free" : "")}">${sold ? "SOLD" : ((item.board === "FREE" || Number(item.price || 0) <= 0.01) ? "FREE" : "AVAILABLE")}</div>
-        ${item.pinned ? `<div class="badge pin">Pinned</div>` : ""}
-        ${photos.length > 1 ? `<div class="photo-count">${photos.length} photos</div>` : ""}
-      </div>
-      <div class="card-body">
-        <div class="card-row"><div class="card-title">${esc(item.title || "")}</div><div class="price-pill">${esc(priceText(item))}</div></div>
-        <div class="subtle">${esc(item.board || "")}${item.location ? ` • ${esc(item.location)}` : ""}</div>
-        <div class="card-desc">${esc(item.desc || "")}</div>
-      </div>
-      <div class="card-actions">
-        <span class="pill">By: ${esc(item.displayName || item.userEmail || "")}</span>
-        <button class="btn" data-act="open" data-id="${esc(item.id)}" type="button">Open</button>
-        ${mine ? `<button class="btn" data-act="edit" data-id="${esc(item.id)}" type="button">Edit</button>` : ""}
-        ${mine ? `<button class="btn danger" data-act="delete" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
-        ${mine && item.board !== "FREE" && Number(item.price || 0) > 0.01 ? `<button class="btn" data-act="sold" data-id="${esc(item.id)}" type="button">${sold ? "Mark Active" : "Mark Sold"}</button>` : ""}
-        ${isAdmin() ? `<button class="btn" data-act="pin" data-id="${esc(item.id)}" type="button">${item.pinned ? "Unpin" : "Pin"}</button>` : ""}
-        ${isAdmin() ? `<button class="btn danger" data-act="admin-delete" data-id="${esc(item.id)}" type="button">Admin Delete</button>` : ""}
-      </div>
-    `;
-    grid.appendChild(card);
-  }
-}
-function syncUI(){
-  const signedIn = !!me;
-  $("userPill").textContent = signedIn ? `${displayName()}${isAdmin() ? " • Admin" : ""}` : "Not signed in";
-  $("btnNewPost").hidden = !signedIn;
-  $("btnLogout").hidden = !signedIn;
-  if(signedIn) hide("authOverlay"); else show("authOverlay");
 }
 function togglePrice(){
   $("priceWrap").style.display = $("postBoard").value === "FREE" ? "none" : "flex";
   if($("postBoard").value === "FREE") $("postPrice").value = "";
+}
+function syncUI(){
+  $("userPill").textContent = me ? `${displayName()}${isAdmin() ? " • Admin" : ""}` : "Not signed in";
+  $("btnNewPost").hidden = !me;
+  $("btnLogout").hidden = !me;
+  $("adminLink").hidden = !(me && isAdmin());
+  if(me) hide("authOverlay"); else show("authOverlay");
 }
 function resetPostForm(){
   editingId = null;
@@ -166,54 +85,144 @@ function fillPostForm(item){
   $("postContact").value = item.contact || "";
   $("postPhotos").value = "";
   togglePrice();
+  setMsg("postMsg");
   show("postModal");
 }
-function fileToDataUrl(file){
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(fr.result);
-    fr.onerror = reject;
-    fr.readAsDataURL(file);
+async function uploadPhotos(postId, files){
+  if(files.length > 10) throw new Error("Maximum 10 images per post.");
+  const urls = [];
+  for(const file of files){
+    const ref = storage.ref(`posts/${postId}/${Date.now()}_${file.name}`);
+    await ref.put(file);
+    urls.push(await ref.getDownloadURL());
+  }
+  return urls;
+}
+function renderBoards(){
+  const counts = boardCounts();
+  const wrap = $("boardList");
+  wrap.innerHTML = "";
+  BOARDS.forEach(b => {
+    const btn = document.createElement("button");
+    btn.className = "board" + (activeBoard === b.key ? " active" : "");
+    btn.type = "button";
+    btn.innerHTML = `<div><div class="board-name">${esc(b.name)}</div><div class="board-desc">${esc(b.desc)}</div></div><div class="board-count">${counts[b.key] || 0}</div>`;
+    btn.onclick = () => {
+      activeBoard = b.key;
+      $("sectionTitle").textContent = b.key === "ALL" ? "Marketplace" : b.name;
+      renderBoards();
+      renderListings();
+    };
+    wrap.appendChild(btn);
+  });
+}
+function filteredListings(){
+  let arr = listings.slice();
+  const q = $("searchBox").value.trim().toLowerCase();
+  const st = $("statusFilter").value;
+  const sort = $("sortFilter").value;
+
+  if(activeBoard !== "ALL") arr = arr.filter(x => x.board === activeBoard);
+  if(st === "ACTIVE") arr = arr.filter(x => x.status !== "SOLD");
+  if(st === "SOLD") arr = arr.filter(x => x.status === "SOLD");
+  if(q) arr = arr.filter(x => `${x.title} ${x.desc} ${x.location} ${x.contact} ${x.displayName}`.toLowerCase().includes(q));
+
+  if(sort === "PINNED_NEW") arr.sort((a,b) => (Number(b.pinned || 0) - Number(a.pinned || 0)) || ((b.createdAtMs || 0) - (a.createdAtMs || 0)));
+  if(sort === "NEW") arr.sort((a,b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+  if(sort === "OLD") arr.sort((a,b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
+  if(sort === "PRICE_ASC") arr.sort((a,b) => Number(a.price || 0) - Number(b.price || 0));
+  if(sort === "PRICE_DESC") arr.sort((a,b) => Number(b.price || 0) - Number(a.price || 0));
+
+  return arr;
+}
+function renderListings(){
+  const arr = filteredListings();
+  $("counts").textContent = `${arr.length} shown • ${listings.length} total`;
+  $("emptyState").hidden = arr.length !== 0;
+  const grid = $("grid");
+  grid.innerHTML = "";
+
+  arr.forEach(item => {
+    const mine = me && item.uid === me.uid;
+    const photos = Array.isArray(item.photoURLs) ? item.photoURLs : [];
+    const thumb = photos[0] || "";
+    const sold = item.status === "SOLD";
+    const card = document.createElement("article");
+    card.className = "listing";
+    card.innerHTML = `
+      <div class="thumb">
+        ${thumb ? `<img src="${thumb}" alt="">` : `<div style="padding:14px;color:#9ca3af;font-size:12px;font-weight:800">No photo</div>`}
+        <div class="badge ${sold ? "sold" : ((item.board === "FREE" || Number(item.price || 0) <= 0.01) ? "free" : "")}">${sold ? "SOLD" : ((item.board === "FREE" || Number(item.price || 0) <= 0.01) ? "FREE" : "AVAILABLE")}</div>
+        ${item.pinned ? `<div class="badge pin">Pinned</div>` : ""}
+        ${photos.length > 1 ? `<div class="photo-count">${photos.length} photos</div>` : ""}
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-title">${esc(item.title || "")}</div><div class="price-pill">${esc(priceText(item))}</div></div>
+        <div class="subtle">${esc(item.board || "")}${item.location ? ` • ${esc(item.location)}` : ""}</div>
+        <div class="card-desc">${esc(item.desc || "")}</div>
+      </div>
+      <div class="card-actions">
+        <span class="pill">By: ${esc(item.displayName || item.userEmail || "")}</span>
+        <button class="btn" data-act="open" data-id="${esc(item.id)}" type="button">Open</button>
+        ${mine ? `<button class="btn" data-act="edit" data-id="${esc(item.id)}" type="button">Edit</button>` : ""}
+        ${mine ? `<button class="btn danger" data-act="delete" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
+        ${mine && item.board !== "FREE" && Number(item.price || 0) > 0.01 ? `<button class="btn" data-act="sold" data-id="${esc(item.id)}" type="button">${sold ? "Mark Active" : "Mark Sold"}</button>` : ""}
+        ${isAdmin() ? `<button class="btn" data-act="pin" data-id="${esc(item.id)}" type="button">${item.pinned ? "Unpin" : "Pin"}</button>` : ""}
+        ${isAdmin() ? `<button class="btn danger" data-act="admin-delete" data-id="${esc(item.id)}" type="button">Admin Delete</button>` : ""}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+function subscribeListings(){
+  if(unsubListings) unsubListings();
+  unsubListings = db.collection("listings").orderBy("createdAtMs", "desc").onSnapshot(snapshot => {
+    listings = snapshot.docs.map(d => ({ id:d.id, ...d.data() }));
+    renderBoards();
+    renderListings();
+  }, err => {
+    console.error(err);
+    alert("Listings failed to load. Check Firestore rules and indexes.");
   });
 }
 function openThread(id){
   openThreadId = id;
-  const item = getPosts().find(x => x.id === id);
-  if(!item) return;
-  $("threadTitle").textContent = item.title || "Listing";
-  $("threadMeta").textContent = `${item.board || ""} • Posted by ${item.displayName || item.userEmail || ""} • ${prettyTime(item.createdAtMs)}`;
-  const photos = Array.isArray(item.photoURLs) ? item.photoURLs : [];
-  $("threadGallery").innerHTML = photos.map(url => `<img src="${url}" alt="">`).join("");
-  $("threadBody").innerHTML = `<div class="price-pill" style="display:inline-block;margin-bottom:10px">${esc(priceText(item))}</div><div>${esc(item.desc || "")}</div><div style="margin-top:10px" class="small-note">Contact: <strong>${esc(item.contact || "—")}</strong>${item.location ? ` • Location: <strong>${esc(item.location)}</strong>` : ""}</div>`;
-  if(item.contact){
-    $("contactBtn").hidden = false;
-    $("contactBtn").href = phoneLike.test(item.contact) ? `tel:${item.contact.replace(/[^0-9+]/g, "")}` : `mailto:${item.contact}`;
-  } else {
-    $("contactBtn").hidden = true;
-  }
-  const wrap = $("replyList");
-  wrap.innerHTML = "";
-  if(!(item.replies || []).length){
-    wrap.innerHTML = '<div class="small-note">No replies yet.</div>';
-  } else {
-    for(const r of item.replies){
-      const div = document.createElement("div");
-      div.className = "small-note";
-      div.innerHTML = `<div><strong>${esc(r.by || "")}</strong> • ${esc(prettyTime(r.atMs))}</div><div style="margin-top:6px">${esc(r.text || "")}</div>`;
-      wrap.appendChild(div);
+  if(unsubThread) unsubThread();
+  unsubThread = db.collection("listings").doc(id).onSnapshot(docSnap => {
+    if(!docSnap.exists) return;
+    const item = { id:docSnap.id, ...docSnap.data() };
+    $("threadTitle").textContent = item.title || "Listing";
+    $("threadMeta").textContent = `${item.board || ""} • Posted by ${item.displayName || item.userEmail || ""} • ${prettyTime(item.createdAtMs)}`;
+    const photos = Array.isArray(item.photoURLs) ? item.photoURLs : [];
+    $("threadGallery").innerHTML = photos.map(url => `<img src="${url}" alt="">`).join("");
+    $("threadBody").innerHTML = `<div class="price-pill" style="display:inline-block;margin-bottom:10px">${esc(priceText(item))}</div><div>${esc(item.desc || "")}</div><div style="margin-top:10px" class="small-note">Contact: <strong>${esc(item.contact || "—")}</strong>${item.location ? ` • Location: <strong>${esc(item.location)}</strong>` : ""}</div>`;
+    if(item.contact){
+      $("contactBtn").hidden = false;
+      $("contactBtn").href = phoneLike.test(item.contact) ? `tel:${item.contact.replace(/[^0-9+]/g, "")}` : `mailto:${item.contact}`;
+    } else {
+      $("contactBtn").hidden = true;
     }
-  }
+
+    const wrap = $("replyList");
+    wrap.innerHTML = "";
+    const replies = item.replies || [];
+    if(!replies.length){
+      wrap.innerHTML = '<div class="small-note">No replies yet.</div>';
+    } else {
+      replies.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "small-note";
+        div.innerHTML = `<div><strong>${esc(r.by || "")}</strong> • ${esc(prettyTime(r.atMs))}</div><div style="margin-top:6px">${esc(r.text || "")}</div>`;
+        wrap.appendChild(div);
+      });
+    }
+  });
   $("replyText").value = "";
   setMsg("replyMsg");
   show("threadModal");
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  me = getSession();
-  syncUI();
-  renderBoards();
-  renderListings();
-
   $("tabLogin").onclick = () => {
     $("tabLogin").classList.add("active");
     $("tabSignup").classList.remove("active");
@@ -227,39 +236,42 @@ document.addEventListener("DOMContentLoaded", () => {
     $("loginPane").hidden = true;
   };
 
-  $("btnLogin").onclick = () => {
+  $("btnLogin").onclick = async () => {
     try{
+      setMsg("authMsg");
       const email = $("loginEmail").value.trim().toLowerCase();
       const password = $("loginPassword").value.trim();
-      if(!okEmail(email)) throw new Error("Use your @regallakeland.com email.");
-      const user = getUsers().find(u => u.email === email && u.password === password);
-      if(!user) throw new Error("Login failed.");
-      if(user.banned) throw new Error("Your account has been disabled.");
-      me = { uid:user.uid, email:user.email, name:user.name };
-      setSession(me);
-      syncUI();
-      setMsg("authMsg");
+      if(!validWorkEmail(email)) throw new Error("Use your @regallakeland.com email.");
+      await auth.signInWithEmailAndPassword(email, password);
     }catch(e){
       setMsg("authMsg", e.message || "Login failed.", "error");
     }
   };
 
-  $("btnSignup").onclick = () => {
+  $("btnSignup").onclick = async () => {
     try{
+      setMsg("authMsg");
       const name = $("signupName").value.trim();
       const email = $("signupEmail").value.trim().toLowerCase();
       const p1 = $("signupPassword").value.trim();
       const p2 = $("signupPassword2").value.trim();
-      if(!name) throw new Error("Enter first and last name.");
-      if(!okEmail(email)) throw new Error("Use your @regallakeland.com email.");
+      if(!name) throw new Error("Enter display name.");
+      if(!validWorkEmail(email)) throw new Error("Use your @regallakeland.com email.");
       if(p1.length < 8) throw new Error("Password must be at least 8 characters.");
       if(p1 !== p2) throw new Error("Passwords do not match.");
       if(!$("agreeRules").checked) throw new Error("You must agree to the rules.");
-      const users = getUsers();
-      if(users.some(u => u.email === email)) throw new Error("That email already exists.");
-      users.push({ uid:"u_" + Date.now(), name, email, password:p1, banned:false, createdAtMs:Date.now() });
-      setUsers(users);
-      setMsg("authMsg", "Account created. You can log in now.", "ok");
+
+      const cred = await auth.createUserWithEmailAndPassword(email, p1);
+      await db.collection("profiles").doc(cred.user.uid).set({
+        uid: cred.user.uid,
+        email,
+        name,
+        banned: false,
+        createdAtMs: Date.now()
+      }, { merge:true });
+      await cred.user.sendEmailVerification();
+      await auth.signOut();
+      setMsg("authMsg", "Account created. Check your email and verify before logging in.", "ok");
       $("tabLogin").click();
       $("loginEmail").value = email;
     }catch(e){
@@ -267,28 +279,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  $("btnForgot").onclick = () => {
-    const email = $("loginEmail").value.trim();
-    if(!okEmail(email)) return setMsg("authMsg", "Enter your work email first.", "error");
-    setMsg("authMsg", "Static build: use the password created on this browser.", "ok");
+  $("btnForgot").onclick = async () => {
+    try{
+      const email = $("loginEmail").value.trim().toLowerCase();
+      if(!validWorkEmail(email)) throw new Error("Enter your work email first.");
+      await auth.sendPasswordResetEmail(email);
+      setMsg("authMsg", "Password reset email sent.", "ok");
+    }catch(e){
+      setMsg("authMsg", e.message || "Reset failed.", "error");
+    }
   };
 
-  $("btnLogout").onclick = () => {
-    me = null;
-    clearSession();
-    syncUI();
+  $("btnLogout").onclick = async () => {
+    await auth.signOut();
   };
 
-  $("btnNewPost").onclick = () => { resetPostForm(); show("postModal"); };
-  $("btnClosePost").onclick = () => { hide("postModal"); resetPostForm(); };
+  $("btnNewPost").onclick = () => {
+    resetPostForm();
+    show("postModal");
+  };
+  $("btnClosePost").onclick = () => {
+    hide("postModal");
+    resetPostForm();
+  };
   $("postBoard").onchange = togglePrice;
 
   $("btnSavePost").onclick = async () => {
     try{
-      if(!me) throw new Error("Log in first.");
-      const users = getUsers();
-      const currentUser = users.find(u => u.uid === me.uid);
-      if(currentUser?.banned) throw new Error("Your account has been disabled.");
+      setMsg("postMsg");
+      if(!me) throw new Error("Login first.");
       const board = $("postBoard").value;
       const title = $("postTitle").value.trim();
       const location = $("postLocation").value.trim();
@@ -298,7 +317,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const files = [...($("postPhotos").files || [])];
       if(!title) throw new Error("Title is required.");
       if(!contact) throw new Error("Contact is required.");
-      if(files.length > 10) throw new Error("Maximum 10 images per post.");
       let price = 0;
       if(board !== "FREE"){
         const n = Number($("postPrice").value);
@@ -306,33 +324,45 @@ document.addEventListener("DOMContentLoaded", () => {
         price = n;
       }
 
-      let posts = getPosts();
-      let photoURLs = [];
-      for(const file of files){
-        photoURLs.push(await fileToDataUrl(file));
-      }
-
       if(editingId){
-        posts = posts.map(p => p.id === editingId ? {
-          ...p, board, title, location, desc, contact, status, price,
-          photoURLs: photoURLs.length ? photoURLs : (p.photoURLs || [])
-        } : p);
+        const ref = db.collection("listings").doc(editingId);
+        const snap = await ref.get();
+        if(!snap.exists) throw new Error("Post not found.");
+        const existing = snap.data();
+        let photoURLs = existing.photoURLs || [];
+        if(files.length) photoURLs = await uploadPhotos(editingId, files);
+
+        await ref.update({
+          board, title, location, desc, contact, status, price,
+          photoURLs,
+          updatedAtMs: Date.now()
+        });
+        setMsg("postMsg", "Post updated.", "ok");
       } else {
-        posts.unshift({
-          id: "p_" + Date.now(),
+        const ref = await db.collection("listings").add({
           uid: me.uid,
           userEmail: me.email,
           displayName: displayName(),
           board, title, location, desc, contact, status, price,
-          photoURLs, replies: [], reports: [], pinned:false, createdAtMs: Date.now()
+          photoURLs: [],
+          replies: [],
+          reports: [],
+          pinned: false,
+          createdAtMs: Date.now()
         });
+        const photoURLs = files.length ? await uploadPhotos(ref.id, files) : [];
+        if(photoURLs.length){
+          await ref.update({ photoURLs });
+        }
+        setMsg("postMsg", "Post saved.", "ok");
       }
-      setPosts(posts);
-      renderBoards();
-      renderListings();
-      setMsg("postMsg", editingId ? "Post updated." : "Post saved.", "ok");
-      setTimeout(() => { hide("postModal"); resetPostForm(); }, 400);
+
+      setTimeout(() => {
+        hide("postModal");
+        resetPostForm();
+      }, 500);
     }catch(e){
+      console.error(e);
       setMsg("postMsg", e.message || "Post failed.", "error");
     }
   };
@@ -341,58 +371,109 @@ document.addEventListener("DOMContentLoaded", () => {
     const btn = e.target.closest("[data-act]");
     if(!btn) return;
     const id = btn.dataset.id;
-    const posts = getPosts();
-    const item = posts.find(p => p.id === id);
+    const item = listings.find(x => x.id === id);
     if(!item) return;
 
     if(btn.dataset.act === "open") return openThread(id);
     if(btn.dataset.act === "edit") return fillPostForm(item);
+
     if(btn.dataset.act === "delete"){
       if(confirm("Delete this post?")){
-        setPosts(posts.filter(p => p.id !== id));
-        renderBoards(); renderListings();
+        await db.collection("listings").doc(id).delete();
       }
       return;
     }
+
     if(btn.dataset.act === "sold"){
-      setPosts(posts.map(p => p.id === id ? { ...p, status: p.status === "SOLD" ? "ACTIVE" : "SOLD" } : p));
-      renderListings();
+      await db.collection("listings").doc(id).update({
+        status: item.status === "SOLD" ? "ACTIVE" : "SOLD"
+      });
       return;
     }
+
     if(btn.dataset.act === "pin" && isAdmin()){
-      setPosts(posts.map(p => p.id === id ? { ...p, pinned: !p.pinned } : p));
-      renderListings();
+      await db.collection("listings").doc(id).update({ pinned: !item.pinned });
       return;
     }
+
     if(btn.dataset.act === "admin-delete" && isAdmin()){
       if(confirm("Admin delete this post?")){
-        setPosts(posts.filter(p => p.id !== id));
-        renderBoards(); renderListings();
+        await db.collection("listings").doc(id).delete();
       }
     }
   });
 
-  $("btnCloseThread").onclick = () => hide("threadModal");
-  $("btnReply").onclick = () => {
+  $("btnCloseThread").onclick = () => {
+    hide("threadModal");
+  };
+
+  $("btnReply").onclick = async () => {
     try{
-      if(!me) throw new Error("Log in first.");
+      if(!me) throw new Error("Login first.");
       const text = $("replyText").value.trim();
       if(!text) throw new Error("Type a reply first.");
-      const posts = getPosts().map(p => p.id === openThreadId ? { ...p, replies:[...(p.replies || []), { by:displayName(), uid:me.uid, text, atMs:Date.now() }] } : p);
-      setPosts(posts);
-      openThread(openThreadId);
+      const ref = db.collection("listings").doc(openThreadId);
+      const snap = await ref.get();
+      if(!snap.exists) throw new Error("Listing not found.");
+      const item = snap.data();
+      const replies = [...(item.replies || []), {
+        by: displayName(),
+        uid: me.uid,
+        text,
+        atMs: Date.now()
+      }];
+      await ref.update({ replies });
+      $("replyText").value = "";
       setMsg("replyMsg", "Reply posted.", "ok");
     }catch(e){
       setMsg("replyMsg", e.message || "Reply failed.", "error");
     }
   };
 
-  $("btnReport").onclick = () => {
-    if(!openThreadId) return;
-    const posts = getPosts().map(p => p.id === openThreadId ? { ...p, reports:[...(p.reports || []), { by:displayName(), uid:me?.uid || "anon", atMs:Date.now() }] } : p);
-    setPosts(posts);
+  $("btnReport").onclick = async () => {
+    if(!openThreadId || !me) return;
+    const ref = db.collection("listings").doc(openThreadId);
+    const snap = await ref.get();
+    if(!snap.exists) return;
+    const item = snap.data();
+    const reports = [...(item.reports || []), {
+      by: displayName(),
+      uid: me.uid,
+      atMs: Date.now()
+    }];
+    await ref.update({ reports });
     alert("Post reported.");
   };
 
   ["searchBox","statusFilter","sortFilter"].forEach(id => $(id).addEventListener("input", renderListings));
+
+  auth.onAuthStateChanged(async (user) => {
+    if(!user){
+      me = null;
+      syncUI();
+      return;
+    }
+
+    if(!user.emailVerified){
+      setMsg("authMsg", "Please verify your email before using the marketplace.", "error");
+      await auth.signOut();
+      return;
+    }
+
+    const profileSnap = await db.collection("profiles").doc(user.uid).get();
+    const profile = profileSnap.exists ? profileSnap.data() : { name:(user.email || "").split("@")[0], banned:false };
+    if(profile.banned){
+      alert("Your access has been disabled.");
+      await auth.signOut();
+      return;
+    }
+
+    me = { uid:user.uid, email:user.email, name:profile.name || (user.email || "").split("@")[0] };
+    syncUI();
+    subscribeListings();
+  });
+
+  renderBoards();
+  renderListings();
+  togglePrice();
 });
