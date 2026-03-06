@@ -9,6 +9,7 @@ const BOARDS = [
   { key:"WORK", name:"Work News", desc:"Updates • announcements" },
   { key:"SERVICES", name:"Services", desc:"Side work • help needed" }
 ];
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 const phoneLike = /^[+]?[-(). 0-9]{7,}$/;
@@ -34,6 +35,15 @@ function prettyTime(ms){ return ms ? new Date(ms).toLocaleString() : "—"; }
 function isAdmin(){ return !!me && ADMIN_SET.has(String(me.email || "").toLowerCase()); }
 function displayName(){ return me?.name || (me?.email || "").split("@")[0] || "Employee"; }
 function validWorkEmail(email){ return String(email || "").toLowerCase().endsWith(WORK_DOMAIN); }
+
+function getStorageRef(path){
+  try {
+    return firebase.app().storage("gs://regal-lakeland-marketplace.appspot.com").ref(path);
+  } catch (e) {
+    return storage.ref(path);
+  }
+}
+
 function priceText(item){
   const n = Number(item.price || 0);
   return (item.board === "FREE" || n <= 0.01) ? "FREE" : "$" + n.toFixed(n % 1 === 0 ? 0 : 2);
@@ -92,7 +102,7 @@ async function uploadPhotos(postId, files){
   if(files.length > 10) throw new Error("Maximum 10 images per post.");
   const urls = [];
   for(const file of files){
-    const ref = storage.ref(`posts/${postId}/${Date.now()}_${file.name}`);
+    const ref = getStorageRef(`posts/${postId}/${Date.now()}_${file.name}`);
     const snap = await ref.put(file);
     const url = await snap.ref.getDownloadURL();
     urls.push(url);
@@ -329,65 +339,52 @@ document.addEventListener("DOMContentLoaded", () => {
         price = n;
       }
 
+      // UPLOAD FIRST so a failed image upload never creates duplicate Firestore posts
+      let photoURLs = [];
+      const tempPostId = editingId || `tmp_${Date.now()}`;
+      if(files.length){
+        try{
+          photoURLs = await uploadPhotos(tempPostId, files);
+        }catch(err){
+          console.error(err);
+          throw new Error("Image upload failed. In Firebase Console, enable Storage, publish storage.rules, and confirm the bucket exists.");
+        }
+      }
+
       if(editingId){
         const ref = db.collection("listings").doc(editingId);
         const snap = await ref.get();
         if(!snap.exists) throw new Error("Post not found.");
         const existing = snap.data();
-        let photoURLs = existing.photoURLs || [];
-        if(files.length){
-          try{
-            photoURLs = await uploadPhotos(editingId, files);
-          }catch(err){
-            console.error(err);
-            throw new Error("Image upload failed. Enable Firebase Storage and publish storage.rules.");
-          }
-        }
         await ref.update({
           board, title, location, desc, contact, status, price,
-          photoURLs,
+          photoURLs: photoURLs.length ? photoURLs : (existing.photoURLs || []),
           updatedAtMs: Date.now()
         });
         setMsg("postMsg", "Post updated.", "ok");
       } else {
-        const ref = await db.collection("listings").add({
+        await db.collection("listings").add({
           uid: me.uid,
           userEmail: me.email,
           displayName: displayName(),
           board, title, location, desc, contact, status, price,
-          photoURLs: [],
+          photoURLs,
           replies: [],
           reports: [],
           pinned: false,
           createdAtMs: Date.now()
         });
-
-        let photoURLs = [];
-        if(files.length){
-          try{
-            photoURLs = await uploadPhotos(ref.id, files);
-          }catch(err){
-            console.error(err);
-            await ref.delete();
-            throw new Error("Image upload failed. Enable Firebase Storage, add regallakeland.github.io to authorized domains, and publish storage.rules.");
-          }
-        }
-        if(photoURLs.length){
-          await ref.update({ photoURLs });
-        }
         setMsg("postMsg", "Post saved.", "ok");
       }
 
-      setTimeout(() => {
-        hide("postModal");
-        resetPostForm();
-      }, 250);
+      hide("postModal");
+      resetPostForm();
     }catch(e){
       console.error(e);
       setMsg("postMsg", e.message || "Post failed.", "error");
     }finally{
       saveBtn.disabled = false;
-      saveBtn.textContent = editingId ? "Update Post" : "Save Post";
+      saveBtn.textContent = originalLabel;
     }
   };
 
