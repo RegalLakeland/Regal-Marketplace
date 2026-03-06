@@ -8,6 +8,12 @@ const BOARDS = [
   { key:"WORK", name:"Work News", desc:"Updates • announcements" },
   { key:"SERVICES", name:"Local Services", desc:"Side work • help needed" }
 ];
+const ADMIN_EMAILS = new Set([
+  "michael.h@regallakeland.com",
+  "janni.r@regallakeland.com",
+  "chrissy.h@regallakeland.com",
+  "amy.m@regallakeland.com"
+]);
 const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 const okEmail = (email) => String(email || "").toLowerCase().endsWith("@regallakeland.com");
 const phoneLike = /^[+]?[-(). 0-9]{7,}$/;
@@ -27,6 +33,7 @@ function setMsg(id, text="", kind=""){
 function show(id){ $(id).hidden = false; }
 function hide(id){ $(id).hidden = true; }
 function prettyTime(ms){ return ms ? new Date(ms).toLocaleString() : "—"; }
+function isAdmin(){ return !!me && ADMIN_EMAILS.has(String(me.email || "").toLowerCase()); }
 function displayName(){ return me?.name || (me?.email || "").split("@")[0] || "Employee"; }
 function priceText(item){
   const n = Number(item.price || 0);
@@ -71,12 +78,10 @@ function filteredPosts(){
   const q = $("searchBox").value.trim().toLowerCase();
   const st = $("statusFilter").value;
   const sort = $("sortFilter").value;
-
   if(activeBoard !== "ALL") arr = arr.filter(x => x.board === activeBoard);
   if(st === "ACTIVE") arr = arr.filter(x => x.status !== "SOLD");
   if(st === "SOLD") arr = arr.filter(x => x.status === "SOLD");
   if(q) arr = arr.filter(x => `${x.title} ${x.desc} ${x.location} ${x.contact} ${x.displayName}`.toLowerCase().includes(q));
-
   if(sort === "PINNED_NEW") arr.sort((a,b) => (Number(b.pinned || 0) - Number(a.pinned || 0)) || ((b.createdAtMs || 0) - (a.createdAtMs || 0)));
   if(sort === "NEW") arr.sort((a,b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
   if(sort === "OLD") arr.sort((a,b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
@@ -101,6 +106,7 @@ function renderListings(){
       <div class="thumb">
         ${thumb ? `<img src="${thumb}" alt="">` : `<div style="padding:14px;color:#9ca3af;font-size:12px;font-weight:800">No photo</div>`}
         <div class="badge ${sold ? "sold" : ((item.board === "FREE" || Number(item.price || 0) <= 0.01) ? "free" : "")}">${sold ? "SOLD" : ((item.board === "FREE" || Number(item.price || 0) <= 0.01) ? "FREE" : "AVAILABLE")}</div>
+        ${item.pinned ? `<div class="badge pin">Pinned</div>` : ""}
         ${photos.length > 1 ? `<div class="photo-count">${photos.length} photos</div>` : ""}
       </div>
       <div class="card-body">
@@ -114,6 +120,8 @@ function renderListings(){
         ${mine ? `<button class="btn" data-act="edit" data-id="${esc(item.id)}" type="button">Edit</button>` : ""}
         ${mine ? `<button class="btn danger" data-act="delete" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
         ${mine && item.board !== "FREE" && Number(item.price || 0) > 0.01 ? `<button class="btn" data-act="sold" data-id="${esc(item.id)}" type="button">${sold ? "Mark Active" : "Mark Sold"}</button>` : ""}
+        ${isAdmin() ? `<button class="btn" data-act="pin" data-id="${esc(item.id)}" type="button">${item.pinned ? "Unpin" : "Pin"}</button>` : ""}
+        ${isAdmin() ? `<button class="btn danger" data-act="admin-delete" data-id="${esc(item.id)}" type="button">Admin Delete</button>` : ""}
       </div>
     `;
     grid.appendChild(card);
@@ -121,7 +129,7 @@ function renderListings(){
 }
 function syncUI(){
   const signedIn = !!me;
-  $("userPill").textContent = signedIn ? displayName() : "Not signed in";
+  $("userPill").textContent = signedIn ? `${displayName()}${isAdmin() ? " • Admin" : ""}` : "Not signed in";
   $("btnNewPost").hidden = !signedIn;
   $("btnLogout").hidden = !signedIn;
   if(signedIn) hide("authOverlay"); else show("authOverlay");
@@ -168,7 +176,7 @@ function fileToDataUrl(file){
     fr.readAsDataURL(file);
   });
 }
-async function openThread(id){
+function openThread(id){
   openThreadId = id;
   const item = getPosts().find(x => x.id === id);
   if(!item) return;
@@ -226,6 +234,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if(!okEmail(email)) throw new Error("Use your @regallakeland.com email.");
       const user = getUsers().find(u => u.email === email && u.password === password);
       if(!user) throw new Error("Login failed.");
+      if(user.banned) throw new Error("Your account has been disabled.");
       me = { uid:user.uid, email:user.email, name:user.name };
       setSession(me);
       syncUI();
@@ -248,7 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if(!$("agreeRules").checked) throw new Error("You must agree to the rules.");
       const users = getUsers();
       if(users.some(u => u.email === email)) throw new Error("That email already exists.");
-      users.push({ uid:"u_" + Date.now(), name, email, password:p1 });
+      users.push({ uid:"u_" + Date.now(), name, email, password:p1, banned:false, createdAtMs:Date.now() });
       setUsers(users);
       setMsg("authMsg", "Account created. You can log in now.", "ok");
       $("tabLogin").click();
@@ -261,7 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnForgot").onclick = () => {
     const email = $("loginEmail").value.trim();
     if(!okEmail(email)) return setMsg("authMsg", "Enter your work email first.", "error");
-    setMsg("authMsg", "Local mode: use the password you created on this device.", "ok");
+    setMsg("authMsg", "Static build: use the password created on this browser.", "ok");
   };
 
   $("btnLogout").onclick = () => {
@@ -277,6 +286,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnSavePost").onclick = async () => {
     try{
       if(!me) throw new Error("Log in first.");
+      const users = getUsers();
+      const currentUser = users.find(u => u.uid === me.uid);
+      if(currentUser?.banned) throw new Error("Your account has been disabled.");
       const board = $("postBoard").value;
       const title = $("postTitle").value.trim();
       const location = $("postLocation").value.trim();
@@ -312,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
           userEmail: me.email,
           displayName: displayName(),
           board, title, location, desc, contact, status, price,
-          photoURLs, replies: [], reports: [], createdAtMs: Date.now()
+          photoURLs, replies: [], reports: [], pinned:false, createdAtMs: Date.now()
         });
       }
       setPosts(posts);
@@ -345,6 +357,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if(btn.dataset.act === "sold"){
       setPosts(posts.map(p => p.id === id ? { ...p, status: p.status === "SOLD" ? "ACTIVE" : "SOLD" } : p));
       renderListings();
+      return;
+    }
+    if(btn.dataset.act === "pin" && isAdmin()){
+      setPosts(posts.map(p => p.id === id ? { ...p, pinned: !p.pinned } : p));
+      renderListings();
+      return;
+    }
+    if(btn.dataset.act === "admin-delete" && isAdmin()){
+      if(confirm("Admin delete this post?")){
+        setPosts(posts.filter(p => p.id !== id));
+        renderBoards(); renderListings();
+      }
     }
   });
 
@@ -362,4 +386,13 @@ document.addEventListener("DOMContentLoaded", () => {
       setMsg("replyMsg", e.message || "Reply failed.", "error");
     }
   };
+
+  $("btnReport").onclick = () => {
+    if(!openThreadId) return;
+    const posts = getPosts().map(p => p.id === openThreadId ? { ...p, reports:[...(p.reports || []), { by:displayName(), uid:me?.uid || "anon", atMs:Date.now() }] } : p);
+    setPosts(posts);
+    alert("Post reported.");
+  };
+
+  ["searchBox","statusFilter","sortFilter"].forEach(id => $(id).addEventListener("input", renderListings));
 });

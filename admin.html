@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Admin Portal</title>
+  <title>Regal Employee Marketplace Admin</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -17,24 +17,35 @@
       <div class="logo">RH</div>
       <div>
         <div class="brand-title">Admin Portal</div>
-        <div class="brand-sub">Mobile-safe root file</div>
+        <div class="brand-sub">Posts · Users · Moderation</div>
       </div>
     </div>
     <div class="row">
+      <span id="adminUser" class="pill">Admin</span>
       <a class="btn" href="index.html">Back</a>
     </div>
   </header>
 
   <main class="shell" style="grid-template-columns:1fr">
-    <div class="card" style="padding:16px">
-      <div class="side-title">Why this version is different</div>
-      <div class="small-note">
-        This build avoids extra folder creation so it works better from mobile GitHub uploads.
-        Keep your existing <strong>Images</strong> folder.
-        Keep your existing <strong>firebase-config.js</strong> if you want.
-        Upload only these root files: <strong>index.html</strong>, <strong>styles.css</strong>, <strong>app.js</strong>, and <strong>admin.html</strong>.
-      </div>
+    <div class="smallStats">
+      <div class="card stat"><div class="statLabel">Total Posts</div><div id="statPosts">0</div></div>
+      <div class="card stat"><div class="statLabel">Users</div><div id="statUsers">0</div></div>
+      <div class="card stat"><div class="statLabel">Reports</div><div id="statReports">0</div></div>
+      <div class="card stat"><div class="statLabel">Pinned</div><div id="statPinned">0</div></div>
+    </div>
+
+    <div class="two-admin" style="margin-top:16px">
+      <section class="card admin-panel">
+        <div class="side-title">Posts</div>
+        <div id="postAdminWrap"></div>
+      </section>
+      <section class="card admin-panel">
+        <div class="side-title">Users</div>
+        <div id="userAdminWrap"></div>
+      </section>
     </div>
   </main>
+
+  <script src="admin.js"></script>
 </body>
 </html>
