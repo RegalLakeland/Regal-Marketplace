@@ -1,90 +1,47 @@
 
-import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-import {getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {getFirestore,collection,addDoc,onSnapshot,deleteDoc,doc} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import {getStorage,ref,uploadBytes,getDownloadURL} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+let posts=[];
 
-const app=initializeApp(window.firebaseConfig);
-const auth=getAuth(app);
-const db=getFirestore(app);
-const storage=getStorage(app);
-
-const loginBox=document.getElementById("loginBox");
-const market=document.getElementById("marketplace");
-const postsDiv=document.getElementById("posts");
-
-document.getElementById("loginBtn").onclick=()=>{
-signInWithEmailAndPassword(auth,email.value,password.value);
-};
-
-document.getElementById("signupBtn").onclick=()=>{
-createUserWithEmailAndPassword(auth,email.value,password.value);
-};
-
-document.getElementById("logoutBtn").onclick=()=>{
-signOut(auth);
-};
-
-onAuthStateChanged(auth,user=>{
-if(user){
-loginBox.style.display="none";
-market.style.display="block";
-logoutBtn.style.display="inline-block";
-loadPosts();
-}else{
-loginBox.style.display="block";
-market.style.display="none";
-logoutBtn.style.display="none";
-}
-});
-
-postBtn.onclick=async()=>{
-
-let imgURL="";
-
-if(image.files[0]){
-const r=ref(storage,"images/"+Date.now());
-await uploadBytes(r,image.files[0]);
-imgURL=await getDownloadURL(r);
+function login(){
+alert("Firebase login will work after you paste your firebase keys in firebase-config.js");
 }
 
-await addDoc(collection(db,"posts"),{
-title:title.value,
-price:price.value,
-description:description.value,
-image:imgURL
-});
+function signup(){
+alert("Account creation will work once Firebase config is added.");
+}
 
-};
+function resetPassword(){
+alert("Password reset email will work after Firebase config.");
+}
 
-function loadPosts(){
+function createPost(){
 
-onSnapshot(collection(db,"posts"),snap=>{
+let title=document.getElementById("title").value;
+let price=document.getElementById("price").value;
+let desc=document.getElementById("desc").value;
 
-postsDiv.innerHTML="";
+let post={title,price,desc};
+posts.push(post);
 
-snap.forEach(d=>{
+renderPosts();
+}
 
-const p=d.data();
+function renderPosts(){
 
-const div=document.createElement("div");
-div.className="post";
+let feed=document.getElementById("feed");
+feed.innerHTML="";
 
-div.innerHTML=`
+posts.forEach(p=>{
+
+let card=document.createElement("div");
+card.className="card";
+
+card.innerHTML=`
 <h3>${p.title}</h3>
-<p>${p.price}</p>
-<p>${p.description}</p>
-${p.image?'<img src="'+p.image+'" width="200">':""}
-<button data="${d.id}">Delete</button>
+<p>$${p.price}</p>
+<p>${p.desc}</p>
 `;
 
-div.querySelector("button").onclick=()=>{
-deleteDoc(doc(db,"posts",d.id));
-};
-
-postsDiv.appendChild(div);
-
-});
+feed.appendChild(card);
 
 });
 

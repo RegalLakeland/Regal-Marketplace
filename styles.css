@@ -1,27 +1,50 @@
 
 body{
 font-family:Arial;
-background:#0f172a;
+background:#0b132b;
 color:white;
+margin:0;
 padding:20px;
 }
 
-input,textarea{
-display:block;
-margin:8px 0;
+header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.loginBox, .createPost{
+background:#1c2541;
+padding:20px;
+margin-top:20px;
+border-radius:10px;
+max-width:400px;
+}
+
+input, textarea{
+width:100%;
+margin:5px 0;
 padding:8px;
-width:300px;
 }
 
 button{
-padding:8px 14px;
-margin:6px 4px;
+margin-top:5px;
+padding:8px;
+background:#22c55e;
+border:none;
+color:white;
 cursor:pointer;
 }
 
-.post{
-border:1px solid #444;
+#feed{
+margin-top:30px;
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+gap:20px;
+}
+
+.card{
+background:#1c2541;
 padding:10px;
-margin:10px 0;
-background:#1e293b;
+border-radius:10px;
 }
