@@ -5,7 +5,6 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.
 import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
   authDomain: "regal-lakeland-marketplace.firebaseapp.com",
