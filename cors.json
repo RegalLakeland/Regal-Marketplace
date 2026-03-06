@@ -1,11 +1,9 @@
+
 [
   {
-    "origin": ["*"]
-,    "method": ["GET", "POST", "PUT", "DELETE"],
-    "responseHeader": [
-      "Content-Type",
-      "Access-Control-Allow-Origin"
-    ],
+    "origin": ["https://regallakeland.github.io"],
+    "method": ["GET", "POST", "PUT", "DELETE"],
+    "responseHeader": ["Content-Type"],
     "maxAgeSeconds": 3600
   }
 ]
