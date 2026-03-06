@@ -1,17 +1,16 @@
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateProfile } from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js';
-import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp } from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js';
+import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp, setDoc } from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js';
 
-// IMPORTANT: Replace with your project's Firebase configuration
-// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
-  authDomain: "regal-lakeland-marketplace.firebaseapp.com",
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
   projectId: "regal-lakeland-marketplace",
   storageBucket: "regal-lakeland-marketplace.firebasestorage.app",
-  messagingSenderId: "1014346693296",
-  appId: "1:1014346693296:web:fc76118d1a8db347945975"
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 // Initialize Firebase
@@ -45,5 +44,6 @@ export {
     ref,
     uploadBytes,
     getDownloadURL,
-    deleteObject
+    deleteObject,
+    setDoc
 };
