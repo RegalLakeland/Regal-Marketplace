@@ -3,54 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Regal Employee Marketplace Admin</title>
+  <title>Regal Admin Portal</title>
   <link rel="stylesheet" href="styles.css">
-
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <div class="bg bg1"></div>
-  <div class="bg bg2"></div>
-  <div class="bg bg3"></div>
+  <div class="bg-slideshow" aria-hidden="true">
+    <img src="Images/regal1.jpg" class="bg-slide active" alt="">
+    <img src="Images/regal2.jpg" class="bg-slide" alt="">
+    <img src="Images/regal3.jpg" class="bg-slide" alt="">
+  </div>
   <div class="bg-overlay"></div>
-
-  <header class="topbar">
-    <div class="brand-wrap">
-      <div class="logo">RH</div>
-      <div>
-        <div class="brand-title">Admin Portal</div>
-        <div class="brand-sub">Posts · Users · Moderation</div>
-      </div>
-    </div>
-    <div class="row">
-      <span id="adminUser" class="pill">Admin</span>
-      <a class="btn" href="index.html">Back</a>
-    </div>
-  </header>
-
-  <main class="shell" style="grid-template-columns:1fr">
-    <div class="smallStats">
-      <div class="card stat"><div class="statLabel">Total Posts</div><div id="statPosts">0</div></div>
-      <div class="card stat"><div class="statLabel">Users</div><div id="statUsers">0</div></div>
-      <div class="card stat"><div class="statLabel">Reports</div><div id="statReports">0</div></div>
-      <div class="card stat"><div class="statLabel">Pinned</div><div id="statPinned">0</div></div>
-    </div>
-
-    <div class="two-admin" style="margin-top:16px">
-      <section class="card admin-panel">
-        <div class="side-title">Posts</div>
-        <div id="postAdminWrap"></div>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-wrap"><div class="logo">RH</div><div><div class="brand-title big">Admin Portal</div><div class="brand-sub">Users, moderation, alerts, and posts</div></div></div>
+      <div class="top-actions"><span id="adminUser" class="pill">Admin</span><a class="btn" href="index.html">Back</a></div>
+    </header>
+    <main class="admin-grid">
+      <section class="stat-grid">
+        <div class="info-card"><div class="info-label">Total Posts</div><div class="info-value" id="statPosts">0</div></div>
+        <div class="info-card"><div class="info-label">Users</div><div class="info-value" id="statUsers">0</div></div>
+        <div class="info-card"><div class="info-label">Alerts</div><div class="info-value" id="statAlerts">0</div></div>
+        <div class="info-card"><div class="info-label">Banned</div><div class="info-value" id="statBanned">0</div></div>
       </section>
-
-      <section class="card admin-panel">
-        <div class="side-title">Users</div>
-        <div id="userAdminWrap"></div>
-      </section>
-    </div>
-  </main>
-
+      <section class="admin-panel"><div class="section-group-title">Moderation Alerts</div><div id="alertTable" class="table-wrap"></div></section>
+      <section class="admin-panel"><div class="section-group-title">Posts</div><div id="postTable" class="table-wrap"></div></section>
+      <section class="admin-panel"><div class="section-group-title">Users</div><div id="userTable" class="table-wrap"></div></section>
+    </main>
+  </div>
   <script src="firebase-config.js"></script>
   <script src="admin.js"></script>
 </body>

@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Regal Employee Marketplace</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 </head>
 <body>
   <div class="bg-slideshow" aria-hidden="true">
@@ -14,106 +18,128 @@
   </div>
   <div class="bg-overlay"></div>
 
+  <div id="authOverlay" class="overlay">
+    <div class="modal auth-modal">
+      <div class="modal-head">
+        <div class="brand-wrap">
+          <div class="logo">RH</div>
+          <div>
+            <div class="brand-title">Regal Employee Marketplace</div>
+            <div class="brand-sub">Secure employee-only marketplace</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="tabs">
+          <button id="tabLogin" class="tab active" type="button">Login</button>
+          <button id="tabSignup" class="tab" type="button">Create Account</button>
+        </div>
+        <section id="loginPane">
+          <label class="field"><span>Work Email</span><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></label>
+          <label class="field"><span>Password</span><input id="loginPassword" type="password" placeholder="Password"></label>
+          <div class="row">
+            <button id="btnLogin" class="btn primary" type="button">Login</button>
+            <button id="btnForgot" class="btn" type="button">Forgot Password</button>
+          </div>
+        </section>
+        <section id="signupPane" hidden>
+          <label class="field"><span>Display Name</span><input id="signupName" type="text" placeholder="Michael Hall"></label>
+          <label class="field"><span>Username</span><input id="signupUsername" type="text" placeholder="michaelhall"></label>
+          <label class="field"><span>Work Email</span><input id="signupEmail" type="email" placeholder="first.last@regallakeland.com"></label>
+          <label class="field"><span>Password</span><input id="signupPassword" type="password" placeholder="At least 8 characters"></label>
+          <label class="field"><span>Confirm Password</span><input id="signupPassword2" type="password" placeholder="Re-enter password"></label>
+          <label class="agree"><input id="agreeRules" type="checkbox"> <span>I agree to the marketplace rules.</span></label>
+          <div class="row"><button id="btnSignup" class="btn primary" type="button">Create Account</button></div>
+        </section>
+        <div id="authMsg" class="msg" hidden></div>
+        <div class="small-note">Work emails only. Each username must be unique. Email verification is required before full access.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="page-shell">
     <header class="topbar">
-      <div class="brand-row">
-        <div class="brand-logo">RH</div>
+      <div class="brand-wrap">
+        <div class="logo">RH</div>
         <div>
-          <h1>Regal Employee Marketplace</h1>
-          <div class="subhead">Forum-style internal marketplace</div>
+          <div class="brand-title big">Regal Employee Marketplace</div>
+          <div class="brand-sub">OfferUp-style and forum-style views in one site</div>
         </div>
       </div>
       <div class="top-actions">
-        <button id="homeBtn" class="ghost-btn">Boards</button>
-        <button id="newTopicBtn" class="primary-btn">+ New Post</button>
+        <div class="view-switch">
+          <button id="viewClassicBtn" class="seg-btn active" type="button">Classic View</button>
+          <button id="viewForumBtn" class="seg-btn" type="button">Forum View</button>
+        </div>
+        <span id="userPill" class="pill">Not signed in</span>
+        <button id="btnNewPost" class="btn primary" type="button" hidden>+ New Post</button>
+        <a id="adminLink" class="btn" href="admin.html" hidden>Admin Portal</a>
+        <button id="btnLogout" class="btn danger" type="button" hidden>Logout</button>
       </div>
     </header>
 
-    <main id="app"></main>
+    <main id="appRoot"></main>
   </div>
 
-  <div id="composeModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2>Create Thread</h2>
-        <button id="closeComposeBtn" class="ghost-btn small">Close</button>
+  <div id="composeModal" class="overlay hidden">
+    <div class="modal compose-modal">
+      <div class="modal-head">
+        <strong id="composeTitleText">Create Post</strong>
+        <button id="closeComposeBtn" class="btn" type="button">Close</button>
       </div>
-
-      <div class="form-grid">
-        <label>
-          <span>Section</span>
-          <select id="composeSection"></select>
-        </label>
-
-        <label>
-          <span>Your Name</span>
-          <input id="composeAuthor" placeholder="Michael Hall" />
-        </label>
-
-        <label class="full">
-          <span>Thread Title</span>
-          <input id="composeTitle" placeholder="Honda Civic tires for sale" />
-        </label>
-
-        <label class="full">
-          <span>Description</span>
-          <textarea id="composeBody" rows="6" placeholder="Write the listing, event, or work update here..."></textarea>
-        </label>
-
-        <label>
-          <span>Price</span>
-          <input id="composePrice" placeholder="Leave blank for FREE / N/A" />
-        </label>
-
-        <label>
-          <span>Location</span>
-          <input id="composeLocation" placeholder="Lakeland" />
-        </label>
-
-        <label class="full">
-          <span>Contact</span>
-          <input id="composeContact" placeholder="Phone, email, department, or where to find you" />
-        </label>
-
-        <label class="full">
-          <span>Images (up to 10)</span>
-          <input id="composeImages" type="file" accept="image/*" multiple />
-        </label>
-
-        <div id="composePreview" class="full preview-grid"></div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <label><span>Section</span><select id="composeSection"></select></label>
+          <label><span>Status</span><select id="composeStatus"><option value="ACTIVE">Active</option><option value="SOLD">Sold</option></select></label>
+          <label class="full"><span>Thread / Listing Title</span><input id="composePostTitle" placeholder="Honda Civic tires for sale"></label>
+          <label class="full"><span>Description</span><textarea id="composeBody" rows="6" placeholder="Write the listing, event, or work update here..."></textarea></label>
+          <label id="priceField"><span>Price</span><input id="composePrice" placeholder="Leave blank for FREE / N/A"></label>
+          <label><span>Location</span><input id="composeLocation" placeholder="Lakeland"></label>
+          <label class="full"><span>Contact</span><input id="composeContact" placeholder="Phone, email, department, or where to find you"></label>
+          <label class="full"><span>Images (up to 10)</span><input id="composeImages" type="file" accept="image/*" multiple></label>
+          <div id="composePreview" class="full preview-grid"></div>
+          <div id="composeMsg" class="msg full" hidden></div>
+        </div>
       </div>
+      <div class="modal-foot"><button id="savePostBtn" class="btn primary" type="button">Post</button></div>
+    </div>
+  </div>
 
-      <div class="modal-footer">
-        <button id="saveTopicBtn" class="primary-btn">Post Thread</button>
+  <div id="threadModal" class="overlay hidden">
+    <div class="modal thread-modal">
+      <div class="modal-head">
+        <strong id="threadTitle">Thread</strong>
+        <button id="closeThreadBtn" class="btn" type="button">Close</button>
+      </div>
+      <div class="modal-body">
+        <div id="threadMeta" class="subtle"></div>
+        <div id="threadGallery" class="gallery"></div>
+        <div id="threadBody" class="thread-body"></div>
+        <div class="thread-info-grid">
+          <div class="info-card"><div class="info-label">Price</div><div class="info-value" id="threadPrice"></div></div>
+          <div class="info-card"><div class="info-label">Location</div><div class="info-value" id="threadLocation"></div></div>
+          <div class="info-card"><div class="info-label">Contact</div><div class="info-value" id="threadContact"></div></div>
+        </div>
+        <div class="card-actions">
+          <button id="replyBtn" class="btn primary" type="button">Reply</button>
+          <button id="editThreadBtn" class="btn" type="button" hidden>Edit</button>
+          <button id="deleteThreadBtn" class="btn danger" type="button" hidden>Delete</button>
+          <button id="adminDeleteThreadBtn" class="btn danger" type="button" hidden>Admin Delete</button>
+        </div>
+        <div class="replies-wrap"><div class="replies-title">Replies</div><div id="replyList"></div></div>
       </div>
     </div>
   </div>
 
-  <div id="replyModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2>Add Reply</h2>
-        <button id="closeReplyBtn" class="ghost-btn small">Close</button>
-      </div>
-
-      <div class="form-grid">
-        <label>
-          <span>Your Name</span>
-          <input id="replyAuthor" placeholder="Michael Hall" />
-        </label>
-
-        <label class="full">
-          <span>Reply</span>
-          <textarea id="replyBody" rows="5" placeholder="Write your reply..."></textarea>
-        </label>
-      </div>
-
-      <div class="modal-footer">
-        <button id="saveReplyBtn" class="primary-btn">Post Reply</button>
-      </div>
+  <div id="replyModal" class="overlay hidden">
+    <div class="modal auth-modal">
+      <div class="modal-head"><strong>Add Reply</strong><button id="closeReplyBtn" class="btn" type="button">Close</button></div>
+      <div class="modal-body"><label class="field"><span>Reply</span><textarea id="replyBody" rows="5" placeholder="Write your reply..."></textarea></label><div id="replyMsg" class="msg" hidden></div></div>
+      <div class="modal-foot"><button id="saveReplyBtn" class="btn primary" type="button">Post Reply</button></div>
     </div>
   </div>
 
+  <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

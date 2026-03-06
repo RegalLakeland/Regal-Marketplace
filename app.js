@@ -1,353 +1,69 @@
-const STORAGE_KEY = "regal_forum_option1_data_v2";
-const sectionGroups = [
-  { title: "Marketplace", sections: [
-    { id: "free-items", name: "Free Items", desc: "Post giveaways, free items, and curb alerts." },
-    { id: "buy-sell", name: "Buy / Sell", desc: "Sell items to coworkers or look for something specific." },
-    { id: "garage-sales", name: "Garage Sales", desc: "Weekend sales, moving sales, and neighborhood finds." }
-  ]},
-  { title: "Community", sections: [
-    { id: "events", name: "Events", desc: "Birthdays, barbecues, outings, and employee meetups." },
-    { id: "work-news", name: "Work News", desc: "Announcements, updates, reminders, and dealership info." },
-    { id: "services", name: "Services", desc: "Promote side work, referrals, and help offered." }
-  ]}
+const WORK_DOMAIN = "@regallakeland.com";
+const ADMIN_SET = new Set(ADMIN_EMAILS.map(x => String(x).toLowerCase()));
+const SECTIONS = [
+  { id:"free-items", name:"Free Items", desc:"Post giveaways, free items, and curb alerts." },
+  { id:"buy-sell", name:"Buy / Sell", desc:"Sell items to coworkers or look for something specific." },
+  { id:"garage-sales", name:"Garage Sales", desc:"Weekend sales, moving sales, and neighborhood finds." },
+  { id:"events", name:"Events", desc:"Birthdays, barbecues, outings, and employee meetups." },
+  { id:"work-news", name:"Work News", desc:"Announcements, updates, reminders, and dealership info." },
+  { id:"services", name:"Services", desc:"Promote side work, referrals, and help offered." }
 ];
-const seedData = { topics: [
-  { id:"t1", sectionId:"free-items", title:"Free toddler bike in Lakeland", author:"Stacey M", price:"FREE", location:"Lakeland", contact:"Text Stacey in BDC", body:"Pink toddler bike in good shape. Free to any employee who can use it for their kid. First come first served.", createdAt:"2026-03-05T10:20:00", views:18, images:[], replies:[{ id:"r1", author:"Michael H", body:"Still available?", createdAt:"2026-03-05T10:45:00" }]},
-  { id:"t2", sectionId:"buy-sell", title:"PS5 headset for sale", author:"Jordan T", price:"$45", location:"Regal Honda", contact:"jordan.t@regallakeland.com", body:"Barely used headset. Works great. I can bring it to work tomorrow if anyone wants it.", createdAt:"2026-03-05T08:10:00", views:31, images:[], replies:[{ id:"r2", author:"Amy M", body:"Can you hold it until Friday?", createdAt:"2026-03-05T09:02:00" }]},
-  { id:"t3", sectionId:"events", title:"Friday lunch order thread", author:"Chrissy H", price:"N/A", location:"Main break room", contact:"See Chrissy at the desk", body:"Post what you want from lunch by 10:30 Friday so we can get one group order in.", createdAt:"2026-03-04T15:00:00", views:52, images:[], replies:[{ id:"r3", author:"Janni R", body:"Chicken caesar wrap for me.", createdAt:"2026-03-04T15:11:00" },{ id:"r4", author:"Michael H", body:"Double cheeseburger basket please.", createdAt:"2026-03-04T15:20:00" }]},
-  { id:"t4", sectionId:"work-news", title:"Saturday team huddle moved to 8:15", author:"Management", price:"N/A", location:"Showroom", contact:"See Johnny", body:"Saturday huddle is being moved to 8:15 instead of 8:30. Please make sure your teams know.", createdAt:"2026-03-05T06:30:00", views:76, images:[], replies:[]}
-]};
-
-let store = loadStore();
-let currentView = { type: "boards", sectionId: null, threadId: null };
-let replyTargetId = null;
-let composeImages = [];
-
-function loadStore(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(!raw){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seedData));
-    return JSON.parse(JSON.stringify(seedData));
-  }
-  try { return JSON.parse(raw); }
-  catch {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seedData));
-    return JSON.parse(JSON.stringify(seedData));
-  }
-}
-function saveStore(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
-function getSectionsFlat(){ return sectionGroups.flatMap(g => g.sections); }
-function getSectionById(id){ return getSectionsFlat().find(s => s.id === id); }
-function getTopicsBySection(sectionId){
-  return store.topics.filter(t => t.sectionId === sectionId).sort((a,b) => new Date(getLastActivity(b)) - new Date(getLastActivity(a)));
-}
-function getTopicById(id){ return store.topics.find(t => t.id === id); }
-function getLastReply(topic){ return topic.replies && topic.replies.length ? topic.replies[topic.replies.length - 1] : null; }
-function getLastActivity(topic){ const reply = getLastReply(topic); return reply ? reply.createdAt : topic.createdAt; }
-function formatDate(dateString){
-  const d = new Date(dateString);
-  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-function initials(name){
-  return String(name || "?").split(" ").filter(Boolean).slice(0,2).map(x => x[0].toUpperCase()).join("");
-}
-function escapeHtml(value){
-  return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
-}
-
-function bindSlideshow(){
-  const slides = [...document.querySelectorAll(".bg-slide")];
-  let i = 0;
-  setInterval(() => {
-    slides[i].classList.remove("active");
-    i = (i + 1) % slides.length;
-    slides[i].classList.add("active");
-  }, 4500);
-}
-
-function boardRowHtml(section){
-  const topics = getTopicsBySection(section.id);
-  const lastTopic = topics[0];
-  const lastReply = lastTopic ? getLastReply(lastTopic) : null;
-  return `<div class="board-row" data-section="${section.id}">
-    <div class="board-main">
-      <div class="avatar-circle">💬</div>
-      <div>
-        <div class="board-title">${escapeHtml(section.name)}</div>
-        <div class="board-desc">${escapeHtml(section.desc)}</div>
-      </div>
-    </div>
-    <div class="board-count">${topics.length}<span>threads</span></div>
-    <div class="last-post">
-      ${lastTopic && lastTopic.images && lastTopic.images.length ? `<div class="thumb-box"><img src="${lastTopic.images[0]}" alt=""></div>` : `<div class="mini-avatar">${lastTopic ? initials(lastReply ? lastReply.author : lastTopic.author) : "—"}</div>`}
-      <div>
-        <div class="last-post-title">${lastTopic ? escapeHtml(lastTopic.title) : "No threads yet"}</div>
-        <div class="last-post-meta">${lastTopic ? `${escapeHtml(lastReply ? lastReply.author : lastTopic.author)}, ${formatDate(getLastActivity(lastTopic))}` : "Start the first thread"}</div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function renderBoards(){
-  const app = document.getElementById("app");
-  app.innerHTML = sectionGroups.map(group => `
-    <div class="section-group-title">${escapeHtml(group.title)}</div>
-    <div class="board-table">${group.sections.map(boardRowHtml).join("")}</div>
-  `).join("");
-
-  app.querySelectorAll("[data-section]").forEach(row => {
-    row.addEventListener("click", () => {
-      currentView = { type: "section", sectionId: row.dataset.section, threadId: null };
-      render();
-    });
-  });
-}
-
-function topicRowHtml(topic){
-  const lastReply = getLastReply(topic);
-  return `<div class="topic-row" data-thread="${topic.id}">
-    <div class="topic-main">
-      ${topic.images && topic.images.length ? `<div class="thumb-box"><img src="${topic.images[0]}" alt=""></div>` : `<div class="avatar-circle">💬</div>`}
-      <div>
-        <div class="topic-title">${escapeHtml(topic.title)}</div>
-        <div class="topic-desc">${escapeHtml(topic.author)}, ${formatDate(topic.createdAt)} ${topic.price && topic.price !== "N/A" ? ` • ${escapeHtml(topic.price)}` : ""}</div>
-      </div>
-    </div>
-    <div class="topic-stat">${topic.replies.length}<span>replies</span></div>
-    <div class="topic-stat">${topic.views || 0}<span>views</span></div>
-    <div class="last-message">
-      <div class="mini-avatar">${initials(lastReply ? lastReply.author : topic.author)}</div>
-      <div>
-        <div class="last-message-title">${escapeHtml(lastReply ? lastReply.author : topic.author)}</div>
-        <div class="last-message-meta">${formatDate(getLastActivity(topic))}</div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function bindTopicRows(sectionId){
-  document.querySelectorAll("[data-thread]").forEach(row => {
-    row.addEventListener("click", () => {
-      currentView = { type: "thread", sectionId, threadId: row.dataset.thread };
-      render();
-    });
-  });
-}
-
-function renderSection(sectionId){
-  const app = document.getElementById("app");
-  const section = getSectionById(sectionId);
-  const topics = getTopicsBySection(sectionId);
-
-  app.innerHTML = `
-    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / ${escapeHtml(section.name)}</div>
-    <div class="topic-header">
-      <div>
-        <h2>${escapeHtml(section.name)}</h2>
-        <div class="subhead">${escapeHtml(section.desc)}</div>
-      </div>
-      <div class="filters"><input id="topicSearch" placeholder="Search this section..." /></div>
-    </div>
-    <div class="topic-table" id="topicTable">${topics.length ? topics.map(topicRowHtml).join("") : `<div class="empty-box">No threads in this section yet.</div>`}</div>
-  `;
-
-  document.getElementById("crumbBoards").addEventListener("click", (e) => {
-    e.preventDefault();
-    currentView = { type: "boards", sectionId: null, threadId: null };
-    render();
-  });
-
-  bindTopicRows(sectionId);
-
-  const search = document.getElementById("topicSearch");
-  search.addEventListener("input", () => {
-    const q = search.value.trim().toLowerCase();
-    const filtered = topics.filter(t => (t.title + " " + t.body + " " + t.author + " " + t.contact).toLowerCase().includes(q));
-    document.getElementById("topicTable").innerHTML = filtered.length ? filtered.map(topicRowHtml).join("") : `<div class="empty-box">No matching threads found.</div>`;
-    bindTopicRows(sectionId);
-  });
-}
-
-function renderThread(threadId){
-  const app = document.getElementById("app");
-  const topic = getTopicById(threadId);
-  const section = getSectionById(topic.sectionId);
-  topic.views = (topic.views || 0) + 1;
-  saveStore();
-
-  const gallery = topic.images && topic.images.length ? `<div class="gallery">${topic.images.map(src => `<img src="${src}" alt="">`).join("")}</div>` : "";
-  const repliesHtml = topic.replies.length
-    ? topic.replies.map(reply => `<div class="reply-card"><div class="reply-top"><div class="reply-author">${escapeHtml(reply.author)}</div><div class="reply-date">${formatDate(reply.createdAt)}</div></div><div class="reply-body">${escapeHtml(reply.body)}</div></div>`).join("")
-    : `<div class="empty-box">No replies yet. Be the first to respond.</div>`;
-
-  app.innerHTML = `
-    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / <a href="#" id="crumbSection">${escapeHtml(section.name)}</a> / ${escapeHtml(topic.title)}</div>
-
-    <div class="thread-card">
-      <div class="thread-top">
-        <div>
-          <div class="thread-title">${escapeHtml(topic.title)}</div>
-          <div class="meta-line">Started by ${escapeHtml(topic.author)} • ${formatDate(topic.createdAt)}</div>
-        </div>
-        <div class="price-pill">${escapeHtml(topic.price || "N/A")}</div>
-      </div>
-
-      <div class="thread-body">${escapeHtml(topic.body)}</div>
-      ${gallery}
-
-      <div class="thread-info-grid">
-        <div class="info-card"><div class="info-label">Location</div><div class="info-value">${escapeHtml(topic.location || "Not listed")}</div></div>
-        <div class="info-card"><div class="info-label">Contact</div><div class="info-value">${escapeHtml(topic.contact || "Not listed")}</div></div>
-        <div class="info-card"><div class="info-label">Views / Replies</div><div class="info-value">${topic.views || 0} views • ${topic.replies.length} replies</div></div>
-      </div>
-
-      <div class="card-actions">
-        <button id="replyBtn" class="primary-btn">Reply</button>
-        <button id="backToSectionBtn" class="ghost-btn">Back to ${escapeHtml(section.name)}</button>
-      </div>
-    </div>
-
-    <div class="replies-wrap">
-      <div class="replies-title">Replies</div>
-      ${repliesHtml}
-    </div>
-  `;
-
-  document.getElementById("crumbBoards").addEventListener("click", (e) => {
-    e.preventDefault();
-    currentView = { type: "boards", sectionId: null, threadId: null };
-    render();
-  });
-
-  document.getElementById("crumbSection").addEventListener("click", (e) => {
-    e.preventDefault();
-    currentView = { type: "section", sectionId: section.id, threadId: null };
-    render();
-  });
-
-  document.getElementById("backToSectionBtn").addEventListener("click", () => {
-    currentView = { type: "section", sectionId: section.id, threadId: null };
-    render();
-  });
-
-  document.getElementById("replyBtn").addEventListener("click", () => {
-    replyTargetId = topic.id;
-    document.getElementById("replyModal").classList.remove("hidden");
-  });
-}
-
-function populateComposeSections(){
-  document.getElementById("composeSection").innerHTML = getSectionsFlat().map(s => `<option value="${s.id}">${s.name}</option>`).join("");
-}
-
-function fileToDataURL(file){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-async function handleComposeImages(files){
-  const list = [...files].slice(0, 10);
-  composeImages = await Promise.all(list.map(fileToDataURL));
-  document.getElementById("composePreview").innerHTML = composeImages.map(src => `<img src="${src}" alt="">`).join("");
-}
-
-function createThread(){
-  const sectionId = document.getElementById("composeSection").value;
-  const author = document.getElementById("composeAuthor").value.trim();
-  const title = document.getElementById("composeTitle").value.trim();
-  const body = document.getElementById("composeBody").value.trim();
-  const price = document.getElementById("composePrice").value.trim() || "FREE";
-  const location = document.getElementById("composeLocation").value.trim() || "Lakeland";
-  const contact = document.getElementById("composeContact").value.trim();
-
-  if(!author || !title || !body){
-    alert("Please fill out name, title, and description.");
-    return;
-  }
-
-  store.topics.unshift({
-    id: "t" + Date.now(),
-    sectionId,
-    title,
-    author,
-    price,
-    location,
-    contact,
-    body,
-    images: composeImages.slice(),
-    createdAt: new Date().toISOString(),
-    views: 0,
-    replies: []
-  });
-
-  saveStore();
-
-  document.getElementById("composeAuthor").value = "";
-  document.getElementById("composeTitle").value = "";
-  document.getElementById("composeBody").value = "";
-  document.getElementById("composePrice").value = "";
-  document.getElementById("composeLocation").value = "";
-  document.getElementById("composeContact").value = "";
-  document.getElementById("composeImages").value = "";
-  document.getElementById("composePreview").innerHTML = "";
-  composeImages = [];
-
-  document.getElementById("composeModal").classList.add("hidden");
-  currentView = { type: "section", sectionId, threadId: null };
-  render();
-}
-
-function createReply(){
-  const author = document.getElementById("replyAuthor").value.trim();
-  const body = document.getElementById("replyBody").value.trim();
-  if(!author || !body || !replyTargetId){
-    alert("Please enter your name and reply.");
-    return;
-  }
-  const topic = getTopicById(replyTargetId);
-  topic.replies.push({ id: "r" + Date.now(), author, body, createdAt: new Date().toISOString() });
-  saveStore();
-  document.getElementById("replyAuthor").value = "";
-  document.getElementById("replyBody").value = "";
-  document.getElementById("replyModal").classList.add("hidden");
-  renderThread(replyTargetId);
-}
-
-function render(){
-  if(currentView.type === "boards") renderBoards();
-  else if(currentView.type === "section") renderSection(currentView.sectionId);
-  else if(currentView.type === "thread") renderThread(currentView.threadId);
-}
-
-document.getElementById("homeBtn").addEventListener("click", () => {
-  currentView = { type: "boards", sectionId: null, threadId: null };
-  render();
-});
-
-document.getElementById("newTopicBtn").addEventListener("click", () => {
-  populateComposeSections();
-  document.getElementById("composeModal").classList.remove("hidden");
-});
-
-document.getElementById("closeComposeBtn").addEventListener("click", () => {
-  document.getElementById("composeModal").classList.add("hidden");
-});
-
-document.getElementById("composeImages").addEventListener("change", async (e) => {
-  await handleComposeImages(e.target.files);
-});
-
-document.getElementById("saveTopicBtn").addEventListener("click", createThread);
-
-document.getElementById("closeReplyBtn").addEventListener("click", () => {
-  document.getElementById("replyModal").classList.add("hidden");
-});
-
-document.getElementById("saveReplyBtn").addEventListener("click", createReply);
-
-bindSlideshow();
-render();
+const GROUPS = [
+  { title:"Marketplace", ids:["free-items","buy-sell","garage-sales"] },
+  { title:"Community", ids:["events","work-news","services"] }
+];
+const BAD_WORDS = ["fuck","fucking","shit","bitch","asshole","nigga","nigger","cunt","dick","pussy","motherfucker"];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+let me = null, posts = [], currentView = localStorage.getItem("regal_view_pref") || "classic", currentSection = null, currentThreadId = null, currentThread = null, editingId = null, unsubPosts = null;
+function validWorkEmail(email){ return String(email||"").toLowerCase().endsWith(WORK_DOMAIN); }
+function isAdmin(){ return !!me && ADMIN_SET.has(String(me.email||"").toLowerCase()); }
+function displayName(){ return me?.name || me?.username || (me?.email||"").split("@")[0] || "Employee"; }
+function formatDate(d){ return d ? new Date(d).toLocaleDateString()+" "+new Date(d).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "—"; }
+function initials(name){ return String(name||"?").split(" ").filter(Boolean).slice(0,2).map(v=>v[0].toUpperCase()).join(""); }
+function sectionById(id){ return SECTIONS.find(s => s.id === id); }
+function setMsg(id, text="", kind=""){ const el=$(id); if(!text){el.hidden=true;el.textContent="";el.className="msg";return;} el.hidden=false; el.textContent=text; el.className="msg "+kind; }
+function show(id){ $(id).classList.remove("hidden"); }
+function hide(id){ $(id).classList.add("hidden"); }
+function priceText(post){ const p=String(post.price||"").trim(); if(!p||p.toUpperCase()==="FREE") return "FREE"; return p; }
+function cleanUsername(u){ return String(u||"").toLowerCase().replace(/[^a-z0-9_]/g,"").trim(); }
+function containsProfanity(text){ const s=" "+String(text||"").toLowerCase()+" "; return BAD_WORDS.some(w=>s.includes(w)); }
+function bindSlides(){ const slides=[...document.querySelectorAll(".bg-slide")]; let i=0; setInterval(()=>{ slides[i].classList.remove("active"); i=(i+1)%slides.length; slides[i].classList.add("active"); }, 4500); }
+function syncTopbar(){ $("userPill").textContent = me ? `${displayName()}${isAdmin() ? " • Admin" : ""}` : "Not signed in"; $("btnNewPost").hidden=!me; $("btnLogout").hidden=!me; $("adminLink").hidden=!(me&&isAdmin()); $("viewClassicBtn").classList.toggle("active", currentView==="classic"); $("viewForumBtn").classList.toggle("active", currentView==="forum"); if(me) hide("authOverlay"); else show("authOverlay"); }
+function countsBySection(){ const out={}; SECTIONS.forEach(s=>out[s.id]=0); posts.forEach(p=>{ if(out[p.sectionId]!=null) out[p.sectionId]+=1; }); return out; }
+function lastReply(post){ return post.replies&&post.replies.length ? post.replies[post.replies.length-1] : null; }
+function lastActivity(post){ const r=lastReply(post); return r ? r.createdAt : post.createdAt; }
+function latestPostInSection(id){ return posts.filter(p=>p.sectionId===id).sort((a,b)=>new Date(lastActivity(b))-new Date(lastActivity(a)))[0]; }
+function sectionBoardHtml(section){ const latest=latestPostInSection(section.id); const counts=countsBySection(); return `<button class="board-btn ${currentSection===section.id?'active':''}" data-section="${section.id}" type="button"><div><div style="font-weight:800">${esc(section.name)}</div><div class="desc">${esc(section.desc)}</div></div><div class="count-pill">${counts[section.id]||0}</div></button>`; }
+function sectionTopicRow(post){ const r=lastReply(post); return `<div class="topic-row" data-thread="${post.id}"><div class="topic-main">${post.images&&post.images.length?`<div class="thumb-box"><img src="${post.images[0]}" alt=""></div>`:`<div class="avatar-circle">💬</div>`}<div><div class="topic-title">${esc(post.title)}</div><div class="topic-desc">${esc(post.authorName)} • ${formatDate(post.createdAt)}${post.price?` • ${esc(priceText(post))}`:""}</div></div></div><div class="topic-stat">${(post.replies||[]).length}<span>replies</span></div><div class="topic-stat">${post.views||0}<span>views</span></div><div class="last-message"><div class="mini-avatar">${initials(r?r.authorName:post.authorName)}</div><div><div class="last-message-title">${esc(r?r.authorName:post.authorName)}</div><div class="last-message-meta">${formatDate(lastActivity(post))}</div></div></div></div>`; }
+function classicCardHtml(post){ const mine=me&&me.uid===post.uid; const sold=post.status==="SOLD"; return `<article class="listing-card"><div class="listing-thumb">${post.images&&post.images.length?`<img src="${post.images[0]}" alt="">`:``}<div class="badge ${sold?'sold':(priceText(post)==='FREE'?'free':'')}">${sold?'SOLD':priceText(post)==='FREE'?'FREE':'AVAILABLE'}</div></div><div class="listing-body"><div class="listing-title">${esc(post.title)}</div><div class="listing-meta">${esc(sectionById(post.sectionId)?.name||"")} • ${esc(post.location||"Lakeland")} • ${esc(priceText(post))}</div><div class="listing-desc">${esc(post.body||"").slice(0,160)}</div><div class="card-actions"><button class="btn" data-open="${post.id}" type="button">Open</button>${mine?`<button class="btn" data-edit="${post.id}" type="button">Edit</button>`:''}${mine?`<button class="btn danger" data-del="${post.id}" type="button">Delete</button>`:''}${mine?`<button class="btn" data-sold="${post.id}" type="button">${sold?"Mark Active":"Mark Sold"}</button>`:''}${isAdmin()?`<button class="btn danger" data-admin-del="${post.id}" type="button">Admin Delete</button>`:''}</div></div></article>`; }
+function filteredPosts(){ let arr=posts.slice(); const search=$("globalSearch")?.value?.trim().toLowerCase()||""; const status=$("globalStatus")?.value||"ACTIVE"; const sort=$("globalSort")?.value||"NEW"; if(currentSection) arr=arr.filter(p=>p.sectionId===currentSection); if(status==="ACTIVE") arr=arr.filter(p=>p.status!=="SOLD"); if(status==="SOLD") arr=arr.filter(p=>p.status==="SOLD"); if(search) arr=arr.filter(p=>`${p.title} ${p.body} ${p.authorName} ${p.contact}`.toLowerCase().includes(search)); if(sort==="NEW") arr.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); if(sort==="OLD") arr.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt)); if(sort==="REPLIES") arr.sort((a,b)=>(b.replies?.length||0)-(a.replies?.length||0)); return arr; }
+function renderSideBoards(){ return `<aside class="side-panel"><div class="section-group-title">Sections</div><div class="board-list">${GROUPS.map(g=>`<div><div style="font-size:12px;color:var(--muted);padding:4px 2px 8px">${esc(g.title)}</div>${g.ids.map(id=>sectionBoardHtml(sectionById(id))).join('')}</div>`).join('')}</div><div class="small-note" style="margin-top:12px">Secure employee-only marketplace.<br>Switch between classic cards and forum threads at the top.<br>Admins can moderate from the admin portal.</div></aside>`; }
+function renderClassicHome(){ const arr=filteredPosts(); const title=currentSection?sectionById(currentSection)?.name:"Marketplace"; return `<div class="layout-two-col">${renderSideBoards()}<section class="main-panel"><div class="panel-card toolbar"><input id="globalSearch" placeholder="Search titles, descriptions, contact..."><select id="globalStatus"><option value="ACTIVE">Active</option><option value="ALL">All</option><option value="SOLD">Sold</option></select><select id="globalSort"><option value="NEW">Newest</option><option value="OLD">Oldest</option><option value="REPLIES">Most Replies</option></select></div><div class="section-head"><h2>${esc(title||"Marketplace")}</h2><div class="subtle">${arr.length} listings</div></div><div class="classic-grid">${arr.length?arr.map(classicCardHtml).join(''):`<div class="empty-box">No posts found for this view.</div>`}</div></section></div>`; }
+function renderForumBoardHome(){ return GROUPS.map(group=>`<div class="section-group-title">${esc(group.title)}</div><div class="board-table">${group.ids.map(id=>{ const section=sectionById(id); const latest=latestPostInSection(id); const actor=latest?(lastReply(latest)?.authorName||latest.authorName):"—"; const counts=countsBySection(); return `<div class="board-row" data-section="${id}"><div class="board-main"><div class="avatar-circle">💬</div><div><div class="board-title">${esc(section.name)}</div><div class="board-desc">${esc(section.desc)}</div></div></div><div class="board-count">${counts[id]||0}<span>threads</span></div><div class="last-post">${latest?.images?.length?`<div class="thumb-box"><img src="${latest.images[0]}" alt=""></div>`:`<div class="mini-avatar">${latest?initials(actor):"—"}</div>`}<div><div class="last-post-title">${latest?esc(latest.title):"No threads yet"}</div><div class="last-post-meta">${latest?`${esc(actor)}, ${formatDate(lastActivity(latest))}`:"Start the first thread"}</div></div></div></div>`; }).join('')}</div>`).join(''); }
+function renderForumSectionPanel(sectionId){ const section=sectionById(sectionId); const arr=filteredPosts().sort((a,b)=>new Date(lastActivity(b))-new Date(lastActivity(a))); return `<div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / ${esc(section.name)}</div><div class="panel-card toolbar"><input id="globalSearch" placeholder="Search this section..."><select id="globalStatus"><option value="ACTIVE">Active</option><option value="ALL">All</option><option value="SOLD">Sold</option></select><select id="globalSort"><option value="NEW">Newest</option><option value="OLD">Oldest</option><option value="REPLIES">Most Replies</option></select></div><div class="topic-header"><div><h2>${esc(section.name)}</h2><div class="subhead">${esc(section.desc)}</div></div></div><div class="topic-table">${arr.length?arr.map(sectionTopicRow).join(''):`<div class="empty-box">No threads in this section yet.</div>`}</div>`; }
+function renderForumHome(){ return `<div class="layout-two-col">${renderSideBoards()}<section class="main-panel">${currentSection?renderForumSectionPanel(currentSection):renderForumBoardHome()}</section></div>`; }
+function attachCommon(){ document.querySelectorAll('[data-section]').forEach(el=>el.addEventListener('click',()=>{ currentSection=el.dataset.section; renderApp(); })); document.querySelectorAll('[data-open],[data-thread]').forEach(el=>el.addEventListener('click',()=>openThread(el.dataset.open||el.dataset.thread))); document.querySelectorAll('[data-edit]').forEach(el=>el.addEventListener('click',()=>editPost(el.dataset.edit))); document.querySelectorAll('[data-del]').forEach(el=>el.addEventListener('click',()=>deletePost(el.dataset.del,false))); document.querySelectorAll('[data-admin-del]').forEach(el=>el.addEventListener('click',()=>deletePost(el.dataset.adminDel,true))); document.querySelectorAll('[data-sold]').forEach(el=>el.addEventListener('click',()=>toggleSold(el.dataset.sold))); if($("crumbBoards")) $("crumbBoards").addEventListener('click',(e)=>{e.preventDefault(); currentSection=null; renderApp();}); ["globalSearch","globalStatus","globalSort"].forEach(id=>{ if($(id)) $(id).addEventListener('input',renderApp); }); }
+function renderApp(){ $("appRoot").innerHTML = currentView==="classic" ? renderClassicHome() : renderForumHome(); attachCommon(); }
+async function ensureUsernameUnique(username){ const snap=await db.collection('profiles').where('usernameLower','==',username).get(); return snap.empty; }
+async function fileToDataURL(file){ return new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=e=>resolve(e.target.result); r.onerror=reject; r.readAsDataURL(file); }); }
+async function loadComposePreviews(files){ const arr=[...files].slice(0,10); $("composePreview").innerHTML=''; for(const file of arr){ const data=await fileToDataURL(file); $("composePreview").insertAdjacentHTML('beforeend', `<img src="${data}" alt="">`); } }
+async function uploadImages(postId, files){ if(files.length>10) throw new Error('Maximum 10 images.'); const urls=[]; for(const file of files){ const ref=storage.ref(`posts/${postId}/${Date.now()}_${file.name}`); const snap=await ref.put(file); urls.push(await snap.ref.getDownloadURL()); } return urls; }
+async function createModerationAlert(kind,payload){ await db.collection('alerts').add({kind,...payload,createdAt:new Date().toISOString(),status:'OPEN'}); }
+function populateSectionSelect(){ $("composeSection").innerHTML = SECTIONS.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); }
+function resetComposeForm(){ editingId=null; $("composeTitleText").textContent='Create Post'; $("savePostBtn").textContent='Post'; $("composeSection").value='free-items'; $("composeStatus").value='ACTIVE'; $("composePostTitle").value=''; $("composeBody").value=''; $("composePrice").value=''; $("composeLocation").value='Lakeland'; $("composeContact").value=''; $("composeImages").value=''; $("composePreview").innerHTML=''; setMsg('composeMsg'); }
+async function savePost(){ const btn=$("savePostBtn"); const keep=btn.textContent; try{ btn.disabled=true; btn.textContent='Saving...'; setMsg('composeMsg'); if(!me) throw new Error('Login first.'); const sectionId=$("composeSection").value; const title=$("composePostTitle").value.trim(); const body=$("composeBody").value.trim(); const location=$("composeLocation").value.trim()||'Lakeland'; const contact=$("composeContact").value.trim(); const status=$("composeStatus").value; const price=(sectionId==='free-items'?'FREE':($("composePrice").value.trim()||'N/A')); const files=[...($("composeImages").files||[])]; if(!title||!body||!contact) throw new Error('Please fill out title, description, and contact.'); const profanity=containsProfanity([title,body,contact].join(' ')); let imageUrls=[]; if(files.length){ imageUrls=await uploadImages(editingId||('tmp_'+Date.now()), files); }
+      if(editingId){ const ref=db.collection('posts').doc(editingId); const snap=await ref.get(); if(!snap.exists) throw new Error('Post not found.'); const old=snap.data(); await ref.update({sectionId,title,body,location,contact,status,price,images:imageUrls.length?imageUrls:(old.images||[]),updatedAt:new Date().toISOString()}); if(profanity) await createModerationAlert('PROFANITY_EDIT',{postId:editingId,byUid:me.uid,byEmail:me.email,title}); }
+      else { const ref=await db.collection('posts').add({sectionId,title,body,location,contact,status,price,images:imageUrls,uid:me.uid,email:me.email,authorName:displayName(),username:me.username||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),views:0,replies:[],flags:{profanity,needsReview:profanity},ipAddress:'Requires backend capture'}); if(profanity) await createModerationAlert('PROFANITY_POST',{postId:ref.id,byUid:me.uid,byEmail:me.email,title}); }
+      hide('composeModal'); resetComposeForm(); }
+    catch(e){ console.error(e); setMsg('composeMsg', e.message||'Save failed.','error'); }
+    finally{ btn.disabled=false; btn.textContent=keep; }}
+function editPost(id){ const p=posts.find(x=>x.id===id); if(!p) return; editingId=id; $("composeTitleText").textContent='Edit Post'; $("savePostBtn").textContent='Update Post'; $("composeSection").value=p.sectionId; $("composeStatus").value=p.status||'ACTIVE'; $("composePostTitle").value=p.title||''; $("composeBody").value=p.body||''; $("composePrice").value=p.sectionId==='free-items'?'':(p.price==='N/A'?'':p.price||''); $("composeLocation").value=p.location||''; $("composeContact").value=p.contact||''; $("composeImages").value=''; $("composePreview").innerHTML=(p.images||[]).map(src=>`<img src="${src}" alt="">`).join(''); show('composeModal'); }
+async function deletePost(id,adminMode){ const p=posts.find(x=>x.id===id); if(!p) return; if(!adminMode&&(!me||me.uid!==p.uid)) return; if(adminMode&&!isAdmin()) return; if(!confirm('Delete this post?')) return; await db.collection('posts').doc(id).delete(); }
+async function toggleSold(id){ const p=posts.find(x=>x.id===id); if(!p||!me||me.uid!==p.uid) return; await db.collection('posts').doc(id).update({status:p.status==='SOLD'?'ACTIVE':'SOLD'}); }
+async function openThread(id){ const p=posts.find(x=>x.id===id); if(!p) return; currentThreadId=id; await db.collection('posts').doc(id).update({views:(p.views||0)+1}); renderThreadModal(p); show('threadModal'); }
+function renderThreadModal(post){ currentThread=post; $("threadTitle").textContent=post.title||'Thread'; $("threadMeta").textContent=`${sectionById(post.sectionId)?.name||''} • ${post.authorName||''} • ${formatDate(post.createdAt)}`; $("threadGallery").innerHTML=(post.images||[]).map(src=>`<img src="${src}" alt="">`).join(''); $("threadBody").textContent=post.body||''; $("threadPrice").textContent=priceText(post); $("threadLocation").textContent=post.location||'Not listed'; $("threadContact").textContent=post.contact||'Not listed'; $("editThreadBtn").hidden=!(me&&me.uid===post.uid); $("deleteThreadBtn").hidden=!(me&&me.uid===post.uid); $("adminDeleteThreadBtn").hidden=!isAdmin(); const replies=post.replies||[]; $("replyList").innerHTML=replies.length?replies.map(r=>`<div class="reply-card"><div class="reply-top"><div class="reply-author">${esc(r.authorName||'')}</div><div class="reply-date">${formatDate(r.createdAt)}</div></div><div class="reply-body">${esc(r.body||'')}</div></div>`).join(''):`<div class="empty-box">No replies yet. Be the first to respond.</div>`; }
+async function saveReply(){ const btn=$("saveReplyBtn"); const keep=btn.textContent; try{ btn.disabled=true; btn.textContent='Posting...'; setMsg('replyMsg'); if(!me||!currentThreadId) throw new Error('Open a thread first.'); const body=$("replyBody").value.trim(); if(!body) throw new Error('Reply cannot be empty.'); const p=posts.find(x=>x.id===currentThreadId); if(!p) throw new Error('Thread not found.'); const replies=[...(p.replies||[]),{id:'r_'+Date.now(),uid:me.uid,authorName:displayName(),email:me.email,body,createdAt:new Date().toISOString()}]; await db.collection('posts').doc(currentThreadId).update({replies}); if(containsProfanity(body)) await createModerationAlert('PROFANITY_REPLY',{postId:currentThreadId,byUid:me.uid,byEmail:me.email,title:p.title}); $("replyBody").value=''; hide('replyModal'); } catch(e){ setMsg('replyMsg',e.message||'Reply failed.','error'); } finally{ btn.disabled=false; btn.textContent=keep; } }
+function subscribePosts(){ if(unsubPosts) unsubPosts(); unsubPosts=db.collection('posts').onSnapshot(snap=>{ posts=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); if(currentThreadId){ const fresh=posts.find(p=>p.id===currentThreadId); if(fresh&&!$("threadModal").classList.contains('hidden')) renderThreadModal(fresh); } renderApp(); }); }
+async function onSignedIn(user){ if(!user.emailVerified){ setMsg('authMsg','Please verify your email before using the marketplace.','error'); await auth.signOut(); return; } const snap=await db.collection('profiles').doc(user.uid).get(); if(!snap.exists){ await auth.signOut(); return; } const profile=snap.data(); if(profile.banned){ alert('Your account has been disabled.'); await auth.signOut(); return; } me={uid:user.uid,email:user.email,name:profile.name,username:profile.usernameLower}; syncTopbar(); subscribePosts(); }
+document.addEventListener('DOMContentLoaded',()=>{ bindSlides(); populateSectionSelect(); syncTopbar(); renderApp(); $("tabLogin").onclick=()=>{$("tabLogin").classList.add('active');$("tabSignup").classList.remove('active');$("loginPane").hidden=false;$("signupPane").hidden=true;}; $("tabSignup").onclick=()=>{$("tabSignup").classList.add('active');$("tabLogin").classList.remove('active');$("signupPane").hidden=false;$("loginPane").hidden=true;}; $("btnLogin").onclick=async()=>{ try{ setMsg('authMsg'); const email=$("loginEmail").value.trim().toLowerCase(); const password=$("loginPassword").value.trim(); if(!validWorkEmail(email)) throw new Error('Use your @regallakeland.com email.'); await auth.signInWithEmailAndPassword(email,password);}catch(e){ setMsg('authMsg',e.message||'Login failed.','error'); } }; $("btnForgot").onclick=async()=>{ try{ setMsg('authMsg'); const email=$("loginEmail").value.trim().toLowerCase(); if(!validWorkEmail(email)) throw new Error('Enter your work email first.'); await auth.sendPasswordResetEmail(email); setMsg('authMsg','Password reset email sent.','ok'); }catch(e){ setMsg('authMsg',e.message||'Reset failed.','error'); } }; $("btnSignup").onclick=async()=>{ try{ setMsg('authMsg'); const name=$("signupName").value.trim(); const username=cleanUsername($("signupUsername").value); const email=$("signupEmail").value.trim().toLowerCase(); const p1=$("signupPassword").value.trim(); const p2=$("signupPassword2").value.trim(); if(!name) throw new Error('Enter display name.'); if(username.length<3) throw new Error('Username must be at least 3 characters.'); if(!validWorkEmail(email)) throw new Error('Use your @regallakeland.com email.'); if(p1.length<8) throw new Error('Password must be at least 8 characters.'); if(p1!==p2) throw new Error('Passwords do not match.'); if(!$("agreeRules").checked) throw new Error('You must agree to the rules.'); const unique=await ensureUsernameUnique(username); if(!unique) throw new Error('That username is already taken.'); const cred=await auth.createUserWithEmailAndPassword(email,p1); await db.collection('profiles').doc(cred.user.uid).set({uid:cred.user.uid,email,name,usernameLower:username,banned:false,admin:ADMIN_SET.has(email),ipAddress:'Requires backend capture',createdAt:new Date().toISOString()},{merge:true}); await cred.user.sendEmailVerification(); await auth.signOut(); setMsg('authMsg','Account created. Verify your email before logging in.','ok'); $("tabLogin").click(); $("loginEmail").value=email; }catch(e){ setMsg('authMsg',e.message||'Create account failed.','error'); } }; $("btnLogout").onclick=async()=>{ await auth.signOut(); }; $("viewClassicBtn").onclick=()=>{ currentView='classic'; localStorage.setItem('regal_view_pref',currentView); syncTopbar(); renderApp(); }; $("viewForumBtn").onclick=()=>{ currentView='forum'; localStorage.setItem('regal_view_pref',currentView); syncTopbar(); renderApp(); }; $("btnNewPost").onclick=()=>{ resetComposeForm(); show('composeModal'); }; $("closeComposeBtn").onclick=()=>hide('composeModal'); $("savePostBtn").onclick=savePost; $("composeImages").addEventListener('change',async(e)=>{ await loadComposePreviews(e.target.files); }); $("closeThreadBtn").onclick=()=>hide('threadModal'); $("replyBtn").onclick=()=>show('replyModal'); $("editThreadBtn").onclick=()=>{ hide('threadModal'); if(currentThread) editPost(currentThread.id); }; $("deleteThreadBtn").onclick=()=>{ if(currentThread) deletePost(currentThread.id,false); hide('threadModal'); }; $("adminDeleteThreadBtn").onclick=()=>{ if(currentThread) deletePost(currentThread.id,true); hide('threadModal'); }; $("closeReplyBtn").onclick=()=>hide('replyModal'); $("saveReplyBtn").onclick=saveReply; auth.onAuthStateChanged(async(user)=>{ if(!user){ me=null; syncTopbar(); renderApp(); return; } await onSignedIn(user); }); });

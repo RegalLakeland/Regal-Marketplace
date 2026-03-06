@@ -1,14 +1,12 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-
     function employee() {
       return request.auth != null
         && request.auth.token.email != null
         && request.auth.token.email.matches('.*@regallakeland\\.com$')
         && request.auth.token.email_verified == true;
     }
-
     match /posts/{allPaths=**} {
       allow read, write: if employee();
     }
