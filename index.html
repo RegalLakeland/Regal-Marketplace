@@ -1,198 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Regal Employee Marketplace</title>
-  <link rel="stylesheet" href="styles.css">
-
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regal Employee Marketplace Forum</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="bg bg1"></div>
-  <div class="bg bg2"></div>
-  <div class="bg bg3"></div>
-  <div class="bg-overlay"></div>
-
-  <div id="authOverlay" class="overlay">
-    <div class="modal auth-modal">
-      <div class="modal-head">
-        <div class="brand-wrap">
-          <div class="logo">RH</div>
-          <div>
-            <div class="brand-title">Regal Employee Marketplace</div>
-            <div class="brand-sub">Verified @regallakeland.com employees only</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-body">
-        <div class="tabs">
-          <button id="tabLogin" class="tab active" type="button">Login</button>
-          <button id="tabSignup" class="tab" type="button">Create Account</button>
-        </div>
-
-        <section id="loginPane">
-          <label class="field"><span>Work Email</span><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></label>
-          <label class="field"><span>Password</span><input id="loginPassword" type="password" placeholder="Password"></label>
-          <div class="row">
-            <button id="btnLogin" class="btn primary" type="button">Login</button>
-            <button id="btnForgot" class="btn" type="button">Forgot Password</button>
-          </div>
-        </section>
-
-        <section id="signupPane" hidden>
-          <label class="field"><span>Display Name</span><input id="signupName" type="text" placeholder="Michael Hall"></label>
-          <label class="field"><span>Work Email</span><input id="signupEmail" type="email" placeholder="first.last@regallakeland.com"></label>
-          <label class="field"><span>Password</span><input id="signupPassword" type="password" placeholder="At least 8 characters"></label>
-          <label class="field"><span>Confirm Password</span><input id="signupPassword2" type="password" placeholder="Re-enter password"></label>
-          <label class="agree"><input id="agreeRules" type="checkbox"> <span>I agree to the marketplace rules.</span></label>
-          <div class="row"><button id="btnSignup" class="btn primary" type="button">Create Account</button></div>
-        </section>
-
-        <div id="authMsg" class="msg" hidden></div>
-
-        <div class="small-note">
-          Accounts require email verification. After creating an account, check your inbox and verify before logging in.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <header class="topbar">
-    <div class="brand-wrap">
-      <div class="logo">RH</div>
-      <div>
-        <div class="brand-title">Regal Employee Marketplace</div>
-        <div class="brand-sub">Internal buy/sell board</div>
-      </div>
-    </div>
-    <div class="row">
-      <span id="userPill" class="pill">Not signed in</span>
-      <button id="btnNewPost" class="btn primary" type="button" hidden>+ Post</button>
-      <a id="adminLink" class="btn" href="admin.html" hidden>Admin</a>
-      <button id="btnLogout" class="btn danger" type="button" hidden>Logout</button>
-    </div>
-  </header>
-
-  <main class="shell">
-    <aside class="side card">
-      <div class="side-title">Boards</div>
-      <div id="boardList" class="stack"></div>
-
-      <div class="side-title" style="margin-top:16px">Rules</div>
-      <div class="small-note">
-        Work friends only<br>
-        No drama / no spam<br>
-        Include contact info<br>
-        Free items hide the price<br>
-        Sale items can be marked sold
-      </div>
-    </aside>
-
-    <section>
-      <div class="card filters">
-        <input id="searchBox" placeholder="Search titles, descriptions, contact...">
-        <select id="statusFilter">
-          <option value="ACTIVE">Active</option>
-          <option value="ALL">All</option>
-          <option value="SOLD">Sold</option>
-        </select>
-        <select id="sortFilter">
-          <option value="PINNED_NEW">Pinned + Newest</option>
-          <option value="NEW">Newest</option>
-          <option value="OLD">Oldest</option>
-          <option value="PRICE_ASC">Price ↑</option>
-          <option value="PRICE_DESC">Price ↓</option>
-        </select>
-      </div>
-
-      <div class="section-head">
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-row">
+        <div class="brand-logo">RH</div>
         <div>
-          <h2 id="sectionTitle">Marketplace</h2>
-          <div id="counts" class="subtle">0 shown • 0 total</div>
+          <h1>Regal Employee Marketplace</h1>
+          <div class="subhead">Forum-style internal marketplace • Option 1</div>
         </div>
       </div>
-
-      <div id="grid" class="grid"></div>
-      <div id="emptyState" class="small-note" hidden>No listings match your filters.</div>
-    </section>
-  </main>
-
-  <div id="postModal" class="overlay" hidden>
-    <div class="modal">
-      <div class="modal-head">
-        <strong id="postModalTitle">Create Post</strong>
-        <button id="btnClosePost" class="btn" type="button">Close</button>
+      <div class="top-actions">
+        <button id="homeBtn" class="ghost-btn">Boards</button>
+        <button id="newTopicBtn" class="primary-btn">+ New Post</button>
       </div>
-      <div class="modal-body">
-        <div class="two-col">
-          <label class="field">
-            <span>Board</span>
-            <select id="postBoard">
-              <option value="FREE">Free Items</option>
-              <option value="BUYSELL">Buy / Sell</option>
-              <option value="GARAGE">Garage Sales</option>
-              <option value="EVENTS">Events</option>
-              <option value="WORK">Work News</option>
-              <option value="SERVICES">Services</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Status</span>
-            <select id="postStatus">
-              <option value="ACTIVE">Active</option>
-              <option value="SOLD">Sold</option>
-            </select>
-          </label>
-        </div>
+    </header>
 
-        <label class="field"><span>Title</span><input id="postTitle" placeholder="What are you posting?"></label>
-
-        <div class="two-col">
-          <label id="priceWrap" class="field"><span>Price</span><input id="postPrice" inputmode="decimal" placeholder="25"></label>
-          <label class="field"><span>Location (optional)</span><input id="postLocation" placeholder="Lakeland, Plant City..."></label>
-        </div>
-
-        <label class="field"><span>Description</span><textarea id="postDesc" placeholder="Condition, details, pickup info..."></textarea></label>
-        <label class="field"><span>Contact</span><input id="postContact" placeholder="Phone, text, email, or where to find you at work"></label>
-        <label class="field"><span>Photos (up to 10)</span><input id="postPhotos" type="file" accept="image/*" multiple></label>
-
-        <div id="postMsg" class="msg" hidden></div>
-      </div>
-      <div class="modal-foot"><button id="btnSavePost" class="btn primary" type="button">Save Post</button></div>
-    </div>
+    <main id="app"></main>
   </div>
 
-  <div id="threadModal" class="overlay" hidden>
-    <div class="modal wide">
-      <div class="modal-head">
-        <strong id="threadTitle">Listing</strong>
-        <button id="btnCloseThread" class="btn" type="button">Close</button>
+  <div id="composeModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Create Thread</h2>
+        <button id="closeComposeBtn" class="ghost-btn small">Close</button>
       </div>
-      <div class="modal-body">
-        <div id="threadMeta" class="subtle"></div>
-        <div id="threadGallery" class="gallery"></div>
-        <div id="threadBody" class="thread-body"></div>
 
-        <div class="row" style="margin-top:12px;">
-          <a id="contactBtn" class="btn primary" href="#" target="_blank" rel="noreferrer" hidden>Contact Seller</a>
-          <button id="btnReport" class="btn" type="button">Report Post</button>
-        </div>
+      <div class="form-grid">
+        <label>
+          <span>Section</span>
+          <select id="composeSection"></select>
+        </label>
 
-        <div class="reply-title">Replies</div>
-        <div id="replyList" class="stack"></div>
-        <label class="field"><span>Add a reply</span><textarea id="replyText" placeholder="Write a reply..."></textarea></label>
-        <div class="row"><button id="btnReply" class="btn primary" type="button">Reply</button></div>
-        <div id="replyMsg" class="msg" hidden></div>
+        <label>
+          <span>Your Name</span>
+          <input id="composeAuthor" placeholder="Michael Hall" />
+        </label>
+
+        <label class="full">
+          <span>Thread Title</span>
+          <input id="composeTitle" placeholder="Honda Civic tires for sale" />
+        </label>
+
+        <label class="full">
+          <span>Description</span>
+          <textarea id="composeBody" rows="6" placeholder="Write the listing, event, or work update here..."></textarea>
+        </label>
+
+        <label>
+          <span>Price</span>
+          <input id="composePrice" placeholder="Leave blank for FREE / N/A" />
+        </label>
+
+        <label>
+          <span>Location</span>
+          <input id="composeLocation" placeholder="Lakeland" />
+        </label>
+
+        <label class="full">
+          <span>Contact</span>
+          <input id="composeContact" placeholder="Phone, email, department, or where to find you" />
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button id="saveTopicBtn" class="primary-btn">Post Thread</button>
       </div>
     </div>
   </div>
 
-  <script src="firebase-config.js"></script>
+  <div id="replyModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Add Reply</h2>
+        <button id="closeReplyBtn" class="ghost-btn small">Close</button>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          <span>Your Name</span>
+          <input id="replyAuthor" placeholder="Michael Hall" />
+        </label>
+
+        <label class="full">
+          <span>Reply</span>
+          <textarea id="replyBody" rows="5" placeholder="Write your reply..."></textarea>
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button id="saveReplyBtn" class="primary-btn">Post Reply</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

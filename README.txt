@@ -1,33 +1,21 @@
-Version 2 complete package
+Regal Employee Marketplace - Forum Style Option 1
 
-Upload ALL files in this ZIP to the root of your GitHub repo:
+Files included:
 - index.html
-- admin.html
 - styles.css
-- firebase-config.js
 - app.js
-- admin.js
-- firestore.rules
-- storage.rules
 
-After upload:
-1. In Firebase Authentication, enable Email/Password.
-2. In Authentication > Settings > Authorized domains, add regallakeland.github.io
-3. In Firestore, publish firestore.rules
-4. In Storage, publish storage.rules
+This is the new forum-style direction:
+- boards first
+- threads second
+- replies inside each thread
 
-This build uses:
-- verified @regallakeland.com emails only
-- Firebase Auth
-- Firestore listings + profiles
-- Firebase Storage image uploads
-- edit/delete own posts
-- mark sold
-- replies
-- admin pin/delete/ban at admin.html
+Current sections:
+- Free Items
+- Buy / Sell
+- Garage Sales
+- Events
+- Work News
+- Services
 
-
-Fix 1:
-- clearer image upload errors
-- post modal closes after successful save
-- save button disables while posting
+Data is stored in browser localStorage for previewing the concept quickly.
