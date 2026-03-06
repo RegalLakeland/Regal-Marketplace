@@ -1,16 +1,14 @@
 
-import { firebaseConfig } from './firebase-config.js';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { auth, db, storage } from './firebase-config.js';
 import { 
-    getAuth,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    updateProfile
 } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { 
-    getFirestore,
     collection,
     addDoc,
     getDocs,
@@ -23,17 +21,10 @@ import {
     orderBy
 } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { 
-    getStorage,
     ref,
     uploadBytes,
     getDownloadURL
 } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
 
 // --- DOM Elements ---
 const authView = document.getElementById('auth-view');
@@ -249,7 +240,7 @@ async function showPostDetail(postId) {
         // Add event listeners for edit/delete/sold if they exist
         document.getElementById('edit-post-btn')?.addEventListener('click', () => editPost(docSnap));
         document.getElementById('delete-post-btn')?.addEventListener('click', () => deletePost(postId));
-        document.getElementById('toggle-sold-btn')?.addEventListener('click', () => toggleSoldStatus(postId, data.sold));
+        document.getElementById('toggle-sold-btn')?.addEventListener('click', (). => toggleSoldStatus(postId, data.sold));
 
     }
 }

@@ -1,3 +1,4 @@
+
 /* General Body & Typography */
 body, html {
     margin: 0;
@@ -433,6 +434,4 @@ button.danger-btn:hover {
     .modal-content {
         width: 95%;
     }
-}
-
 }

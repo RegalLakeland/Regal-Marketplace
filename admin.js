@@ -19,7 +19,7 @@ export async function loadAdminDashboard() {
     usersSnapshot.forEach(userDoc => {
         const userData = userDoc.data();
         const li = document.createElement('li');
-        li.textContent = `${userData.username} (${userData.email})`;
+        li.textContent = `${userData.username} (${userData.email})`
         const banBtn = document.createElement('button');
         banBtn.textContent = userData.isBanned ? 'Unban' : 'Ban';
         banBtn.onclick = () => toggleBanStatus(userDoc.id, userData.isBanned);
@@ -63,6 +63,7 @@ async function deletePostAdmin(postId) {
         loadAdminDashboard(); // Refresh
     }
 }
+
 
 document.getElementById('admin-back-btn').addEventListener('click', () => {
     adminView.style.display = 'none';
