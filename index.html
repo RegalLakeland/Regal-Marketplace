@@ -1,110 +1,163 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Regal Lakeland Marketplace</title>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Regal Lakeland Employee Marketplace</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div class="slideshow">
+    <!-- Background slideshow -->
+    <div class="slideshow" aria-hidden="true">
         <div class="slideshow-image"></div>
         <div class="slideshow-image"></div>
         <div class="slideshow-image"></div>
     </div>
     <div class="overlay"></div>
 
-    <div id="app-container">
-
-        <!-- Authentication View -->
-        <div id="auth-view">
-            <div id="auth-container">
-                <div id="login-form">
-                    <h2>Login</h2>
-                    <input type="email" id="login-email" placeholder="Email (@regallakeland.com)">
-                    <input type="password" id="login-password" placeholder="Password">
-                    <button id="login-btn">Login</button>
-                    <p>Don't have an account? <a href="#" id="show-register">Register</a></p>
-                    <p><a href="#" id="forgot-password-link">Forgot Password?</a></p>
-                </div>
-                <div id="register-form" style="display: none;">
-                    <h2>Register</h2>
-                    <input type="text" id="register-username" placeholder="Your Name">
-                    <input type="email" id="register-email" placeholder="Email (@regallakeland.com)">
-                    <input type="password" id="register-password" placeholder="Password">
-                    <button id="register-btn">Register</button>
-                    <p>Already have an account? <a href="#" id="show-login">Login</a></p>
-                </div>
+    <!-- LOGIN / SIGNUP OVERLAY -->
+    <div class="modal-overlay" id="login-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>Welcome to the Regal Lakeland Marketplace</h2>
             </div>
-        </div>
-
-        <!-- Main Application View -->
-        <div id="main-view" style="display: none;">
-            <header>
-                <div class="user-info">
-                    <span id="user-display"></span>
-                    <button id="logout-btn">Logout</button>
-                    <button id="admin-dashboard-btn" style="display: none;">Admin Dashboard</button>
+            <div class="modal-body">
+                <div class="auth-tabs">
+                    <button class="tab-btn active" data-tab="login">Login</button>
+                    <button class="tab-btn" data-tab="register">Register</button>
                 </div>
-                <h1>Regal Lakeland Marketplace & Forum</h1>
-            </header>
-            <div class="controls">
-                <button id="create-post-btn">Create Post</button>
-                <div class="toggle-switch">
-                    <span>Forum View</span>
-                    <label class="switch">
-                        <input type="checkbox" id="view-toggle" checked>
-                        <span class="slider"></span>
-                    </label>
-                    <span>Marketplace View</span>
-                </div>
+
+                <!-- Login Form -->
+                <form id="login-form" class="auth-form active">
+                    <input type="email" id="login-email" placeholder="Email (@regallakeland.com)" required autocomplete="username">
+                    <input type="password" id="login-password" placeholder="Password" required autocomplete="current-password">
+                    <button type="submit" class="btn primary">Login</button>
+                    <p class="form-link">
+                        <a href="#" id="forgot-password-link">Forgot Password?</a>
+                    </p>
+                </form>
+
+                <!-- Register Form -->
+                <form id="register-form" class="auth-form">
+                    <input type="text" id="register-username" placeholder="Choose a Display Name" required>
+                    <input type="email" id="register-email" placeholder="Email (@regallakeland.com)" required autocomplete="email">
+                    <input type="password" id="register-password" placeholder="Create Password" required autocomplete="new-password">
+                    <button type="submit" class="btn primary">Register</button>
+                </form>
             </div>
-            <div id="content-area" class="marketplace-grid">
-                <!-- Posts will be dynamically loaded here -->
-            </div>
-        </div>
-
-        <!-- Post Detail View -->
-        <div id="detail-view" style="display: none;">
-            <!-- Detailed post content will be loaded here -->
-        </div>
-        
-        <!-- Admin View -->
-        <div id="admin-view" style="display: none;">
-            <!-- Admin content will be loaded from admin.html -->
-        </div>
-
-
-    </div>
-
-    <!-- Post Creation/Edit Modal -->
-    <div id="post-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h2 id="modal-title">Create Post</h2>
-            <input type="hidden" id="post-id">
-            <input type="text" id="post-title" placeholder="Title">
-            <textarea id="post-description" placeholder="Description"></textarea>
-            <input type="number" id="post-price" placeholder="Price (leave blank for FREE)">
-            <input type="text" id="post-location" placeholder="Location">
-            <input type="text" id="post-contact" placeholder="Contact Info (Phone or Email)">
-            <select id="post-category">
-                <option value="buy-sell">Buy / Sell</option>
-                <option value="free">Free Items</option>
-                <option value="garage-sale">Garage Sales</option>
-                <option value="events">Events</option>
-                <option value="work-news">Work News</option>
-                <option value="services">Services</option>
-            </select>
-            <label for="post-images">Upload Images (up to 5):</label>
-            <input type="file" id="post-images" multiple accept="image/*">
-            <div id="image-previews"></div>
-            <button id="save-post-btn">Save Post</button>
         </div>
     </div>
 
-    <script type="module" src="firebase-config.js"></script>
+    <!-- MAIN APPLICATION CONTAINER -->
+    <div id="main-view" style="display: none;">
+        <header class="top-bar">
+            <div class="logo-title">
+                <h1>Regal Lakeland Marketplace</h1>
+            </div>
+            <div class="user-controls">
+                <span id="user-display"></span>
+                <button id="admin-dashboard-btn" class="btn ghost" style="display:none;">Admin</button>
+                <button id="logout-btn" class="btn danger">Logout</button>
+            </div>
+        </header>
+
+        <main class="app-layout">
+            <aside class="left-panel">
+                <div class="panel-header">
+                    <h2>Boards</h2>
+                </div>
+                <div class="panel-body">
+                    <ul id="category-list" class="category-list">
+                        <li class="active" data-category="all">All Posts</li>
+                        <li data-category="buy-sell">Buy / Sell</li>
+                        <li data-category="free">Free Items</li>
+                        <li data-category="garage-sale">Garage Sales</li>
+                        <li data-category="events">Events</li>
+                        <li data-category="work-news">Work News</li>
+                        <li data-category="services">Services</li>
+                    </ul>
+                </div>
+            </aside>
+
+            <section class="main-content">
+                <div class="content-header">
+                     <div class="view-toggle">
+                        <span>Forum View</span>
+                        <label class="switch">
+                            <input type="checkbox" id="view-toggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <span>Marketplace View</span>
+                    </div>
+                    <button id="create-post-btn" class="btn primary">+ Create Post</button>
+                </div>
+                <div id="content-area" class="marketplace-grid">
+                    <!-- Dynamic content (posts) will be loaded here -->
+                </div>
+                 <div id="empty-state" class="empty-state" style="display: none;">
+                    <h3>No posts found.</h3>
+                    <p>Be the first to create a post in this category!</p>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- POST CREATION/EDIT MODAL -->
+    <div id="post-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-container wide">
+            <div class="modal-header">
+                <h2 id="modal-title">Create New Post</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="post-form">
+                    <input type="hidden" id="post-id">
+                    <div class="form-grid">
+                        <input type="text" id="post-title" placeholder="Title of your post" required class="full-width">
+                        <textarea id="post-description" placeholder="Describe your item, event, or announcement..." rows="5" required class="full-width"></textarea>
+                        <input type="number" id="post-price" placeholder="Price (leave blank for FREE)">
+                        <input type="text" id="post-location" placeholder="Location (e.g., Lakeland, office)">
+                        <select id="post-category" required>
+                            <option value="" disabled selected>Select a category...</option>
+                            <option value="buy-sell">Buy / Sell</option>
+                            <option value="free">Free Items</option>
+                            <option value="garage-sale">Garage Sales</option>
+                            <option value="events">Events</option>
+                            <option value="work-news">Work News</option>
+                            <option value="services">Services</option>
+                        </select>
+                         <input type="text" id="post-contact" placeholder="Contact Info (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label>Images (up to 4)</label>
+                        <input type="file" id="post-images" multiple accept="image/*">
+                        <div id="image-previews"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" id="save-post-btn" class="btn primary">Save Post</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- POST DETAIL VIEW (MODAL) -->
+    <div id="detail-view-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-container wide">
+             <div class="modal-header">
+                <h2 id="detail-title"></h2>
+                <button class="close-detail-btn">&times;</button>
+            </div>
+            <div id="detail-view-content" class="modal-body">
+                <!-- Detailed post content will be injected here by JS -->
+            </div>
+        </div>
+    </div>
+    
     <script type="module" src="main.js"></script>
 </body>
 </html>

@@ -1,22 +1,28 @@
-/* General Body & Typography */
+/* --- Global Variables & Resets --- */
+:root {
+    --primary-color: #007bff;
+    --primary-hover: #0056b3;
+    --danger-color: #dc3545;
+    --danger-hover: #c82333;
+    --dark-bg: #121212;
+    --surface-color: #1e1e1e;
+    --on-surface: #e0e0e0;
+    --border-color: #333;
+    --shadow-color: rgba(0,0,0,0.5);
+    --font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
 body, html {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #1a1a1a;
-    color: #fff;
-    overflow-x: hidden;
+    font-family: var(--font-family);
+    background-color: var(--dark-bg);
+    color: var(--on-surface);
     height: 100%;
+    overflow-x: hidden;
 }
 
-.login-page-background {
-    background-image: url('./Images/background4.jpg');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-}
-
-/* Background Slideshow & Overlay */
+/* --- Background Slideshow & Overlay --- */
 .slideshow {
     position: fixed;
     top: 0;
@@ -38,19 +44,9 @@ body, html {
     animation: kenburns 20s infinite;
 }
 
-
-.slideshow-image:nth-child(1) {
-    background-image: url('./Images/main-background1.jpg');
-    animation-delay: 0s;
-}
-.slideshow-image:nth-child(2) {
-    background-image: url('./Images/main-background2.jpg');
-    animation-delay: 6.67s;
-}
-.slideshow-image:nth-child(3) {
-    background-image: url('./Images/main-background3.jpg');
-    animation-delay: 13.33s;
-}
+.slideshow-image:nth-child(1) { background-image: url('https://images.unsplash.com/photo-1588345921523-c2dcdb7f1dcd?auto=format&fit=crop&w=1770'); animation-delay: 0s; }
+.slideshow-image:nth-child(2) { background-image: url('https://images.unsplash.com/photo-1505506874110-6a7a69069a08?auto=format&fit=crop&w=1770'); animation-delay: 6.67s; }
+.slideshow-image:nth-child(3) { background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1770'); animation-delay: 13.33s; }
 
 @keyframes kenburns {
     0%, 100% { opacity: 0; transform: scale(1.1); }
@@ -64,220 +60,282 @@ body, html {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.7);
     z-index: -1;
 }
 
-/* Main App Container */
-#app-container {
-    padding: 20px;
-    max-width: 1200px;
-    margin: 0 auto;
+/* --- General Button & Form Styles --- */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: background-color 0.3s, box-shadow 0.3s;
 }
 
-/* --- Authentication View --- */
-#auth-view {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+.btn.primary {
+    background-color: var(--primary-color);
+    color: #fff;
 }
+.btn.primary:hover { background-color: var(--primary-hover); }
 
-#auth-container {
-    background: rgba(44, 44, 44, 0.9);
-    padding: 40px;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    width: 100%;
-    max-width: 400px;
+.btn.danger {
+    background-color: var(--danger-color);
+    color: #fff;
 }
+.btn.danger:hover { background-color: var(--danger-hover); }
 
-#auth-container h2 {
-    text-align: center;
-    margin-bottom: 25px;
+.btn.ghost {
+    background-color: transparent;
+    color: var(--on-surface);
+    border: 1px solid var(--border-color);
 }
+.btn.ghost:hover { background-color: var(--surface-color); }
 
-#auth-container input {
+input, textarea, select {
     width: 100%;
     padding: 12px;
     margin-bottom: 15px;
-    border: 1px solid #555;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    background-color: #333;
-    color: #fff;
+    background-color: #2c2c2c;
+    color: var(--on-surface);
+    box-sizing: border-box; /* Important */
 }
 
-#auth-container button {
+/* --- Modal Styles --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    padding: 12px;
+    height: 100%;
+    background-color: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-container {
+    background: var(--surface-color);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px var(--shadow-color);
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-container.wide { max-width: 800px; }
+
+.modal-header, .modal-body, .modal-footer {
+    padding: 20px 30px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 { margin: 0; }
+
+.modal-body { overflow-y: auto; }
+
+.close-btn, .close-detail-btn {
+    background: none;
     border: none;
-    border-radius: 6px;
-    background-color: #007bff;
-    color: #fff;
+    color: var(--on-surface);
+    font-size: 28px;
     cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s;
 }
 
-#auth-container button:hover {
-    background-color: #0056b3;
+/* --- Auth Form --- */
+.auth-tabs {
+    display: flex;
+    margin-bottom: 20px;
+}
+.tab-btn {
+    flex: 1;
+    padding: 15px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid var(--border-color);
+    color: #888;
+    font-size: 18px;
+    cursor: pointer;
+}
+.tab-btn.active {
+    border-bottom-color: var(--primary-color);
+    color: var(--on-surface);
 }
 
-#auth-container p {
-    text-align: center;
-    margin-top: 15px;
-    font-size: 14px;
-}
+.auth-form { display: none; }
+.auth-form.active { display: block; }
+.form-link { text-align: center; margin-top: 15px; }
+.form-link a { color: var(--primary-color); text-decoration: none; }
 
-#auth-container a {
-    color: #007bff;
-    text-decoration: none;
-}
-
-/* --- Main Application View --- */
-header {
+/* --- Main Application Layout --- */
+#main-view { display: none; /* Initially hidden */ }
+.top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 20px;
-    border-bottom: 1px solid #444;
+    padding: 15px 30px;
+    background: var(--surface-color);
+    border-bottom: 1px solid var(--border-color);
+}
+.user-controls { display: flex; align-items: center; gap: 15px; }
+
+.app-layout {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
-.user-info span {
-    margin-right: 15px;
+.left-panel { flex: 0 0 250px; }
+.main-content { flex: 1; }
+
+.panel-header {
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 15px;
 }
 
-.controls {
+.category-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.category-list li {
+    padding: 12px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.category-list li:hover { background-color: #2c2c2c; }
+.category-list li.active { background-color: var(--primary-color); color: #fff; }
+
+.content-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin: 20px 0;
+    margin-bottom: 20px;
 }
 
-/* Toggle Switch */
-.toggle-switch {
+/* --- View Toggle Switch --- */
+.view-toggle {
     display: flex;
     align-items: center;
+    gap: 10px;
 }
 .switch {
-    position: relative;
-    display: inline-block;
-    width: 60px;
-    height: 34px;
-    margin: 0 10px;
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
 }
 .switch input { display: none; }
 .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
-    border-radius: 34px;
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
 }
-.slider:before {
-    position: absolute;
-    content: "";
-    height: 26px;
-    width: 26px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
+.slider.round { border-radius: 34px; }
+.slider.round:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
 }
 input:checked + .slider {
-    background-color: #2196F3;
+  background-color: var(--primary-color);
 }
 input:checked + .slider:before {
-    transform: translateX(26px);
+  transform: translateX(26px);
 }
 
-/* Content Area & Post Styling */
+/* --- Post Content Area --- */
 #content-area {
     display: grid;
     gap: 20px;
 }
 
-/* Marketplace View Grid */
-.marketplace-grid {
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-}
-
-/* Forum View List */
-.forum-list {
-    grid-template-columns: 1fr;
-}
+.marketplace-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.forum-list { grid-template-columns: 1fr; }
 
 .post-card, .forum-item {
-    background: rgba(44, 44, 44, 0.9);
+    background: var(--surface-color);
     border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
-    position: relative;
+    overflow: hidden; /* For image radius */
 }
 
 .post-card:hover, .forum-item:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 25px var(--shadow-color);
 }
 
 .post-card .post-image {
     width: 100%;
     height: 180px;
     object-fit: cover;
-    border-radius: 8px;
+    background-color: #333;
+}
+
+.post-card .post-content, .forum-item .post-content {
+    padding: 15px;
+}
+
+.forum-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* --- Post Creation Modal --- */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
     margin-bottom: 15px;
 }
-
-.post-card h3, .forum-item h3 {
-    margin: 0 0 10px 0;
+.full-width { grid-column: 1 / -1; }
+#image-previews {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+#image-previews img {
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 8px;
+    object-fit: cover;
 }
 
-.price-badge {
-    position: absolute;
-    top: 30px;
-    right: 30px;
-    background: #28a745;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-weight: bold;
-}
-
-.free-badge {
-    background: #007bff;
-}
-
-.sold-badge {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: #dc3545;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 5px;
-    font-weight: bold;
-    transform: rotate(-10deg);
-}
-
-
-/* --- Post Detail View --- */
-#detail-view .post-detail-content {
-    background: rgba(44, 44, 44, 0.9);
-    padding: 40px;
-    border-radius: 12px;
-    max-width: 900px;
-    margin: 20px auto;
-}
-
-#detail-view h2 {
-    margin-top: 0;
+/* --- Detail View --- */
+#detail-view-content {
+    padding: 20px;
 }
 
 #detail-images {
@@ -292,6 +350,7 @@ input:checked + .slider:before {
     max-height: 150px;
     border-radius: 8px;
     object-fit: cover;
+    cursor: pointer;
 }
 
 #comments-section {
@@ -305,139 +364,33 @@ input:checked + .slider:before {
 
 #comment-text {
     flex-grow: 1;
-    padding: 10px;
     border-radius: 6px 0 0 6px;
-    border: 1px solid #555;
-    background: #333;
-    color: #fff;
 }
 
 #comment-form button {
-    padding: 10px 15px;
     border-radius: 0 6px 6px 0;
-    border: none;
-    background: #007bff;
-    color: #fff;
 }
 
 .comment {
-    background: #333;
-    padding: 10px;
-    border-radius: 6px;
-    margin-bottom: 10px;
-}
-
-
-/* --- Modal --- */
-.modal {
-    position: fixed;
-    z-index: 100;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.modal-content {
     background: #2c2c2c;
-    padding: 30px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 600px;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
-.close-btn {
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.modal-content input, .modal-content textarea, .modal-content select {
-    width: 100%;
     padding: 12px;
-    margin-bottom: 15px;
-    border: 1px solid #555;
-    border-radius: 6px;
-    background-color: #333;
-    color: #fff;
-}
-
-#image-previews {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 15px;
-}
-
-#image-previews img {
-    max-width: 100px;
-    max-height: 100px;
-    border-radius: 8px;
-    object-fit: cover;
-}
-
-/* --- Admin View --- */
-#admin-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
-}
-
-#user-list li, #post-list-admin li {
-    background: #333;
-    padding: 10px;
     border-radius: 6px;
     margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    border-left: 3px solid var(--primary-color);
 }
 
-/* --- General Button Styles --- */
-button {
-    padding: 10px 15px;
-    border: none;
-    border-radius: 6px;
-    background-color: #007bff;
-    color: #fff;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s, box-shadow 0.3s;
+/* --- Empty State --- */
+.empty-state {
+    text-align: center;
+    padding: 50px;
+    background: var(--surface-color);
+    border-radius: 12px;
 }
 
-button:hover {
-    background-color: #0056b3;
-    box-shadow: 0 0 15px rgba(0, 123, 255, 0.5);
-}
-
-button.danger-btn {
-    background-color: #dc3545;
-}
-
-button.danger-btn:hover {
-    background-color: #c82333;
-    box-shadow: 0 0 15px rgba(220, 53, 69, 0.5);
-}
-
-/* Responsive Design */
+/* --- Responsive --- */
 @media (max-width: 768px) {
-    header, .controls {
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    #admin-content {
-        grid-template-columns: 1fr;
-    }
-
-    .modal-content {
-        width: 95%;
-    }
+    .app-layout { flex-direction: column; }
+    .left-panel { flex: 0 0 auto; }
+    .top-bar { flex-direction: column; gap: 15px; }
+    .form-grid { grid-template-columns: 1fr; }
 }

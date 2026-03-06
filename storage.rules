@@ -1,12 +1,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /posts/{imageId} {
-      // Allow read access to anyone, since images are part of public posts
+    // Match any file in the /posts/ directory
+    match /posts/{fileName} {
+      // Allow read access to anyone (if you want images to be public)
+      // For stricter rules, you could check for auth: `if request.auth != null`
       allow read;
-      
-      // Allow write (create, update, delete) only for authenticated users
-      allow write: if request.auth != null;
+
+      // Allow write (create, update, delete) only if:
+      // 1. The user is authenticated.
+      // 2. The uploaded file is an image.
+      // 3. The file size is less than 5MB.
+      allow write: if request.auth != null &&
+                      request.resource.contentType.matches('image/.*') &&
+                      request.resource.size < 5 * 1024 * 1024;
     }
   }
 }

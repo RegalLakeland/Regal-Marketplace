@@ -3,26 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Admin Dashboard - Regal Lakeland</title>
+    <link rel="stylesheet" href="style.css"> 
 </head>
 <body>
-    <div id="admin-view-container">
-        <header>
+    <div id="app-container">
+        <header class="top-bar">
             <h1>Admin Dashboard</h1>
-            <button id="back-to-main-view-btn">Back to Marketplace</button>
-        </header>
-        <div id="admin-content">
-            <div id="user-management">
-                <h2>User Management</h2>
-                <ul id="user-list"></ul>
+            <div class="user-controls">
+                <a href="index.html" class="btn ghost">Back to Marketplace</a>
+                <button id="logout-btn" class="btn danger">Logout</button>
             </div>
-            <div id="post-management">
-                <h2>Post Management</h2>
-                <ul id="post-list-admin"></ul>
+        </header>
+
+        <main class="app-layout" id="admin-view" style="display: none;">
+            <div class="main-content full-width">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Manage Posts</h2>
+                    </div>
+                    <div class="panel-body">
+                        <ul id="post-list-admin" class="admin-list"></ul>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <div id="admin-login-view" class="modal-overlay" style="display: flex;">
+             <div class="modal-container">
+                <div class="modal-header">
+                    <h2>Admin Login Required</h2>
+                </div>
+                <div class="modal-body">
+                    <p>You must be an administrator to access this page.</p>
+                    <p>Please log in with an admin account on the main page first.</p>
+                     <a href="index.html" class="btn primary">Go to Login</a>
+                </div>
             </div>
         </div>
     </div>
+
     <script type="module" src="firebase-config.js"></script>
     <script type="module" src="admin.js"></script>
 </body>

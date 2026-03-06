@@ -1,74 +1,77 @@
-import { db } from './firebase-config.js';
-import {
-    collection,
-    getDocs,
-    doc,
-    updateDoc,
-    deleteDoc
-} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { auth, db, onAuthStateChanged, signOut } from './firebase-config.js';
+import { collection, getDocs, doc, deleteDoc, query, orderBy } from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js';
+
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadAdminDashboard();
-});
 
-async function loadAdminDashboard() {
-    loadUsers();
-    loadAllPosts();
-}
+    const adminView = document.getElementById('admin-view');
+    const adminLoginView = document.getElementById('admin-login-view');
+    const postListAdmin = document.getElementById('post-list-admin');
+    const logoutBtn = document.getElementById('logout-btn');
 
-async function loadUsers() {
-    const userList = document.getElementById('user-list');
-    userList.innerHTML = '';
-    // Note: Listing users requires Firebase Admin SDK on a server.
-    // This is a simplified example, you can't list users directly from the client.
-    // We will simulate this by showing users who have posted.
-    const postsSnapshot = await getDocs(collection(db, "posts"));
-    const users = new Map();
-    postsSnapshot.forEach(doc => {
-        const post = doc.data();
-        if (!users.has(post.authorId)) {
-            users.set(post.authorId, post.authorName);
+    const ADMIN_UIDS = ["YOUR_ADMIN_UID_HERE", "ANOTHER_ADMIN_UID_HERE"]; // IMPORTANT: Must match main.js & firestore.rules
+
+    onAuthStateChanged(auth, user => {
+        if (user && ADMIN_UIDS.includes(user.uid)) {
+            // User is an admin
+            adminLoginView.style.display = 'none';
+            adminView.style.display = 'block';
+            loadPosts();
+        } else {
+            // User is not an admin or not logged in
+            adminLoginView.style.display = 'flex';
+            adminView.style.display = 'none';
         }
     });
 
-    users.forEach((name, id) => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${name} (${id})</span> <button class="danger-btn" data-uid="${id}">Ban User</button>`;
-        userList.appendChild(li);
-    });
+    const loadPosts = async () => {
+        postListAdmin.innerHTML = '<li>Loading posts...</li>';
+        const postsCol = collection(db, 'posts');
+        const q = query(postsCol, orderBy('createdAt', 'desc'));
+        const postSnapshot = await getDocs(q);
+        const posts = postSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        renderAdminPosts(posts);
+    };
 
-    userList.addEventListener('click', e => {
-        if (e.target.classList.contains('danger-btn')) {
-            const uid = e.target.dataset.uid;
-            // You would need a backend function to actually ban a user.
-            alert(`Banning user ${uid} would be implemented on a backend.`);
+    const renderAdminPosts = (posts) => {
+        postListAdmin.innerHTML = '';
+        if (posts.length === 0) {
+            postListAdmin.innerHTML = '<li>No posts to display.</li>';
+            return;
         }
-    });
-}
 
-async function loadAllPosts() {
-    const postList = document.getElementById('post-list-admin');
-    postList.innerHTML = '';
-    const querySnapshot = await getDocs(collection(db, "posts"));
-    querySnapshot.forEach((doc) => {
-        const post = doc.data();
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${post.title} by ${post.authorName}</span> <button class="danger-btn" data-postid="${doc.id}">Delete</button>`;
-        postList.appendChild(li);
-    });
-
-    postList.addEventListener('click', async e => {
-        if (e.target.classList.contains('danger-btn')) {
-            const postId = e.target.dataset.postid;
-            if (confirm('Are you sure you want to permanently delete this post?')) {
-                await deleteDoc(doc(db, 'posts', postId));
-                loadAllPosts();
+        posts.forEach(post => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <span>
+                    <strong>${post.title}</strong> by ${post.authorName} 
+                    <small>(${new Date(post.createdAt.seconds * 1000).toLocaleDateString()})</small>
+                </span>
+                <button class="btn danger small-btn" data-id="${post.id}">Delete</button>
+            `;
+            postListAdmin.appendChild(li);
+        });
+    };
+    
+    postListAdmin.addEventListener('click', async (e) => {
+        if(e.target.tagName === 'BUTTON' && e.target.dataset.id) {
+            const postId = e.target.dataset.id;
+            if(confirm(`Are you sure you want to permanently delete post ${postId}?`)){
+                 try {
+                    await deleteDoc(doc(db, "posts", postId));
+                    alert("Post deleted.");
+                    loadPosts(); // Refresh the list
+                } catch (error) {
+                    console.error("Error deleting post from admin panel: ", error);
+                    alert(`Error: ${error.message}`);
+                }
             }
         }
     });
-}
 
-document.getElementById('back-to-main-view-btn').addEventListener('click', () => {
-    // A bit of a hack to get back to the main app view
-    window.location.href = 'index.html'; 
+    logoutBtn.addEventListener('click', () => {
+        signOut(auth).catch(err => alert(`Logout Failed: ${err.message}`));
+    });
+
 });

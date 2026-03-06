@@ -1,13 +1,16 @@
-import { auth, db, storage } from './firebase-config.js';
-import { 
+import {
+    auth,
+    db,
+    storage,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
     sendPasswordResetEmail,
     updateProfile
-} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { 
+} from './firebase-config.js';
+
+import {
     collection,
     addDoc,
     getDocs,
@@ -17,288 +20,400 @@ import {
     deleteDoc,
     query,
     where,
-    orderBy
-} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-import { 
+    orderBy,
+    Timestamp
+} from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js';
+
+import {
     ref,
     uploadBytes,
-    getDownloadURL
-} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
+    getDownloadURL,
+    deleteObject
+} from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js';
+
 
 // --- DOM Elements ---
-const authView = document.getElementById('auth-view');
-const mainView = document.getElementById('main-view');
-const detailView = document.getElementById('detail-view');
-const adminView = document.getElementById('admin-view');
+document.addEventListener('DOMContentLoaded', () => {
+    const loginOverlay = document.getElementById('login-overlay');
+    const mainView = document.getElementById('main-view');
 
-const loginForm = document.getElementById('login-form');
-const registerForm = document.getElementById('register-form');
-const contentArea = document.getElementById('content-area');
-const postModal = document.getElementById('post-modal');
+    // Auth Forms & Tabs
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const authTabs = document.querySelector('.auth-tabs');
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
 
-let currentUser = null;
+    // Top Bar
+    const userDisplay = document.getElementById('user-display');
+    const adminDashboardBtn = document.getElementById('admin-dashboard-btn');
+    const logoutBtn = document.getElementById('logout-btn');
 
-// --- Authentication --- 
-onAuthStateChanged(auth, user => {
-    if (user) {
-        currentUser = user;
-        document.body.classList.remove('login-page-background');
-        authView.style.display = 'none';
-        mainView.style.display = 'block';
-        document.getElementById('user-display').textContent = `Welcome, ${user.displayName || user.email}`;
-        checkAdminStatus(user);
-        loadPosts();
-    } else {
-        currentUser = null;
-        document.body.classList.add('login-page-background');
-        authView.style.display = 'block';
-        mainView.style.display = 'none';
-        adminView.style.display = 'none';
-        detailView.style.display = 'none';
-    }
-});
+    // Main Content
+    const categoryList = document.getElementById('category-list');
+    const createPostBtn = document.getElementById('create-post-btn');
+    const viewToggle = document.getElementById('view-toggle');
+    const contentArea = document.getElementById('content-area');
+    const emptyState = document.getElementById('empty-state');
 
-document.getElementById('register-btn').addEventListener('click', async () => {
-    const email = document.getElementById('register-email').value;
-    const password = document.getElementById('register-password').value;
-    const username = document.getElementById('register-username').value;
+    // Post Modal
+    const postModal = document.getElementById('post-modal');
+    const postForm = document.getElementById('post-form');
+    const modalTitle = document.getElementById('modal-title');
+    const closePostModalBtn = postModal.querySelector('.close-btn');
+    const savePostBtn = document.getElementById('save-post-btn');
+    const imagePreviews = document.getElementById('image-previews');
+    const postImagesInput = document.getElementById('post-images');
 
-    if (!email.endsWith('@regallakeland.com')) {
-        alert("Registration is only for @regallakeland.com emails.");
-        return;
-    }
-    
-    try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName: username });
-        // You might want to store the username in Firestore as well
-        console.log('User registered and profile updated');
-    } catch (error) {
-        alert(error.message);
-    }
-});
+    // Detail View
+    const detailViewModal = document.getElementById('detail-view-modal');
+    const detailViewContent = document.getElementById('detail-view-content');
+    const closeDetailBtn = detailViewModal.querySelector('.close-detail-btn');
 
-document.getElementById('login-btn').addEventListener('click', () => {
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    signInWithEmailAndPassword(auth, email, password)
-        .catch(error => alert(error.message));
-});
+    let currentUser = null;
+    let currentCategory = 'all';
+    let allPosts = []; // Cache for posts
 
-document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+    const ADMIN_UIDS = ["YOUR_ADMIN_UID_HERE", "ANOTHER_ADMIN_UID_HERE"]; // IMPORTANT: Replace with actual Admin UIDs
 
-document.getElementById('forgot-password-link').addEventListener('click', () => {
-    const email = document.getElementById('login-email').value;
-    if (email) {
-        sendPasswordResetEmail(auth, email)
-            .then(() => alert('Password reset email sent!'))
-            .catch(error => alert(error.message));
-    } else {
-        alert('Please enter your email address first.');
-    }
-});
+    // --- Authentication Logic ---
 
-// --- Post Management ---
-async function loadPosts() {
-    contentArea.innerHTML = '';
-    const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(postsQuery);
-    querySnapshot.forEach(doc => {
-        renderPost(doc.data(), doc.id);
-    });
-}
-
-function renderPost(data, id) {
-    const isMarketplace = document.getElementById('view-toggle').checked;
-    const postElement = document.createElement('div');
-    postElement.className = isMarketplace ? 'post-card' : 'forum-item';
-    postElement.dataset.id = id;
-
-    let innerHTML = `<h3>${data.title}</h3>`;
-    if (isMarketplace) {
-        innerHTML += `<img src="${data.imageUrls?.[0] || 'https://via.placeholder.com/280x180'}" alt="Post image" class="post-image">`;
-        if (data.price) {
-            innerHTML += `<div class="price-badge">$${data.price}</div>`;
+    onAuthStateChanged(auth, user => {
+        if (user) {
+            currentUser = user;
+            if (!user.displayName) {
+                // First-time login, prompt for display name
+                const displayName = prompt("Please enter your display name (e.g., First Last):");
+                if (displayName) {
+                    updateProfile(user, { displayName }).then(() => {
+                        setupUI(user);
+                    });
+                } else {
+                    // If they cancel, log them out
+                    signOut(auth);
+                }
+            } else {
+                setupUI(user);
+            }
         } else {
-            innerHTML += `<div class="price-badge free-badge">FREE</div>`;
+            currentUser = null;
+            setupUI(null);
         }
-    }
-    if (data.sold) {
-        innerHTML += `<div class="sold-badge">SOLD</div>`;
-    }
-    
-    postElement.innerHTML += innerHTML;
-    postElement.addEventListener('click', () => showPostDetail(id));
-    contentArea.appendChild(postElement);
-}
+    });
 
-// --- View Switching ---
-document.getElementById('view-toggle').addEventListener('change', () => {
-    contentArea.className = document.getElementById('view-toggle').checked ? 'marketplace-grid' : 'forum-list';
-    loadPosts();
-});
-
-// --- Modal Logic ---
-const modalTitle = document.getElementById('modal-title');
-const postIdInput = document.getElementById('post-id');
-const postTitleInput = document.getElementById('post-title');
-const postDescriptionInput = document.getElementById('post-description');
-const postPriceInput = document.getElementById('post-price');
-const postLocationInput = document.getElementById('post-location');
-const postContactInput = document.getElementById('post-contact');
-const postCategorySelect = document.getElementById('post-category');
-const postImagesInput = document.getElementById('post-images');
-const imagePreviews = document.getElementById('image-previews');
-
-document.getElementById('create-post-btn').addEventListener('click', () => {
-    modalTitle.textContent = 'Create Post';
-    postIdInput.value = '';
-    loginForm.reset(); // Assuming you have a form element
-    imagePreviews.innerHTML = '';
-    postModal.style.display = 'block';
-});
-
-document.querySelector('.close-btn').addEventListener('click', () => postModal.style.display = 'none');
-
-document.getElementById('save-post-btn').addEventListener('click', async () => {
-    const postId = postIdInput.value;
-    const files = postImagesInput.files;
-    let imageUrls = [];
-
-    if (files.length > 0) {
-        for (const file of files) {
-            const storageRef = ref(storage, `posts/${Date.now()}_${file.name}`);
-            await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(storageRef);
-            imageUrls.push(url);
+    const setupUI = (user) => {
+        if (user) {
+            loginOverlay.style.display = 'none';
+            mainView.style.display = 'block';
+            userDisplay.textContent = `Welcome, ${user.displayName}`;
+            if (ADMIN_UIDS.includes(user.uid)) {
+                adminDashboardBtn.style.display = 'block';
+            }
+            fetchPosts();
+        } else {
+            loginOverlay.style.display = 'flex';
+            mainView.style.display = 'none';
         }
-    }
-
-    const postData = {
-        title: postTitleInput.value,
-        description: postDescriptionInput.value,
-        price: postPriceInput.value ? parseFloat(postPriceInput.value) : null,
-        location: postLocationInput.value,
-        contact: postContactInput.value,
-        category: postCategorySelect.value,
-        authorId: currentUser.uid,
-        authorName: currentUser.displayName,
-        createdAt: new Date(),
-        imageUrls: imageUrls,
-        sold: false,
     };
 
-    if (postId) {
-        const postRef = doc(db, 'posts', postId);
-        await updateDoc(postRef, postData);
-    } else {
-        await addDoc(collection(db, 'posts'), postData);
-    }
+    authTabs.addEventListener('click', e => {
+        if (e.target.tagName === 'BUTTON') {
+            document.querySelector('.tab-btn.active').classList.remove('active');
+            document.querySelector('.auth-form.active').classList.remove('active');
+            e.target.classList.add('active');
+            const tabName = e.target.dataset.tab;
+            document.getElementById(`${tabName}-form`).classList.add('active');
+        }
+    });
 
-    postModal.style.display = 'none';
-    loadPosts();
-});
+    loginForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const email = loginForm['login-email'].value;
+        const password = loginForm['login-password'].value;
+        signInWithEmailAndPassword(auth, email, password)
+            .catch(err => alert(`Login Failed: ${err.message}`));
+    });
 
-async function showPostDetail(postId) {
-    const postRef = doc(db, 'posts', postId);
-    const docSnap = await getDoc(postRef);
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        let imagesHTML = '';
-        if (data.imageUrls && data.imageUrls.length > 0) {
-            data.imageUrls.forEach(url => {
-                imagesHTML += `<img src="${url}" alt="Post image">`;
-            });
+    registerForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const email = registerForm['register-email'].value;
+        const password = registerForm['register-password'].value;
+        const displayName = registerForm['register-username'].value;
+
+        if (!email.endsWith('@regallakeland.com')) {
+            alert("Registration is only allowed with a @regallakeland.com email address.");
+            return;
         }
 
-        let detailHTML = `
-            <div class="post-detail-content">
-                <button id="back-to-main">Back</button>
-                <h2>${data.title}</h2>
-                <div id="detail-images">${imagesHTML}</div>
-                <p>${data.description}</p>
-                <p><strong>Price:</strong> ${data.price ? `$${data.price}` : 'Free'}</p>
-                <p><strong>Location:</strong> ${data.location}</p>
-                <p><strong>Contact:</strong> ${data.contact}</p>
-                <p><em>Posted by ${data.authorName}</em></p>
-                ${currentUser.uid === data.authorId || await checkAdminStatus(currentUser, true) ? 
-                    `<button id="edit-post-btn">Edit</button>
-                     <button id="toggle-sold-btn">${data.sold ? 'Mark as Unsold' : 'Mark as Sold'}</button>
-                     <button id="delete-post-btn" class="danger-btn">Delete</button>` : ''}
-                <div id="comments-section"></div>
-            </div>`;
+        createUserWithEmailAndPassword(auth, email, password)
+            .then(userCredential => {
+                return updateProfile(userCredential.user, { displayName });
+            })
+            .then(() => {
+                alert("Registration successful! Welcome.");
+            })
+            .catch(err => alert(`Registration Failed: ${err.message}`));
+    });
 
-        detailView.innerHTML = detailHTML;
-        mainView.style.display = 'none';
-        detailView.style.display = 'block';
+    logoutBtn.addEventListener('click', () => {
+        signOut(auth).catch(err => alert(`Logout Failed: ${err.message}`));
+    });
 
-        document.getElementById('back-to-main').addEventListener('click', () => {
-            detailView.style.display = 'none';
-            mainView.style.display = 'block';
-            loadPosts();
+    forgotPasswordLink.addEventListener('click', e => {
+        e.preventDefault();
+        const email = prompt("Please enter your email to reset your password:");
+        if (email) {
+            sendPasswordResetEmail(auth, email)
+                .then(() => alert("Password reset email sent!"))
+                .catch(err => alert(`Error: ${err.message}`));
+        }
+    });
+    
+    adminDashboardBtn.addEventListener('click', () => {
+        window.location.href = 'admin.html';
+    });
+
+    // --- Post Management ---
+
+    const fetchPosts = async () => {
+        const postsCol = collection(db, 'posts');
+        const q = query(postsCol, orderBy('createdAt', 'desc'));
+        const postSnapshot = await getDocs(q);
+        allPosts = postSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderPosts();
+    };
+
+    const renderPosts = () => {
+        contentArea.innerHTML = '';
+        const filteredPosts = currentCategory === 'all' 
+            ? allPosts 
+            : allPosts.filter(post => post.category === currentCategory);
+
+        if (filteredPosts.length === 0) {
+            emptyState.style.display = 'block';
+        } else {
+            emptyState.style.display = 'none';
+            filteredPosts.forEach(post => {
+                const postElement = viewToggle.checked ? createMarketplaceCard(post) : createForumItem(post);
+                postElement.addEventListener('click', () => showDetailView(post.id));
+                contentArea.appendChild(postElement);
+            });
+        }
+    };
+    
+    viewToggle.addEventListener('change', renderPosts);
+    
+    categoryList.addEventListener('click', (e) => {
+        if (e.target.tagName === 'LI') {
+            document.querySelector('.category-list li.active').classList.remove('active');
+            e.target.classList.add('active');
+            currentCategory = e.target.dataset.category;
+            renderPosts();
+        }
+    });
+
+    const createMarketplaceCard = (post) => {
+        const card = document.createElement('div');
+        card.className = 'post-card';
+        card.innerHTML = `
+            <div class="post-image" style="background-image: url(${post.imageUrls?.[0] || 'https://via.placeholder.com/300'})"></div>
+            <div class="post-content">
+                <h3>${post.title}</h3>
+                <p>${post.price ? `$${post.price}` : 'FREE'}</p>
+                <small>By: ${post.authorName}</small>
+            </div>
+        `;
+        return card;
+    };
+
+    const createForumItem = (post) => {
+        const item = document.createElement('div');
+        item.className = 'forum-item';
+        item.innerHTML = `
+            <div class="post-content">
+                <h3>${post.title}</h3>
+                <small>By: ${post.authorName} in #${post.category}</small>
+            </div>
+            <div class="post-meta">
+                <span>${post.createdAt.toDate().toLocaleDateString()}</span>
+            </div>
+        `;
+        return item;
+    };
+
+    // --- Post Modal Logic ---
+    createPostBtn.addEventListener('click', () => {
+        postForm.reset();
+        modalTitle.textContent = 'Create New Post';
+        imagePreviews.innerHTML = '';
+        postForm['post-id'].value = '';
+        postModal.style.display = 'flex';
+    });
+
+    closePostModalBtn.addEventListener('click', () => {
+        postModal.style.display = 'none';
+    });
+
+    let filesToUpload = [];
+    postImagesInput.addEventListener('change', (e) => {
+        filesToUpload = Array.from(e.target.files).slice(0, 4);
+        imagePreviews.innerHTML = '';
+        filesToUpload.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = document.createElement('img');
+                img.src = event.target.result;
+                imagePreviews.appendChild(img);
+            };
+            reader.readAsDataURL(file);
         });
+    });
 
-        // Add event listeners for edit/delete/sold if they exist
-        document.getElementById('edit-post-btn')?.addEventListener('click', () => editPost(docSnap));
-        document.getElementById('delete-post-btn')?.addEventListener('click', () => deletePost(postId));
-        document.getElementById('toggle-sold-btn')?.addEventListener('click', () => toggleSoldStatus(postId, data.sold));
+    postForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentUser) return alert("You must be logged in to post.");
 
-    }
-}
+        savePostBtn.disabled = true;
+        savePostBtn.textContent = 'Saving...';
 
-function editPost(postDoc) {
-    const data = postDoc.data();
-    modalTitle.textContent = 'Edit Post';
-    postIdInput.value = postDoc.id;
-    postTitleInput.value = data.title;
-    postDescriptionInput.value = data.description;
-    postPriceInput.value = data.price;
-    postLocationInput.value = data.location;
-    postContactInput.value = data.contact;
-    postCategorySelect.value = data.category;
-    imagePreviews.innerHTML = '';
-    if (data.imageUrls) {
-        data.imageUrls.forEach(url => {
-            const img = document.createElement('img');
-            img.src = url;
-            imagePreviews.appendChild(img);
-        });
-    }
-    postModal.style.display = 'block';
-}
+        try {
+            const imageUrls = [];
+            for (const file of filesToUpload) {
+                const storageRef = ref(storage, `posts/${Date.now()}_${file.name}`);
+                await uploadBytes(storageRef, file);
+                const url = await getDownloadURL(storageRef);
+                imageUrls.push(url);
+            }
 
-async function deletePost(postId) {
-    if (confirm('Are you sure you want to delete this post?')) {
-        await deleteDoc(doc(db, 'posts', postId));
-        detailView.style.display = 'none';
-        mainView.style.display = 'block';
-        loadPosts();
-    }
-}
+            const postId = postForm['post-id'].value;
+            const postData = {
+                title: postForm['post-title'].value,
+                description: postForm['post-description'].value,
+                price: postForm['post-price'].value || 0,
+                location: postForm['post-location'].value,
+                contact: postForm['post-contact'].value,
+                category: postForm['post-category'].value,
+                authorId: currentUser.uid,
+                authorName: currentUser.displayName,
+                imageUrls: imageUrls,
+                createdAt: Timestamp.now()
+            };
 
-async function toggleSoldStatus(postId, currentStatus) {
-    const postRef = doc(db, 'posts', postId);
-    await updateDoc(postRef, { sold: !currentStatus });
-    showPostDetail(postId); // Refresh detail view
-}
+            if (postId) {
+                // Update existing post
+                const postRef = doc(db, 'posts', postId);
+                await updateDoc(postRef, postData);
+                alert("Post updated successfully!");
+            } else {
+                // Create new post
+                await addDoc(collection(db, 'posts'), postData);
+                alert("Post created successfully!");
+            }
 
+            postModal.style.display = 'none';
+            fetchPosts(); // Refresh posts
 
-// --- Admin Check ---
-const ADMIN_UIDS = ['YOUR_UID_1', 'YOUR_UID_2']; // Replace with actual Admin UIDs
-async function checkAdminStatus(user, isCheck = false) {
-    const isAdmin = ADMIN_UIDS.includes(user.uid);
-    if (isCheck) return isAdmin;
+        } catch (error) {
+            console.error("Error saving post: ", error);
+            alert(`Error saving post: ${error.message}`);
+        } finally {
+            savePostBtn.disabled = false;
+            savePostBtn.textContent = 'Save Post';
+        }
+    });
 
-    const adminBtn = document.getElementById('admin-dashboard-btn');
-    if (isAdmin) {
-        adminBtn.style.display = 'block';
-        adminBtn.addEventListener('click', () => {
-            mainView.style.display = 'none';
-            adminView.style.display = 'block';
-            // You would have a function in admin.js to load admin data
-            // loadAdminDashboard(); 
-        });
-    } else {
-        adminBtn.style.display = 'none';
-    }
-}
+    // --- Detail View Logic ---
+    const showDetailView = async (postId) => {
+        const postRef = doc(db, 'posts', postId);
+        const docSnap = await getDoc(postRef);
+
+        if (docSnap.exists()) {
+            const post = { id: docSnap.id, ...docSnap.data() };
+            detailViewModal.style.display = 'flex';
+            detailViewContent.innerHTML = createDetailViewHtml(post);
+            
+            // Add event listeners for edit/delete if user is author or admin
+            if (currentUser && (currentUser.uid === post.authorId || ADMIN_UIDS.includes(currentUser.uid))) {
+                document.getElementById('edit-post-btn').addEventListener('click', () => editPost(post));
+                document.getElementById('delete-post-btn').addEventListener('click', () => deletePost(post.id, post.imageUrls));
+            }
+            
+        } else {
+            alert("Post not found!");
+        }
+    };
+
+    const createDetailViewHtml = (post) => {
+        let imagesHtml = '';
+        if (post.imageUrls && post.imageUrls.length > 0) {
+            imagesHtml = `<div id="detail-images">${post.imageUrls.map(url => `<img src="${url}" alt="Post image">`).join('')}</div>`;
+        }
+        
+        let adminControls = '';
+        if(currentUser && (currentUser.uid === post.authorId || ADMIN_UIDS.includes(currentUser.uid))){
+             adminControls = `
+                <div class="post-actions">
+                    <button id="edit-post-btn" class="btn">Edit</button>
+                    <button id="delete-post-btn" class="btn danger">Delete</button>
+                </div>
+            `;
+        }
+
+        return `
+            ${adminControls}
+            <p><strong>Category:</strong> #${post.category}</p>
+            <p><strong>Author:</strong> ${post.authorName}</p>
+            <p><strong>Price:</strong> ${post.price ? `$${post.price}` : 'FREE'}</p>
+            ${post.location ? `<p><strong>Location:</strong> ${post.location}</p>` : ''}
+            ${post.contact ? `<p><strong>Contact:</strong> ${post.contact}</p>` : ''}
+            <hr>
+            <p>${post.description.replace(/\n/g, '<br>')}</p>
+            ${imagesHtml}
+        `;
+    };
+    
+    const editPost = (post) => {
+        detailViewModal.style.display = 'none';
+        postModal.style.display = 'flex';
+        modalTitle.textContent = 'Edit Post';
+
+        postForm['post-id'].value = post.id;
+        postForm['post-title'].value = post.title;
+        postForm['post-description'].value = post.description;
+        postForm['post-price'].value = post.price;
+        postForm['post-location'].value = post.location;
+        postForm['post-contact'].value = post.contact;
+        postForm['post-category'].value = post.category;
+        
+        imagePreviews.innerHTML = ''; // Note: Editing doesn't currently re-show old images
+        filesToUpload = [];
+    };
+
+    const deletePost = async (postId, imageUrls) => {
+        if (!confirm("Are you sure you want to delete this post? This cannot be undone.")) return;
+
+        try {
+            // Delete Firestore document
+            await deleteDoc(doc(db, 'posts', postId));
+
+            // Delete images from Storage
+            if (imageUrls && imageUrls.length > 0) {
+                for (const url of imageUrls) {
+                    const imageRef = ref(storage, url);
+                    await deleteObject(imageRef).catch(err => console.warn("Could not delete image: ", err));
+                }
+            }
+            alert("Post deleted.");
+            detailViewModal.style.display = 'none';
+            fetchPosts();
+
+        } catch (error) {
+            console.error("Error deleting post: ", error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
+    closeDetailBtn.addEventListener('click', () => {
+        detailViewModal.style.display = 'none';
+    });
+    
+});

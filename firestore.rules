@@ -1,42 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper function to check for admin privileges
-    function isAdmin() {
-      // Hardcoded admin UIDs for simplicity. 
-      // In a production app, this might be a custom claim or a role in a separate document.
-      let adminUIDs = ['UID_FOR_MICHAEL', 'UID_FOR_JANNI', 'UID_FOR_CHRISSY', 'UID_FOR_AMY'];
-      return request.auth.uid in adminUIDs;
+    
+    // Helper function to check if a user is an admin
+    function isAdmin(userId) {
+      // IMPORTANT: Replace with your actual Admin User IDs (UIDs)
+      let adminUids = ["YOUR_ADMIN_UID_HERE", "ANOTHER_ADMIN_UID_HERE"];
+      return userId in adminUids;
     }
 
-    // Users can only be created if they have a @regallakeland.com email
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.token.email.matches('.*@regallakeland.com');
-      allow update: if request.auth.uid == userId || isAdmin();
-    }
-
-    // Posts can be read by any authenticated user
+    // Only authenticated users from the specific domain can read or write posts.
     match /posts/{postId} {
-      allow read: if request.auth != null;
-
-      // Allow create only for authenticated users with verified @regallakeland.com emails
-      allow create: if request.auth != null && request.auth.token.email_verified && request.auth.token.email.matches('.*@regallakeland.com');
+      allow read: if request.auth != null && request.auth.token.email.matches('.*@regallakeland.com$');
       
-      // Allow update only by the post author or an admin
-      allow update: if request.resource.data.authorId == request.auth.uid || isAdmin();
+      // Allow create if user is authenticated and from the correct domain
+      allow create: if request.auth != null && request.auth.token.email.matches('.*@regallakeland.com$');
       
-      // Only admins can delete posts
-      allow delete: if isAdmin();
+      // Allow update or delete only if the user is the author of the post OR if the user is an admin.
+      allow update, delete: if request.auth != null && 
+                              (request.auth.uid == resource.data.authorId || isAdmin(request.auth.uid));
     }
 
-    // Comments can be read by any authenticated user
-    match /posts/{postId}/comments/{commentId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
-        allow update: if request.resource.data.authorId == request.auth.uid || isAdmin();
-        allow delete: if isAdmin();
-    }
+    // Rules for other collections would go here
   }
 }
