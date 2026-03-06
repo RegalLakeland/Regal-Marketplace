@@ -1,41 +1,28 @@
-# Regal Employee Marketplace — Enterprise Build (No-CLI Friendly)
 
-## What this build includes
-- Email + password accounts
-- Email verification required (@regallakeland.com only)
-- First/Last name prompt (posts show name, not email)
-- Boards (sidebar) + search + sort
-- Posts with optional photo upload (Firebase Storage)
-- Threads: replies on every post
-- In-app notifications when someone replies to your post
-- Admin portal at /adminregal/ (only admin emails can access)
-  - delete any post
-  - ban/unban users
+Upload these files and folders to your GitHub repo:
 
-## 1) Upload files to your host
-If you're using GitHub Pages:
-- Put everything in the root of your repo (keep the folders)
-- Keep images in: /Images/regal1.jpg regal2.jpg regal3.jpg  (capital I)
+index.html
+styles.css
+app.js
+firebase-config.js
+firestore.rules
+storage.rules
+adminregal/index.html
+adminregal/admin.js
 
-## 2) Firebase Console setup (no command prompt)
-### A) Authentication
-Firebase Console → Authentication → Sign-in method → Enable **Email/Password**
+Then:
+1) Open firebase-config.js and paste your real Firebase config
+2) In Firebase Console:
+   - Authentication -> Email/Password enabled
+   - Authentication -> Authorized domains -> add regallakeland.github.io
+   - Firestore -> Rules -> publish firestore.rules
+   - Storage -> Rules -> publish storage.rules
 
-### B) Firestore
-Firebase Console → Firestore Database → Create database (Production mode ok)
-Then go to **Rules** and paste the contents of `firestore.rules` → Publish.
-
-### C) Storage (for item photos)
-Firebase Console → Storage → Get started
-Then go to **Rules** and paste the contents of `storage.rules` → Publish.
-
-### D) Add your Firebase config to firebase-config.js
-Firebase Console → Project settings → Your apps → Web app config
-Paste values into `firebase-config.js`.
-
-## 3) Admin portal
-- Admin link appears for admin accounts after login
-- Direct URL: /adminregal/
-
-## Notes
-- IP address is not exposed to static web apps. To log IPs you need a backend (Cloud Functions / reverse proxy).
+Important:
+- Admin URL for GitHub Project Pages is:
+  https://regallakeland.github.io/REPO-NAME/adminregal/
+  Your screenshot 404'd because it used /adminregal/ without the repo name in the middle.
+- This build supports up to 10 images per post.
+- Board counts are recalculated from the fetched listings, so the totals now line up correctly.
+- Admin delete works both on the main site and inside adminregal/.
+- Signup example name changed to Jordan Reyes.
