@@ -1,36 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Regal Admin Portal</title>
-  <link rel="stylesheet" href="./styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="bg-slideshow" aria-hidden="true">
-    <img src="./Images/regal1.jpg" class="bg-slide active" alt="">
-    <img src="./Images/regal2.jpg" class="bg-slide" alt="">
-    <img src="./Images/regal3.jpg" class="bg-slide" alt="">
-  </div>
-  <div class="bg-overlay"></div>
-
-  <main class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <div class="logo">RH</div>
-        <div>
-          <div class="brand-title">Admin Portal</div>
-          <div class="sub">Users, posts, moderation alerts</div>
-        </div>
-      </div>
-      <div class="toolbar">
-        <a href="./index.html" class="btn">Back to Site</a>
-      </div>
-    </header>
-
-    <section id="adminRoot" class="layout"></section>
-  </main>
-
-  <script type="module" src="./admin.js"></script>
+    <div id="admin-app"></div>
+    <script type="module" src="admin.js"></script>
 </body>
 </html>

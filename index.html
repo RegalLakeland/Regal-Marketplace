@@ -1,59 +1,14 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Regal Employee Marketplace</title>
-<link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hello World</title>
+  <link href='/style.css' rel='stylesheet'>
 </head>
-
 <body>
-
-<div class="background">
-<img src="Images/regal1.jpg">
-<img src="Images/regal2.jpg">
-<img src="Images/regal3.jpg">
-</div>
-
-<header>
-<h1>Regal Employee Marketplace</h1>
-<div id="userDisplay"></div>
-<div class="headerBtns">
-<button id="createPostBtn">Create Post</button>
-<button id="adminBtn" style="display:none;">Admin</button>
-<button id="logoutBtn">Logout</button>
-</div>
-</header>
-
-<section id="authArea">
-<h2>Login</h2>
-<input id="email" placeholder="Work Email">
-<input id="password" type="password" placeholder="Password">
-<button id="loginBtn">Login</button>
-<button id="signupBtn">Create Account</button>
-<button id="resetBtn">Forgot Password</button>
-</section>
-
-<main id="appArea" style="display:none;">
-
-<div id="marketplace"></div>
-
-</main>
-
-<div id="postModal" class="modal">
-<div class="modalBox">
-<h2>Create Post</h2>
-<input id="title" placeholder="Title">
-<textarea id="desc" placeholder="Description"></textarea>
-<input id="price" placeholder="Price (leave blank for FREE)">
-<input id="imageUpload" type="file" multiple>
-<button id="publishPost">Publish</button>
-<button onclick="closeModal()">Cancel</button>
-</div>
-</div>
-
-<script type="module" src="app.js"></script>
-
+  <h1>Hello, world!</h1>
+  <button onclick="console.log('hello');">Press me</button>
+  <script defer type="text/javascript" src="/main.js"></script>
 </body>
 </html>
