@@ -1,1 +1,73 @@
-import { firebaseConfig } from \'./firebase-config.js\';\nimport { initializeApp } from \"https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js\";\nimport { getAuth, onAuthStateChanged } from \"https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js\";\nimport { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc } from \"https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js\";\n\nconst app = initializeApp(firebaseConfig);\nconst auth = getAuth(app);\nconst db = getFirestore(app);\n\nconst adminAppContainer = document.getElementById(\'admin-app\');\n\const adminWhitelist = [\n    \'michael.h@regallakeland.com\',\n    \'janni.r@regallakeland.com\',\n    \'chrissy.h@regallakeland.com\',\n    \'amy.m@regallakeland.com\'\n];\n\nfunction isAdmin(email) {\n    return adminWhitelist.includes(email);\n}\n\nclass AdminDashboard extends HTMLElement {\n     constructor() {\n        super();\n        this.attachShadow({ mode: \'open\' });\n        this.shadowRoot.innerHTML = `\n            <style>\n                .admin-dashboard { padding: 30px; color: white; }\n                .admin-section { margin-bottom: 30px; background: rgba(0,0,0,0.7); padding: 20px; border-radius: 10px; }\n                .admin-table { width: 100%; border-collapse: collapse; }\n                .admin-table th, .admin-table td { padding: 10px; text-align: left; border-bottom: 1px solid #444; }\n                .delete-btn, .ban-btn, .unban-btn { padding: 5px 10px; border: none; border-radius: 5px; cursor: pointer; color: #fff; }\n                .delete-btn { background: #dc3545; }\n                .ban-btn { background: #ffc107; }\n                .unban-btn { background: #28a745; }\n                h2 { border-bottom: 2px solid #007bff; padding-bottom: 10px; }\n                a { color: #00aaff; }\n            </style>\n            <div class=\"admin-dashboard\">\n                <h1>Admin Dashboard</h1>\n                <a href=\"/index.html\">&lt; Back to Main App</a>\n                <div class=\"admin-section\">\n                    <h2>Manage Users</h2>\n                    <table class=\"admin-table\">\n                        <thead><tr><th>Username</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>\n                        <tbody id=\"users-table\"></tbody>\n                    </table>\n                </div>\n                <div class=\"admin-section\">\n                    <h2>Manage Posts (includes flagged)</h2>\n                     <table class=\"admin-table\">\n                        <thead><tr><th>Title</th><th>Author</th><th>Flagged</th><th>Actions</th></tr></thead>\n                        <tbody id=\"posts-table\"></tbody>\n                    </table>\n                </div>\n            </div>\n        `;\n    }\n\n    async connectedCallback() {\n        this.loadUsers();\n        this.loadPosts();\n    }\n\n    async loadUsers() {\n        const tableBody = this.shadowRoot.getElementById(\'users-table\');\n        tableBody.innerHTML = \'\';\n        const usersSnapshot = await getDocs(collection(db, \"users\"));\n        usersSnapshot.forEach(userDoc => {\n            const userData = userDoc.data();\n            const row = tableBody.insertRow();\n            row.innerHTML = `\n                <td>${userData.username}</td>\n                <td>${userData.email}</td>\n                <td>${userData.isBanned ? \'Banned\' : \'Active\'}</td>\n                <td>\n                    ${!isAdmin(userData.email) ? \n                        (userData.isBanned \n                            ? `<button class=\"unban-btn\" data-id=\"${userDoc.id}\">Unban</button>`\n                            : `<button class=\"ban-btn\" data-id=\"${userDoc.id}\">Ban</button>`\n                        ) : \'Admin\'\n                    }\n                </td>\n            `;\n        });\n        tableBody.addEventListener(\'click\', this.handleUserAction.bind(this));\n    }\n    \n     async loadPosts() {\n        const tableBody = this.shadowRoot.getElementById(\'posts-table\');\n        tableBody.innerHTML = \'\';\n        const postsSnapshot = await getDocs(collection(db, \"posts\"));\n        postsSnapshot.forEach(postDoc => {\n            const postData = postDoc.data();\n            const row = tableBody.insertRow();\n            row.innerHTML = `\n                <td>${postData.title}</td>\n                <td>${postData.ownerName}</td>\n                <td style=\"color: ${postData.flagged ? \'#ffc107\' : \'inherit\'};\">${postData.flagged ? \'Yes\' : \'No\'}</td>\n                <td><button class=\"delete-btn\" data-id=\"${postDoc.id}\">Delete</button></td>\n            `;\n        });\n        tableBody.addEventListener(\'click\', this.handlePostAction.bind(this));\n    }\n\n    async handleUserAction(e) {\n        const target = e.target;\n        const userId = target.dataset.id;\n        if (!userId) return;\n        \n        const userDocRef = doc(db, \'users\', userId);\n\n        if (target.classList.contains(\'ban-btn\')) {\n            if (confirm(\'Are you sure you want to ban this user?\')) {\n                 await updateDoc(userDocRef, { isBanned: true });\n                 this.loadUsers();\n            }\n        }\n        if (target.classList.contains(\'unban-btn\')) {\n             await updateDoc(userDocRef, { isBanned: false });\n             this.loadUsers();\n        }\n    }\n    \n    async handlePostAction(e) {\n        if (e.target.classList.contains(\'delete-btn\')) {\n            const postId = e.target.dataset.id;\n            if (confirm(\'Are you sure you want to permanently delete this post?\')) {\n                await deleteDoc(doc(db, \"posts\", postId));\n                this.loadPosts();\n            }\n        }\n    }\n}\ncustomElements.define(\'admin-dashboard\', AdminDashboard);\n\n\nonAuthStateChanged(auth, user => {\n    if (user && isAdmin(user.email)) {\n        adminAppContainer.innerHTML = \'<admin-dashboard></admin-dashboard>\';\n    } else {\n        adminAppContainer.innerHTML = `\n            <div style=\"text-align: center; padding: 50px; color: white;\">\n                <h1>Access Denied</h1>\n                <p>You do not have permission to view this page.</p>\n                <a href=\"/index.html\" style=\"color: #00aaff;\">Go to the main application</a>\n            </div>`;\n    }\n});\n
+
+import { db } from './firebase-config.js';
+import { getDocs, collection, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+const userList = document.getElementById('user-list');
+const postListAdmin = document.getElementById('post-list-admin');
+const adminView = document.getElementById('admin-view');
+const mainView = document.getElementById('main-view');
+
+// Basic profanity filter (expand with a more robust list)
+const profanity = ['badword1', 'badword2', 'badword3']; 
+
+export async function loadAdminDashboard() {
+    if (adminView.style.display !== 'block') return;
+
+    // Load Users
+    userList.innerHTML = '';
+    const usersSnapshot = await getDocs(collection(db, 'users')); // Assuming you create a 'users' collection
+    usersSnapshot.forEach(userDoc => {
+        const userData = userDoc.data();
+        const li = document.createElement('li');
+        li.textContent = `${userData.username} (${userData.email})`;
+        const banBtn = document.createElement('button');
+        banBtn.textContent = userData.isBanned ? 'Unban' : 'Ban';
+        banBtn.onclick = () => toggleBanStatus(userDoc.id, userData.isBanned);
+        li.appendChild(banBtn);
+        userList.appendChild(li);
+    });
+
+    // Load Posts
+    postListAdmin.innerHTML = '';
+    const postsSnapshot = await getDocs(collection(db, 'posts'));
+    postsSnapshot.forEach(postDoc => {
+        const postData = postDoc.data();
+        const li = document.createElement('li');
+        
+        let content = `${postData.title}`;
+        // Profanity check
+        const foundProfanity = profanity.find(word => postData.description.includes(word) || postData.title.includes(word));
+        if(foundProfanity) {
+            content += ` <span style="color: red;">[PROFANITY: ${foundProfanity}]</span>`;
+        }
+
+        li.innerHTML = content;
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'danger-btn';
+        deleteBtn.onclick = () => deletePostAdmin(postDoc.id);
+        li.appendChild(deleteBtn);
+        postListAdmin.appendChild(li);
+    });
+}
+
+async function toggleBanStatus(userId, isBanned) {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, { isBanned: !isBanned });
+    loadAdminDashboard(); // Refresh
+}
+
+async function deletePostAdmin(postId) {
+    if (confirm('Are you sure you want to permanently delete this post?')) {
+        await deleteDoc(doc(db, 'posts', postId));
+        loadAdminDashboard(); // Refresh
+    }
+}
+
+document.getElementById('admin-back-btn').addEventListener('click', () => {
+    adminView.style.display = 'none';
+    mainView.style.display = 'block';
+});
+
+// Initial call if admin view is shown
+document.getElementById('admin-dashboard-btn').addEventListener('click', loadAdminDashboard);

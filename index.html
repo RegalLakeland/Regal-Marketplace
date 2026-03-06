@@ -1,14 +1,129 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello World</title>
-  <link href='/style.css' rel='stylesheet'>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regal Lakeland Internal Marketplace & Forum</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Hello, world!</h1>
-  <button onclick="console.log('hello');">Press me</button>
-  <script defer type="text/javascript" src="/main.js"></script>
+    <!-- Background Slideshow -->
+    <div class="slideshow">
+        <div class="slideshow-image" style="background-image: url('Images/background1.jpg');"></div>
+        <div class="slideshow-image" style="background-image: url('Images/background2.jpg');"></div>
+        <div class="slideshow-image" style="background-image: url('Images/background3.jpg');"></div>
+    </div>
+    <div class="overlay"></div>
+
+    <!-- Main Container -->
+    <div id="app-container">
+        <!-- Login/Register View -->
+        <div id="auth-view" class="view">
+            <div id="auth-container">
+                <div id="login-form">
+                    <h2>Login</h2>
+                    <input type="email" id="login-email" placeholder="Email" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button id="login-btn">Login</button>
+                    <p>Forgot Password? <a href="#" id="forgot-password-link">Reset</a></p>
+                    <p>Don't have an account? <a href="#" id="show-register-link">Register</a></p>
+                </div>
+                <div id="register-form" style="display: none;">
+                    <h2>Register</h2>
+                    <input type="email" id="register-email" placeholder="Work Email (@regallakeland.com)" required>
+                    <input type="password" id="register-password" placeholder="Password" required>
+                    <input type="text" id="register-username" placeholder="Username" required>
+                    <button id="register-btn">Register</button>
+                    <p>Already have an account? <a href="#" id="show-login-link">Login</a></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main App View -->
+        <div id="main-view" class="view" style="display: none;">
+            <header>
+                <h1>Regal Lakeland Marketplace & Forum</h1>
+                <div class="user-info">
+                    <span id="user-display"></span>
+                    <button id="logout-btn">Logout</button>
+                    <button id="admin-dashboard-btn" style="display: none;">Admin</button>
+                </div>
+            </header>
+
+            <div class="controls">
+                <button id="create-post-btn">Create Post</button>
+                <div class="toggle-switch">
+                    <span>Forum View</span>
+                    <label class="switch">
+                        <input type="checkbox" id="view-toggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Marketplace View</span>
+                </div>
+            </div>
+
+            <main id="content-area">
+                <!-- Posts will be injected here -->
+            </main>
+        </div>
+
+        <!-- Post Detail View -->
+        <div id="detail-view" class="view" style="display: none;">
+            <!-- Post detail will be injected here -->
+        </div>
+
+        <!-- Admin Dashboard View -->
+        <div id="admin-view" class="view" style="display: none;">
+            <h2>Admin Dashboard</h2>
+            <div id="admin-content">
+                <div id="admin-users">
+                    <h3>Users</h3>
+                    <ul id="user-list"></ul>
+                </div>
+                <div id="admin-posts">
+                    <h3>Posts</h3>
+                    <ul id="post-list-admin"></ul>
+                </div>
+            </div>
+            <button id="admin-back-btn">Back to App</button>
+        </div>
+    </div>
+
+    <!-- Create/Edit Post Modal -->
+    <div id="post-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2 id="modal-title">Create Post</h2>
+            <input type="hidden" id="post-id">
+            <input type="text" id="post-title" placeholder="Title" required>
+            <textarea id="post-description" placeholder="Description" required></textarea>
+            <input type="number" id="post-price" placeholder="Price (optional)">
+            <input type="text" id="post-location" placeholder="Location">
+            <input type="text" id="post-contact" placeholder="Contact Info">
+            <select id="post-category">
+                <option value="Buy / Sell">Buy / Sell</option>
+                <option value="Free Items">Free Items</option>
+                <option value="Garage Sales">Garage Sales</option>
+                <option value="Events">Events</option>
+                <option value="Work News">Work News</option>
+                <option value="Services">Services</option>
+            </select>
+            <input type="file" id="post-images" multiple>
+            <div id="image-previews"></div>
+            <button id="save-post-btn">Save Post</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js"></script>
+
+    <!-- App Scripts -->
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="main.js"></script>
+    <script type="module" src="admin.js"></script>
 </body>
 </html>
