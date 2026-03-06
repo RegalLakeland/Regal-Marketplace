@@ -7,8 +7,10 @@ service firebase.storage {
         && request.auth.token.email.matches('.*@regallakeland\\.com$')
         && request.auth.token.email_verified == true;
     }
+
     match /posts/{allPaths=**} {
-      allow read, write: if employee();
+      allow read: if employee();
+      allow write: if employee();
     }
   }
 }

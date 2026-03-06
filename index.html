@@ -1,145 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Regal Employee Marketplace</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div class="bg-slideshow" aria-hidden="true">
-    <img src="Images/regal1.jpg" class="bg-slide active" alt="">
-    <img src="Images/regal2.jpg" class="bg-slide" alt="">
-    <img src="Images/regal3.jpg" class="bg-slide" alt="">
+    <img src="./Images/regal1.jpg" class="bg-slide active" alt="">
+    <img src="./Images/regal2.jpg" class="bg-slide" alt="">
+    <img src="./Images/regal3.jpg" class="bg-slide" alt="">
   </div>
   <div class="bg-overlay"></div>
 
-  <div id="authOverlay" class="overlay">
-    <div class="modal auth-modal">
-      <div class="modal-head">
-        <div class="brand-wrap">
-          <div class="logo">RH</div>
-          <div>
-            <div class="brand-title">Regal Employee Marketplace</div>
-            <div class="brand-sub">Secure employee-only marketplace</div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-body">
-        <div class="tabs">
-          <button id="tabLogin" class="tab active" type="button">Login</button>
-          <button id="tabSignup" class="tab" type="button">Create Account</button>
-        </div>
-        <section id="loginPane">
-          <label class="field"><span>Work Email</span><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></label>
-          <label class="field"><span>Password</span><input id="loginPassword" type="password" placeholder="Password"></label>
-          <div class="row">
-            <button id="btnLogin" class="btn primary" type="button">Login</button>
-            <button id="btnForgot" class="btn" type="button">Forgot Password</button>
-          </div>
-        </section>
-        <section id="signupPane" hidden>
-          <label class="field"><span>Display Name</span><input id="signupName" type="text" placeholder="Michael Hall"></label>
-          <label class="field"><span>Username</span><input id="signupUsername" type="text" placeholder="michaelhall"></label>
-          <label class="field"><span>Work Email</span><input id="signupEmail" type="email" placeholder="first.last@regallakeland.com"></label>
-          <label class="field"><span>Password</span><input id="signupPassword" type="password" placeholder="At least 8 characters"></label>
-          <label class="field"><span>Confirm Password</span><input id="signupPassword2" type="password" placeholder="Re-enter password"></label>
-          <label class="agree"><input id="agreeRules" type="checkbox"> <span>I agree to the marketplace rules.</span></label>
-          <div class="row"><button id="btnSignup" class="btn primary" type="button">Create Account</button></div>
-        </section>
-        <div id="authMsg" class="msg" hidden></div>
-        <div class="small-note">Work emails only. Each username must be unique. Email verification is required before full access.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="page-shell">
-    <header class="topbar">
-      <div class="brand-wrap">
+  <section id="authGate" class="gate">
+    <div class="card auth-card">
+      <div class="brand">
         <div class="logo">RH</div>
         <div>
-          <div class="brand-title big">Regal Employee Marketplace</div>
-          <div class="brand-sub">OfferUp-style and forum-style views in one site</div>
+          <h1>Regal Employee Marketplace</h1>
+          <div class="sub">Enterprise bundle • classic marketplace + forum view</div>
         </div>
       </div>
-      <div class="top-actions">
-        <div class="view-switch">
-          <button id="viewClassicBtn" class="seg-btn active" type="button">Classic View</button>
-          <button id="viewForumBtn" class="seg-btn" type="button">Forum View</button>
+
+      <div class="tabs">
+        <button id="loginTab" class="tab active" type="button">Login</button>
+        <button id="signupTab" class="tab" type="button">Create Account</button>
+      </div>
+
+      <div id="loginPane">
+        <label class="field"><span>Work Email</span><input id="loginEmail" type="email" placeholder="first.last@regallakeland.com"></label>
+        <label class="field"><span>Password</span><input id="loginPassword" type="password" placeholder="Password"></label>
+        <div class="row">
+          <button id="loginBtn" class="btn primary" type="button">Login</button>
+          <button id="forgotBtn" class="btn" type="button">Forgot Password</button>
         </div>
-        <span id="userPill" class="pill">Not signed in</span>
-        <button id="btnNewPost" class="btn primary" type="button" hidden>+ New Post</button>
-        <a id="adminLink" class="btn" href="admin.html" hidden>Admin Portal</a>
-        <button id="btnLogout" class="btn danger" type="button" hidden>Logout</button>
+      </div>
+
+      <div id="signupPane" hidden>
+        <label class="field"><span>Display Name</span><input id="signupName" placeholder="Michael Hall"></label>
+        <label class="field"><span>Work Email</span><input id="signupEmail" type="email" placeholder="first.last@regallakeland.com"></label>
+        <label class="field"><span>Password</span><input id="signupPassword" type="password" placeholder="At least 8 characters"></label>
+        <label class="field"><span>Confirm Password</span><input id="signupPassword2" type="password" placeholder="Re-enter password"></label>
+        <div class="row">
+          <button id="signupBtn" class="btn primary" type="button">Create Account</button>
+        </div>
+      </div>
+
+      <div id="authMsg" class="notice" hidden></div>
+      <div class="small-note">Only @regallakeland.com accounts are allowed. Admin-only tools are hidden unless the logged-in email matches the admin list in firebase-config.js.</div>
+    </div>
+  </section>
+
+  <main id="shell" class="shell" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">RH</div>
+        <div>
+          <div class="brand-title">Regal Employee Marketplace</div>
+          <div class="sub">Classic marketplace + forum view</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button id="boardsBtn" class="btn" type="button">Boards</button>
+        <button id="newBtn" class="btn primary" type="button">+ New Post</button>
+        <div class="seg">
+          <button id="classicBtn" class="active" type="button">Classic View</button>
+          <button id="forumBtn" type="button">Forum View</button>
+        </div>
+        <span id="userChip" class="chip"></span>
+        <a id="adminLink" href="./admin.html" class="btn blue" hidden>Admin Portal</a>
+        <button id="logoutBtn" class="btn" type="button">Logout</button>
       </div>
     </header>
 
-    <main id="appRoot"></main>
-  </div>
+    <section id="appRoot" class="layout"></section>
+  </main>
 
-  <div id="composeModal" class="overlay hidden">
-    <div class="modal compose-modal">
+  <div id="composeModal" class="modal" hidden>
+    <div class="card modal-card">
       <div class="modal-head">
-        <strong id="composeTitleText">Create Post</strong>
+        <h2 id="composeHeading">Create Post</h2>
         <button id="closeComposeBtn" class="btn" type="button">Close</button>
       </div>
-      <div class="modal-body">
-        <div class="form-grid">
-          <label><span>Section</span><select id="composeSection"></select></label>
-          <label><span>Status</span><select id="composeStatus"><option value="ACTIVE">Active</option><option value="SOLD">Sold</option></select></label>
-          <label class="full"><span>Thread / Listing Title</span><input id="composePostTitle" placeholder="Honda Civic tires for sale"></label>
-          <label class="full"><span>Description</span><textarea id="composeBody" rows="6" placeholder="Write the listing, event, or work update here..."></textarea></label>
-          <label id="priceField"><span>Price</span><input id="composePrice" placeholder="Leave blank for FREE / N/A"></label>
-          <label><span>Location</span><input id="composeLocation" placeholder="Lakeland"></label>
-          <label class="full"><span>Contact</span><input id="composeContact" placeholder="Phone, email, department, or where to find you"></label>
-          <label class="full"><span>Images (up to 10)</span><input id="composeImages" type="file" accept="image/*" multiple></label>
-          <div id="composePreview" class="full preview-grid"></div>
-          <div id="composeMsg" class="msg full" hidden></div>
-        </div>
+      <div class="form-grid">
+        <label><span>Section</span><select id="composeSection"></select></label>
+        <label><span>Status</span><select id="composeStatus"><option value="active">Active</option><option value="sold">Sold</option></select></label>
+        <label class="full"><span>Title</span><input id="composeTitle" placeholder="Honda Civic tires for sale"></label>
+        <label class="full"><span>Description</span><textarea id="composeBody" placeholder="Write the listing, event, or update here..."></textarea></label>
+        <label><span>Price</span><input id="composePrice" placeholder="Leave blank for FREE / N/A"></label>
+        <label><span>Location</span><input id="composeLocation" placeholder="Lakeland"></label>
+        <label class="full"><span>Contact</span><input id="composeContact" placeholder="Phone, email, department, or where to find you"></label>
+        <label class="full"><span>Images (up to 10)</span><input id="composeImages" type="file" accept="image/*" multiple></label>
+        <div id="composePreview" class="full preview"></div>
       </div>
-      <div class="modal-foot"><button id="savePostBtn" class="btn primary" type="button">Post</button></div>
+      <div id="composeMsg" class="notice" hidden></div>
+      <div class="modal-foot">
+        <button id="savePostBtn" class="btn primary" type="button">Publish</button>
+      </div>
     </div>
   </div>
 
-  <div id="threadModal" class="overlay hidden">
-    <div class="modal thread-modal">
+  <div id="replyModal" class="modal" hidden>
+    <div class="card modal-card">
       <div class="modal-head">
-        <strong id="threadTitle">Thread</strong>
-        <button id="closeThreadBtn" class="btn" type="button">Close</button>
+        <h2>Add Reply</h2>
+        <button id="closeReplyBtn" class="btn" type="button">Close</button>
       </div>
-      <div class="modal-body">
-        <div id="threadMeta" class="subtle"></div>
-        <div id="threadGallery" class="gallery"></div>
-        <div id="threadBody" class="thread-body"></div>
-        <div class="thread-info-grid">
-          <div class="info-card"><div class="info-label">Price</div><div class="info-value" id="threadPrice"></div></div>
-          <div class="info-card"><div class="info-label">Location</div><div class="info-value" id="threadLocation"></div></div>
-          <div class="info-card"><div class="info-label">Contact</div><div class="info-value" id="threadContact"></div></div>
-        </div>
-        <div class="card-actions">
-          <button id="replyBtn" class="btn primary" type="button">Reply</button>
-          <button id="editThreadBtn" class="btn" type="button" hidden>Edit</button>
-          <button id="deleteThreadBtn" class="btn danger" type="button" hidden>Delete</button>
-          <button id="adminDeleteThreadBtn" class="btn danger" type="button" hidden>Admin Delete</button>
-        </div>
-        <div class="replies-wrap"><div class="replies-title">Replies</div><div id="replyList"></div></div>
+      <div class="form-grid">
+        <label class="full"><span>Reply</span><textarea id="replyBody" placeholder="Write your reply..."></textarea></label>
+      </div>
+      <div class="modal-foot">
+        <button id="saveReplyBtn" class="btn primary" type="button">Post Reply</button>
       </div>
     </div>
   </div>
 
-  <div id="replyModal" class="overlay hidden">
-    <div class="modal auth-modal">
-      <div class="modal-head"><strong>Add Reply</strong><button id="closeReplyBtn" class="btn" type="button">Close</button></div>
-      <div class="modal-body"><label class="field"><span>Reply</span><textarea id="replyBody" rows="5" placeholder="Write your reply..."></textarea></label><div id="replyMsg" class="msg" hidden></div></div>
-      <div class="modal-foot"><button id="saveReplyBtn" class="btn primary" type="button">Post Reply</button></div>
-    </div>
-  </div>
-
-  <script src="firebase-config.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

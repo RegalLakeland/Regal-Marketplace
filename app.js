@@ -1,69 +1,551 @@
-const WORK_DOMAIN = "@regallakeland.com";
-const ADMIN_SET = new Set(ADMIN_EMAILS.map(x => String(x).toLowerCase()));
-const SECTIONS = [
-  { id:"free-items", name:"Free Items", desc:"Post giveaways, free items, and curb alerts." },
-  { id:"buy-sell", name:"Buy / Sell", desc:"Sell items to coworkers or look for something specific." },
-  { id:"garage-sales", name:"Garage Sales", desc:"Weekend sales, moving sales, and neighborhood finds." },
-  { id:"events", name:"Events", desc:"Birthdays, barbecues, outings, and employee meetups." },
-  { id:"work-news", name:"Work News", desc:"Announcements, updates, reminders, and dealership info." },
-  { id:"services", name:"Services", desc:"Promote side work, referrals, and help offered." }
-];
-const GROUPS = [
-  { title:"Marketplace", ids:["free-items","buy-sell","garage-sales"] },
-  { title:"Community", ids:["events","work-news","services"] }
-];
-const BAD_WORDS = ["fuck","fucking","shit","bitch","asshole","nigga","nigger","cunt","dick","pussy","motherfucker"];
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
-let me = null, posts = [], currentView = localStorage.getItem("regal_view_pref") || "classic", currentSection = null, currentThreadId = null, currentThread = null, editingId = null, unsubPosts = null;
-function validWorkEmail(email){ return String(email||"").toLowerCase().endsWith(WORK_DOMAIN); }
-function isAdmin(){ return !!me && ADMIN_SET.has(String(me.email||"").toLowerCase()); }
-function displayName(){ return me?.name || me?.username || (me?.email||"").split("@")[0] || "Employee"; }
-function formatDate(d){ return d ? new Date(d).toLocaleDateString()+" "+new Date(d).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "—"; }
-function initials(name){ return String(name||"?").split(" ").filter(Boolean).slice(0,2).map(v=>v[0].toUpperCase()).join(""); }
-function sectionById(id){ return SECTIONS.find(s => s.id === id); }
-function setMsg(id, text="", kind=""){ const el=$(id); if(!text){el.hidden=true;el.textContent="";el.className="msg";return;} el.hidden=false; el.textContent=text; el.className="msg "+kind; }
-function show(id){ $(id).classList.remove("hidden"); }
-function hide(id){ $(id).classList.add("hidden"); }
-function priceText(post){ const p=String(post.price||"").trim(); if(!p||p.toUpperCase()==="FREE") return "FREE"; return p; }
-function cleanUsername(u){ return String(u||"").toLowerCase().replace(/[^a-z0-9_]/g,"").trim(); }
-function containsProfanity(text){ const s=" "+String(text||"").toLowerCase()+" "; return BAD_WORDS.some(w=>s.includes(w)); }
-function bindSlides(){ const slides=[...document.querySelectorAll(".bg-slide")]; let i=0; setInterval(()=>{ slides[i].classList.remove("active"); i=(i+1)%slides.length; slides[i].classList.add("active"); }, 4500); }
-function syncTopbar(){ $("userPill").textContent = me ? `${displayName()}${isAdmin() ? " • Admin" : ""}` : "Not signed in"; $("btnNewPost").hidden=!me; $("btnLogout").hidden=!me; $("adminLink").hidden=!(me&&isAdmin()); $("viewClassicBtn").classList.toggle("active", currentView==="classic"); $("viewForumBtn").classList.toggle("active", currentView==="forum"); if(me) hide("authOverlay"); else show("authOverlay"); }
-function countsBySection(){ const out={}; SECTIONS.forEach(s=>out[s.id]=0); posts.forEach(p=>{ if(out[p.sectionId]!=null) out[p.sectionId]+=1; }); return out; }
-function lastReply(post){ return post.replies&&post.replies.length ? post.replies[post.replies.length-1] : null; }
-function lastActivity(post){ const r=lastReply(post); return r ? r.createdAt : post.createdAt; }
-function latestPostInSection(id){ return posts.filter(p=>p.sectionId===id).sort((a,b)=>new Date(lastActivity(b))-new Date(lastActivity(a)))[0]; }
-function sectionBoardHtml(section){ const latest=latestPostInSection(section.id); const counts=countsBySection(); return `<button class="board-btn ${currentSection===section.id?'active':''}" data-section="${section.id}" type="button"><div><div style="font-weight:800">${esc(section.name)}</div><div class="desc">${esc(section.desc)}</div></div><div class="count-pill">${counts[section.id]||0}</div></button>`; }
-function sectionTopicRow(post){ const r=lastReply(post); return `<div class="topic-row" data-thread="${post.id}"><div class="topic-main">${post.images&&post.images.length?`<div class="thumb-box"><img src="${post.images[0]}" alt=""></div>`:`<div class="avatar-circle">💬</div>`}<div><div class="topic-title">${esc(post.title)}</div><div class="topic-desc">${esc(post.authorName)} • ${formatDate(post.createdAt)}${post.price?` • ${esc(priceText(post))}`:""}</div></div></div><div class="topic-stat">${(post.replies||[]).length}<span>replies</span></div><div class="topic-stat">${post.views||0}<span>views</span></div><div class="last-message"><div class="mini-avatar">${initials(r?r.authorName:post.authorName)}</div><div><div class="last-message-title">${esc(r?r.authorName:post.authorName)}</div><div class="last-message-meta">${formatDate(lastActivity(post))}</div></div></div></div>`; }
-function classicCardHtml(post){ const mine=me&&me.uid===post.uid; const sold=post.status==="SOLD"; return `<article class="listing-card"><div class="listing-thumb">${post.images&&post.images.length?`<img src="${post.images[0]}" alt="">`:``}<div class="badge ${sold?'sold':(priceText(post)==='FREE'?'free':'')}">${sold?'SOLD':priceText(post)==='FREE'?'FREE':'AVAILABLE'}</div></div><div class="listing-body"><div class="listing-title">${esc(post.title)}</div><div class="listing-meta">${esc(sectionById(post.sectionId)?.name||"")} • ${esc(post.location||"Lakeland")} • ${esc(priceText(post))}</div><div class="listing-desc">${esc(post.body||"").slice(0,160)}</div><div class="card-actions"><button class="btn" data-open="${post.id}" type="button">Open</button>${mine?`<button class="btn" data-edit="${post.id}" type="button">Edit</button>`:''}${mine?`<button class="btn danger" data-del="${post.id}" type="button">Delete</button>`:''}${mine?`<button class="btn" data-sold="${post.id}" type="button">${sold?"Mark Active":"Mark Sold"}</button>`:''}${isAdmin()?`<button class="btn danger" data-admin-del="${post.id}" type="button">Admin Delete</button>`:''}</div></div></article>`; }
-function filteredPosts(){ let arr=posts.slice(); const search=$("globalSearch")?.value?.trim().toLowerCase()||""; const status=$("globalStatus")?.value||"ACTIVE"; const sort=$("globalSort")?.value||"NEW"; if(currentSection) arr=arr.filter(p=>p.sectionId===currentSection); if(status==="ACTIVE") arr=arr.filter(p=>p.status!=="SOLD"); if(status==="SOLD") arr=arr.filter(p=>p.status==="SOLD"); if(search) arr=arr.filter(p=>`${p.title} ${p.body} ${p.authorName} ${p.contact}`.toLowerCase().includes(search)); if(sort==="NEW") arr.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); if(sort==="OLD") arr.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt)); if(sort==="REPLIES") arr.sort((a,b)=>(b.replies?.length||0)-(a.replies?.length||0)); return arr; }
-function renderSideBoards(){ return `<aside class="side-panel"><div class="section-group-title">Sections</div><div class="board-list">${GROUPS.map(g=>`<div><div style="font-size:12px;color:var(--muted);padding:4px 2px 8px">${esc(g.title)}</div>${g.ids.map(id=>sectionBoardHtml(sectionById(id))).join('')}</div>`).join('')}</div><div class="small-note" style="margin-top:12px">Secure employee-only marketplace.<br>Switch between classic cards and forum threads at the top.<br>Admins can moderate from the admin portal.</div></aside>`; }
-function renderClassicHome(){ const arr=filteredPosts(); const title=currentSection?sectionById(currentSection)?.name:"Marketplace"; return `<div class="layout-two-col">${renderSideBoards()}<section class="main-panel"><div class="panel-card toolbar"><input id="globalSearch" placeholder="Search titles, descriptions, contact..."><select id="globalStatus"><option value="ACTIVE">Active</option><option value="ALL">All</option><option value="SOLD">Sold</option></select><select id="globalSort"><option value="NEW">Newest</option><option value="OLD">Oldest</option><option value="REPLIES">Most Replies</option></select></div><div class="section-head"><h2>${esc(title||"Marketplace")}</h2><div class="subtle">${arr.length} listings</div></div><div class="classic-grid">${arr.length?arr.map(classicCardHtml).join(''):`<div class="empty-box">No posts found for this view.</div>`}</div></section></div>`; }
-function renderForumBoardHome(){ return GROUPS.map(group=>`<div class="section-group-title">${esc(group.title)}</div><div class="board-table">${group.ids.map(id=>{ const section=sectionById(id); const latest=latestPostInSection(id); const actor=latest?(lastReply(latest)?.authorName||latest.authorName):"—"; const counts=countsBySection(); return `<div class="board-row" data-section="${id}"><div class="board-main"><div class="avatar-circle">💬</div><div><div class="board-title">${esc(section.name)}</div><div class="board-desc">${esc(section.desc)}</div></div></div><div class="board-count">${counts[id]||0}<span>threads</span></div><div class="last-post">${latest?.images?.length?`<div class="thumb-box"><img src="${latest.images[0]}" alt=""></div>`:`<div class="mini-avatar">${latest?initials(actor):"—"}</div>`}<div><div class="last-post-title">${latest?esc(latest.title):"No threads yet"}</div><div class="last-post-meta">${latest?`${esc(actor)}, ${formatDate(lastActivity(latest))}`:"Start the first thread"}</div></div></div></div>`; }).join('')}</div>`).join(''); }
-function renderForumSectionPanel(sectionId){ const section=sectionById(sectionId); const arr=filteredPosts().sort((a,b)=>new Date(lastActivity(b))-new Date(lastActivity(a))); return `<div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / ${esc(section.name)}</div><div class="panel-card toolbar"><input id="globalSearch" placeholder="Search this section..."><select id="globalStatus"><option value="ACTIVE">Active</option><option value="ALL">All</option><option value="SOLD">Sold</option></select><select id="globalSort"><option value="NEW">Newest</option><option value="OLD">Oldest</option><option value="REPLIES">Most Replies</option></select></div><div class="topic-header"><div><h2>${esc(section.name)}</h2><div class="subhead">${esc(section.desc)}</div></div></div><div class="topic-table">${arr.length?arr.map(sectionTopicRow).join(''):`<div class="empty-box">No threads in this section yet.</div>`}</div>`; }
-function renderForumHome(){ return `<div class="layout-two-col">${renderSideBoards()}<section class="main-panel">${currentSection?renderForumSectionPanel(currentSection):renderForumBoardHome()}</section></div>`; }
-function attachCommon(){ document.querySelectorAll('[data-section]').forEach(el=>el.addEventListener('click',()=>{ currentSection=el.dataset.section; renderApp(); })); document.querySelectorAll('[data-open],[data-thread]').forEach(el=>el.addEventListener('click',()=>openThread(el.dataset.open||el.dataset.thread))); document.querySelectorAll('[data-edit]').forEach(el=>el.addEventListener('click',()=>editPost(el.dataset.edit))); document.querySelectorAll('[data-del]').forEach(el=>el.addEventListener('click',()=>deletePost(el.dataset.del,false))); document.querySelectorAll('[data-admin-del]').forEach(el=>el.addEventListener('click',()=>deletePost(el.dataset.adminDel,true))); document.querySelectorAll('[data-sold]').forEach(el=>el.addEventListener('click',()=>toggleSold(el.dataset.sold))); if($("crumbBoards")) $("crumbBoards").addEventListener('click',(e)=>{e.preventDefault(); currentSection=null; renderApp();}); ["globalSearch","globalStatus","globalSort"].forEach(id=>{ if($(id)) $(id).addEventListener('input',renderApp); }); }
-function renderApp(){ $("appRoot").innerHTML = currentView==="classic" ? renderClassicHome() : renderForumHome(); attachCommon(); }
-async function ensureUsernameUnique(username){ const snap=await db.collection('profiles').where('usernameLower','==',username).get(); return snap.empty; }
-async function fileToDataURL(file){ return new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=e=>resolve(e.target.result); r.onerror=reject; r.readAsDataURL(file); }); }
-async function loadComposePreviews(files){ const arr=[...files].slice(0,10); $("composePreview").innerHTML=''; for(const file of arr){ const data=await fileToDataURL(file); $("composePreview").insertAdjacentHTML('beforeend', `<img src="${data}" alt="">`); } }
-async function uploadImages(postId, files){ if(files.length>10) throw new Error('Maximum 10 images.'); const urls=[]; for(const file of files){ const ref=storage.ref(`posts/${postId}/${Date.now()}_${file.name}`); const snap=await ref.put(file); urls.push(await snap.ref.getDownloadURL()); } return urls; }
-async function createModerationAlert(kind,payload){ await db.collection('alerts').add({kind,...payload,createdAt:new Date().toISOString(),status:'OPEN'}); }
-function populateSectionSelect(){ $("composeSection").innerHTML = SECTIONS.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); }
-function resetComposeForm(){ editingId=null; $("composeTitleText").textContent='Create Post'; $("savePostBtn").textContent='Post'; $("composeSection").value='free-items'; $("composeStatus").value='ACTIVE'; $("composePostTitle").value=''; $("composeBody").value=''; $("composePrice").value=''; $("composeLocation").value='Lakeland'; $("composeContact").value=''; $("composeImages").value=''; $("composePreview").innerHTML=''; setMsg('composeMsg'); }
-async function savePost(){ const btn=$("savePostBtn"); const keep=btn.textContent; try{ btn.disabled=true; btn.textContent='Saving...'; setMsg('composeMsg'); if(!me) throw new Error('Login first.'); const sectionId=$("composeSection").value; const title=$("composePostTitle").value.trim(); const body=$("composeBody").value.trim(); const location=$("composeLocation").value.trim()||'Lakeland'; const contact=$("composeContact").value.trim(); const status=$("composeStatus").value; const price=(sectionId==='free-items'?'FREE':($("composePrice").value.trim()||'N/A')); const files=[...($("composeImages").files||[])]; if(!title||!body||!contact) throw new Error('Please fill out title, description, and contact.'); const profanity=containsProfanity([title,body,contact].join(' ')); let imageUrls=[]; if(files.length){ imageUrls=await uploadImages(editingId||('tmp_'+Date.now()), files); }
-      if(editingId){ const ref=db.collection('posts').doc(editingId); const snap=await ref.get(); if(!snap.exists) throw new Error('Post not found.'); const old=snap.data(); await ref.update({sectionId,title,body,location,contact,status,price,images:imageUrls.length?imageUrls:(old.images||[]),updatedAt:new Date().toISOString()}); if(profanity) await createModerationAlert('PROFANITY_EDIT',{postId:editingId,byUid:me.uid,byEmail:me.email,title}); }
-      else { const ref=await db.collection('posts').add({sectionId,title,body,location,contact,status,price,images:imageUrls,uid:me.uid,email:me.email,authorName:displayName(),username:me.username||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),views:0,replies:[],flags:{profanity,needsReview:profanity},ipAddress:'Requires backend capture'}); if(profanity) await createModerationAlert('PROFANITY_POST',{postId:ref.id,byUid:me.uid,byEmail:me.email,title}); }
-      hide('composeModal'); resetComposeForm(); }
-    catch(e){ console.error(e); setMsg('composeMsg', e.message||'Save failed.','error'); }
-    finally{ btn.disabled=false; btn.textContent=keep; }}
-function editPost(id){ const p=posts.find(x=>x.id===id); if(!p) return; editingId=id; $("composeTitleText").textContent='Edit Post'; $("savePostBtn").textContent='Update Post'; $("composeSection").value=p.sectionId; $("composeStatus").value=p.status||'ACTIVE'; $("composePostTitle").value=p.title||''; $("composeBody").value=p.body||''; $("composePrice").value=p.sectionId==='free-items'?'':(p.price==='N/A'?'':p.price||''); $("composeLocation").value=p.location||''; $("composeContact").value=p.contact||''; $("composeImages").value=''; $("composePreview").innerHTML=(p.images||[]).map(src=>`<img src="${src}" alt="">`).join(''); show('composeModal'); }
-async function deletePost(id,adminMode){ const p=posts.find(x=>x.id===id); if(!p) return; if(!adminMode&&(!me||me.uid!==p.uid)) return; if(adminMode&&!isAdmin()) return; if(!confirm('Delete this post?')) return; await db.collection('posts').doc(id).delete(); }
-async function toggleSold(id){ const p=posts.find(x=>x.id===id); if(!p||!me||me.uid!==p.uid) return; await db.collection('posts').doc(id).update({status:p.status==='SOLD'?'ACTIVE':'SOLD'}); }
-async function openThread(id){ const p=posts.find(x=>x.id===id); if(!p) return; currentThreadId=id; await db.collection('posts').doc(id).update({views:(p.views||0)+1}); renderThreadModal(p); show('threadModal'); }
-function renderThreadModal(post){ currentThread=post; $("threadTitle").textContent=post.title||'Thread'; $("threadMeta").textContent=`${sectionById(post.sectionId)?.name||''} • ${post.authorName||''} • ${formatDate(post.createdAt)}`; $("threadGallery").innerHTML=(post.images||[]).map(src=>`<img src="${src}" alt="">`).join(''); $("threadBody").textContent=post.body||''; $("threadPrice").textContent=priceText(post); $("threadLocation").textContent=post.location||'Not listed'; $("threadContact").textContent=post.contact||'Not listed'; $("editThreadBtn").hidden=!(me&&me.uid===post.uid); $("deleteThreadBtn").hidden=!(me&&me.uid===post.uid); $("adminDeleteThreadBtn").hidden=!isAdmin(); const replies=post.replies||[]; $("replyList").innerHTML=replies.length?replies.map(r=>`<div class="reply-card"><div class="reply-top"><div class="reply-author">${esc(r.authorName||'')}</div><div class="reply-date">${formatDate(r.createdAt)}</div></div><div class="reply-body">${esc(r.body||'')}</div></div>`).join(''):`<div class="empty-box">No replies yet. Be the first to respond.</div>`; }
-async function saveReply(){ const btn=$("saveReplyBtn"); const keep=btn.textContent; try{ btn.disabled=true; btn.textContent='Posting...'; setMsg('replyMsg'); if(!me||!currentThreadId) throw new Error('Open a thread first.'); const body=$("replyBody").value.trim(); if(!body) throw new Error('Reply cannot be empty.'); const p=posts.find(x=>x.id===currentThreadId); if(!p) throw new Error('Thread not found.'); const replies=[...(p.replies||[]),{id:'r_'+Date.now(),uid:me.uid,authorName:displayName(),email:me.email,body,createdAt:new Date().toISOString()}]; await db.collection('posts').doc(currentThreadId).update({replies}); if(containsProfanity(body)) await createModerationAlert('PROFANITY_REPLY',{postId:currentThreadId,byUid:me.uid,byEmail:me.email,title:p.title}); $("replyBody").value=''; hide('replyModal'); } catch(e){ setMsg('replyMsg',e.message||'Reply failed.','error'); } finally{ btn.disabled=false; btn.textContent=keep; } }
-function subscribePosts(){ if(unsubPosts) unsubPosts(); unsubPosts=db.collection('posts').onSnapshot(snap=>{ posts=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); if(currentThreadId){ const fresh=posts.find(p=>p.id===currentThreadId); if(fresh&&!$("threadModal").classList.contains('hidden')) renderThreadModal(fresh); } renderApp(); }); }
-async function onSignedIn(user){ if(!user.emailVerified){ setMsg('authMsg','Please verify your email before using the marketplace.','error'); await auth.signOut(); return; } const snap=await db.collection('profiles').doc(user.uid).get(); if(!snap.exists){ await auth.signOut(); return; } const profile=snap.data(); if(profile.banned){ alert('Your account has been disabled.'); await auth.signOut(); return; } me={uid:user.uid,email:user.email,name:profile.name,username:profile.usernameLower}; syncTopbar(); subscribePosts(); }
-document.addEventListener('DOMContentLoaded',()=>{ bindSlides(); populateSectionSelect(); syncTopbar(); renderApp(); $("tabLogin").onclick=()=>{$("tabLogin").classList.add('active');$("tabSignup").classList.remove('active');$("loginPane").hidden=false;$("signupPane").hidden=true;}; $("tabSignup").onclick=()=>{$("tabSignup").classList.add('active');$("tabLogin").classList.remove('active');$("signupPane").hidden=false;$("loginPane").hidden=true;}; $("btnLogin").onclick=async()=>{ try{ setMsg('authMsg'); const email=$("loginEmail").value.trim().toLowerCase(); const password=$("loginPassword").value.trim(); if(!validWorkEmail(email)) throw new Error('Use your @regallakeland.com email.'); await auth.signInWithEmailAndPassword(email,password);}catch(e){ setMsg('authMsg',e.message||'Login failed.','error'); } }; $("btnForgot").onclick=async()=>{ try{ setMsg('authMsg'); const email=$("loginEmail").value.trim().toLowerCase(); if(!validWorkEmail(email)) throw new Error('Enter your work email first.'); await auth.sendPasswordResetEmail(email); setMsg('authMsg','Password reset email sent.','ok'); }catch(e){ setMsg('authMsg',e.message||'Reset failed.','error'); } }; $("btnSignup").onclick=async()=>{ try{ setMsg('authMsg'); const name=$("signupName").value.trim(); const username=cleanUsername($("signupUsername").value); const email=$("signupEmail").value.trim().toLowerCase(); const p1=$("signupPassword").value.trim(); const p2=$("signupPassword2").value.trim(); if(!name) throw new Error('Enter display name.'); if(username.length<3) throw new Error('Username must be at least 3 characters.'); if(!validWorkEmail(email)) throw new Error('Use your @regallakeland.com email.'); if(p1.length<8) throw new Error('Password must be at least 8 characters.'); if(p1!==p2) throw new Error('Passwords do not match.'); if(!$("agreeRules").checked) throw new Error('You must agree to the rules.'); const unique=await ensureUsernameUnique(username); if(!unique) throw new Error('That username is already taken.'); const cred=await auth.createUserWithEmailAndPassword(email,p1); await db.collection('profiles').doc(cred.user.uid).set({uid:cred.user.uid,email,name,usernameLower:username,banned:false,admin:ADMIN_SET.has(email),ipAddress:'Requires backend capture',createdAt:new Date().toISOString()},{merge:true}); await cred.user.sendEmailVerification(); await auth.signOut(); setMsg('authMsg','Account created. Verify your email before logging in.','ok'); $("tabLogin").click(); $("loginEmail").value=email; }catch(e){ setMsg('authMsg',e.message||'Create account failed.','error'); } }; $("btnLogout").onclick=async()=>{ await auth.signOut(); }; $("viewClassicBtn").onclick=()=>{ currentView='classic'; localStorage.setItem('regal_view_pref',currentView); syncTopbar(); renderApp(); }; $("viewForumBtn").onclick=()=>{ currentView='forum'; localStorage.setItem('regal_view_pref',currentView); syncTopbar(); renderApp(); }; $("btnNewPost").onclick=()=>{ resetComposeForm(); show('composeModal'); }; $("closeComposeBtn").onclick=()=>hide('composeModal'); $("savePostBtn").onclick=savePost; $("composeImages").addEventListener('change',async(e)=>{ await loadComposePreviews(e.target.files); }); $("closeThreadBtn").onclick=()=>hide('threadModal'); $("replyBtn").onclick=()=>show('replyModal'); $("editThreadBtn").onclick=()=>{ hide('threadModal'); if(currentThread) editPost(currentThread.id); }; $("deleteThreadBtn").onclick=()=>{ if(currentThread) deletePost(currentThread.id,false); hide('threadModal'); }; $("adminDeleteThreadBtn").onclick=()=>{ if(currentThread) deletePost(currentThread.id,true); hide('threadModal'); }; $("closeReplyBtn").onclick=()=>hide('replyModal'); $("saveReplyBtn").onclick=saveReply; auth.onAuthStateChanged(async(user)=>{ if(!user){ me=null; syncTopbar(); renderApp(); return; } await onSignedIn(user); }); });
+import { firebaseConfig, ADMIN_EMAILS, SECTION_GROUPS, PROFANITY_WORDS } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendPasswordResetEmail, sendEmailVerification, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
+  query, where, orderBy, onSnapshot, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+const esc = (v) => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+const byId = (id) => document.getElementById(id);
+
+let currentUser = null;
+let currentProfile = null;
+let currentMode = "classic";
+let forumView = { type: "boards", sectionId: null, threadId: null };
+let currentPosts = [];
+let composeImages = [];
+let editingId = null;
+let replyTargetId = null;
+let postsUnsub = null;
+
+function getSectionById(id){ return SECTION_GROUPS.flatMap(g => g.sections).find(s => s.id === id); }
+function validWorkEmail(email){ return String(email || "").toLowerCase().endsWith("@regallakeland.com"); }
+function initials(name){ return String(name || "?").split(" ").filter(Boolean).slice(0,2).map(x => x[0].toUpperCase()).join(""); }
+function formatDate(v){
+  if(!v) return "";
+  const d = v?.toDate ? v.toDate() : new Date(v);
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+}
+function showNotice(id, msg){ const el = byId(id); el.textContent = msg; el.hidden = false; }
+function hideNotice(id){ const el = byId(id); el.hidden = true; el.textContent = ""; }
+function isAdmin(){ return !!currentUser && ADMIN_EMAILS.includes(currentUser.email.toLowerCase()); }
+function containsProfanity(text){
+  const lower = String(text || "").toLowerCase();
+  return PROFANITY_WORDS.some(w => lower.includes(w));
+}
+function bindSlideshow(){
+  const slides = [...document.querySelectorAll(".bg-slide")];
+  let i = 0;
+  setInterval(() => {
+    slides[i].classList.remove("active");
+    i = (i + 1) % slides.length;
+    slides[i].classList.add("active");
+  }, 4200);
+}
+bindSlideshow();
+
+function syncAuthUI(){
+  const loggedIn = !!currentUser && !!currentProfile;
+  byId("authGate").hidden = loggedIn;
+  byId("shell").hidden = !loggedIn;
+  byId("adminLink").hidden = !isAdmin();
+  if(loggedIn){
+    byId("userChip").textContent = `${currentProfile.displayName} • ${currentUser.email}`;
+  }
+}
+function switchAuthTab(mode){
+  byId("loginPane").hidden = mode !== "login";
+  byId("signupPane").hidden = mode !== "signup";
+  byId("loginTab").classList.toggle("active", mode === "login");
+  byId("signupTab").classList.toggle("active", mode === "signup");
+  hideNotice("authMsg");
+}
+async function ensureProfile(uid){
+  const snap = await getDoc(doc(db, "profiles", uid));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+async function signup(){
+  try{
+    hideNotice("authMsg");
+    const displayName = byId("signupName").value.trim();
+    const email = byId("signupEmail").value.trim().toLowerCase();
+    const p1 = byId("signupPassword").value.trim();
+    const p2 = byId("signupPassword2").value.trim();
+    if(!displayName) throw new Error("Enter a display name.");
+    if(!validWorkEmail(email)) throw new Error("Only @regallakeland.com emails are allowed.");
+    if(p1.length < 8) throw new Error("Password must be at least 8 characters.");
+    if(p1 !== p2) throw new Error("Passwords do not match.");
+    const q = query(collection(db, "profiles"), where("displayNameLower", "==", displayName.toLowerCase()));
+    const matches = await getDocs(q);
+    if(!matches.empty) throw new Error("That display name is already taken.");
+    const cred = await createUserWithEmailAndPassword(auth, email, p1);
+    await setDoc(doc(db, "profiles", cred.user.uid), {
+      uid: cred.user.uid,
+      displayName,
+      displayNameLower: displayName.toLowerCase(),
+      email,
+      role: ADMIN_EMAILS.includes(email) ? "admin" : "user",
+      banned: false,
+      createdAt: serverTimestamp()
+    });
+    await sendEmailVerification(cred.user);
+    await signOut(auth);
+    showNotice("authMsg", "Account created. Verify your email, then log in.");
+    switchAuthTab("login");
+    byId("loginEmail").value = email;
+  }catch(err){
+    showNotice("authMsg", err.message || "Signup failed.");
+  }
+}
+async function login(){
+  try{
+    hideNotice("authMsg");
+    const email = byId("loginEmail").value.trim().toLowerCase();
+    const password = byId("loginPassword").value.trim();
+    if(!validWorkEmail(email)) throw new Error("Only @regallakeland.com emails are allowed.");
+    await signInWithEmailAndPassword(auth, email, password);
+  }catch(err){
+    showNotice("authMsg", err.message || "Login failed.");
+  }
+}
+async function forgotPassword(){
+  try{
+    hideNotice("authMsg");
+    const email = byId("loginEmail").value.trim().toLowerCase();
+    if(!validWorkEmail(email)) throw new Error("Enter a valid work email.");
+    await sendPasswordResetEmail(auth, email);
+    showNotice("authMsg", "Password reset email sent.");
+  }catch(err){
+    showNotice("authMsg", err.message || "Password reset failed.");
+  }
+}
+async function logout(){ await signOut(auth); }
+
+function resetComposer(){
+  editingId = null;
+  composeImages = [];
+  byId("composeHeading").textContent = "Create Post";
+  byId("savePostBtn").textContent = "Publish";
+  byId("composeTitle").value = "";
+  byId("composeBody").value = "";
+  byId("composePrice").value = "";
+  byId("composeLocation").value = "Lakeland";
+  byId("composeContact").value = "";
+  byId("composeStatus").value = "active";
+  byId("composeImages").value = "";
+  byId("composePreview").innerHTML = "";
+  hideNotice("composeMsg");
+}
+function populateSections(selected = ""){
+  const sections = SECTION_GROUPS.flatMap(g => g.sections);
+  byId("composeSection").innerHTML = sections.map(s => `<option value="${s.id}" ${selected===s.id?"selected":""}>${esc(s.name)}</option>`).join("");
+}
+function openComposer(postId = null){
+  resetComposer();
+  editingId = postId;
+  if(postId){
+    const post = getPostById(postId);
+    if(!post) return;
+    byId("composeHeading").textContent = "Edit Post";
+    byId("savePostBtn").textContent = "Save Changes";
+    populateSections(post.sectionId);
+    byId("composeTitle").value = post.title || "";
+    byId("composeBody").value = post.body || "";
+    byId("composePrice").value = post.price === "FREE" ? "" : (post.price || "");
+    byId("composeLocation").value = post.location || "";
+    byId("composeContact").value = post.contact || "";
+    byId("composeStatus").value = post.status || "active";
+    composeImages = Array.isArray(post.imageUrls) ? [...post.imageUrls] : [];
+    byId("composePreview").innerHTML = composeImages.map(src => `<img src="${src}" alt="">`).join("");
+  } else {
+    populateSections();
+  }
+  byId("composeModal").hidden = false;
+}
+function closeComposer(){ byId("composeModal").hidden = true; }
+
+function getPostsBySection(sectionId){
+  return currentPosts.filter(p => p.sectionId === sectionId).sort((a,b) => getLastActivity(b) - getLastActivity(a));
+}
+function getLastReply(post){ return post.replies?.length ? post.replies[post.replies.length - 1] : null; }
+function getLastActivity(post){
+  const reply = getLastReply(post);
+  const value = reply?.createdAt || post.createdAt;
+  return value?.toDate ? value.toDate() : new Date(value || 0);
+}
+function getPostById(id){ return currentPosts.find(p => p.id === id); }
+
+function renderClassic(){
+  const appRoot = byId("appRoot");
+  const posts = [...currentPosts].sort((a,b) => getLastActivity(b) - getLastActivity(a));
+  appRoot.innerHTML = `
+    <div class="header-row">
+      <div><h2>Classic View</h2><div class="sub">OfferUp-style browsing with image-first cards</div></div>
+    </div>
+    <div class="classic-grid">
+      ${posts.map(post => {
+        const canEdit = currentUser && post.ownerUid === currentUser.uid;
+        return `
+          <div class="grid-card">
+            <div class="grid-media">
+              ${post.imageUrls?.length ? `<img src="${post.imageUrls[0]}" alt="">` : ``}
+              <div class="badge ${post.status==="sold"?"sold":""}">${esc(post.status === "sold" ? "Sold" : "Active")}</div>
+            </div>
+            <div class="grid-body">
+              <div class="grid-title">${esc(post.title)}</div>
+              <div class="price-pill">${esc(post.price || "FREE")}</div>
+              <div class="meta">${esc(getSectionById(post.sectionId)?.name || "")} • ${esc(post.location || "Lakeland")} • ${esc(post.authorName || "")}</div>
+              <div class="body-text">${esc(post.body || "").slice(0, 160)}${(post.body || "").length > 160 ? "..." : ""}</div>
+              <div class="actions">
+                <button class="btn open-post" data-id="${post.id}" type="button">Open</button>
+                ${canEdit ? `<button class="btn edit-post" data-id="${post.id}" type="button">Edit</button><button class="btn sold-post" data-id="${post.id}" type="button">${post.status==="sold"?"Mark Active":"Mark Sold"}</button>` : ""}
+                ${isAdmin() ? `<button class="btn danger admin-del" data-id="${post.id}" type="button">Delete</button>` : ""}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+  appRoot.querySelectorAll(".open-post").forEach(btn => btn.addEventListener("click", () => {
+    forumView = { type: "thread", sectionId: getPostById(btn.dataset.id)?.sectionId || null, threadId: btn.dataset.id };
+    currentMode = "forum";
+    updateModeButtons();
+    render();
+  }));
+  appRoot.querySelectorAll(".edit-post").forEach(btn => btn.addEventListener("click", () => openComposer(btn.dataset.id)));
+  appRoot.querySelectorAll(".sold-post").forEach(btn => btn.addEventListener("click", () => toggleSold(btn.dataset.id)));
+  appRoot.querySelectorAll(".admin-del").forEach(btn => btn.addEventListener("click", () => deletePost(btn.dataset.id)));
+}
+
+function boardRowHtml(section){
+  const posts = getPostsBySection(section.id);
+  const last = posts[0];
+  const lastReply = last ? getLastReply(last) : null;
+  return `
+    <div class="board-row" data-section="${section.id}">
+      <div class="board-main">
+        <div class="avatar">💬</div>
+        <div>
+          <div class="title">${esc(section.name)}</div>
+          <div class="desc">${esc(section.desc)}</div>
+        </div>
+      </div>
+      <div class="stat">${posts.length}<span>threads</span></div>
+      <div class="last">
+        ${last?.imageUrls?.length ? `<div class="thumb"><img src="${last.imageUrls[0]}" alt=""></div>` : `<div class="mini">${last ? initials(lastReply ? lastReply.author : last.authorName) : "—"}</div>`}
+        <div>
+          <div style="font-size:16px;font-weight:800">${last ? esc(last.title) : "No threads yet"}</div>
+          <div class="desc">${last ? `${esc(lastReply ? lastReply.author : last.authorName)}, ${formatDate(getLastActivity(last))}` : "Start the first thread"}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function renderBoards(){
+  const appRoot = byId("appRoot");
+  appRoot.innerHTML = SECTION_GROUPS.map(group => `
+    <div class="section-group-title">${esc(group.title)}</div>
+    <div class="board-table">${group.sections.map(boardRowHtml).join("")}</div>
+  `).join("");
+  appRoot.querySelectorAll("[data-section]").forEach(row => row.addEventListener("click", () => {
+    forumView = { type: "section", sectionId: row.dataset.section, threadId: null };
+    render();
+  }));
+}
+function topicRowHtml(post){
+  const lastReply = getLastReply(post);
+  return `
+    <div class="topic-row" data-thread="${post.id}">
+      <div class="topic-main">
+        ${post.imageUrls?.length ? `<div class="thumb"><img src="${post.imageUrls[0]}" alt=""></div>` : `<div class="avatar">💬</div>`}
+        <div>
+          <div class="title">${esc(post.title)}</div>
+          <div class="desc">${esc(post.authorName)}, ${formatDate(post.createdAt)} • ${esc(post.price || "FREE")}</div>
+        </div>
+      </div>
+      <div class="stat">${(post.replies || []).length}<span>replies</span></div>
+      <div class="stat">${post.views || 0}<span>views</span></div>
+      <div class="last">
+        <div class="mini">${initials(lastReply ? lastReply.author : post.authorName)}</div>
+        <div>
+          <div style="font-size:16px;font-weight:800">${esc(lastReply ? lastReply.author : post.authorName)}</div>
+          <div class="desc">${formatDate(getLastActivity(post))}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function bindTopicRows(sectionId){
+  document.querySelectorAll("[data-thread]").forEach(row => row.addEventListener("click", () => {
+    forumView = { type: "thread", sectionId, threadId: row.dataset.thread };
+    render();
+  }));
+}
+function renderSection(sectionId){
+  const section = getSectionById(sectionId);
+  const posts = getPostsBySection(sectionId);
+  const appRoot = byId("appRoot");
+  appRoot.innerHTML = `
+    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / ${esc(section.name)}</div>
+    <div class="header-row">
+      <div><h2>${esc(section.name)}</h2><div class="sub">${esc(section.desc)}</div></div>
+      <input id="sectionSearch" class="search" placeholder="Search this section...">
+    </div>
+    <div id="topicTable" class="topic-table">${posts.length ? posts.map(topicRowHtml).join("") : `<div class="empty">No threads in this section yet.</div>`}</div>
+  `;
+  byId("crumbBoards").addEventListener("click", (e) => {
+    e.preventDefault();
+    forumView = { type: "boards", sectionId: null, threadId: null };
+    render();
+  });
+  bindTopicRows(sectionId);
+  byId("sectionSearch").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const filtered = posts.filter(p => (`${p.title} ${p.body} ${p.authorName} ${p.contact}`).toLowerCase().includes(q));
+    byId("topicTable").innerHTML = filtered.length ? filtered.map(topicRowHtml).join("") : `<div class="empty">No matching threads found.</div>`;
+    bindTopicRows(sectionId);
+  });
+}
+async function renderThread(postId){
+  const post = getPostById(postId);
+  if(!post) return;
+  const section = getSectionById(post.sectionId);
+  const replyHtml = (post.replies || []).length ? post.replies.map(r => `
+    <div class="reply-card">
+      <div class="reply-top"><div class="reply-author">${esc(r.author)}</div><div class="reply-date">${formatDate(r.createdAt)}</div></div>
+      <div style="margin-top:10px;line-height:1.55">${esc(r.body)}</div>
+    </div>
+  `).join("") : `<div class="empty">No replies yet. Be the first to respond.</div>`;
+  const canEdit = currentUser && post.ownerUid === currentUser.uid;
+  const gallery = post.imageUrls?.length ? `<div class="gallery">${post.imageUrls.map(url => `<img src="${url}" alt="">`).join("")}</div>` : "";
+  const appRoot = byId("appRoot");
+  appRoot.innerHTML = `
+    <div class="breadcrumbs"><a href="#" id="crumbBoards">Boards</a> / <a href="#" id="crumbSection">${esc(section.name)}</a> / ${esc(post.title)}</div>
+    <div class="thread-card">
+      <div class="thread-top">
+        <div>
+          <div class="thread-title">${esc(post.title)}</div>
+          <div class="meta-line">Started by ${esc(post.authorName)} • ${formatDate(post.createdAt)}</div>
+        </div>
+        <div class="price-pill">${esc(post.price || "FREE")} • ${esc(post.status === "sold" ? "Sold" : "Active")}</div>
+      </div>
+      <div class="body-text" style="font-size:15px">${esc(post.body || "")}</div>
+      ${gallery}
+      <div class="info-grid">
+        <div class="info"><div class="info-label">Location</div><div class="info-value">${esc(post.location || "Not listed")}</div></div>
+        <div class="info"><div class="info-label">Contact</div><div class="info-value">${esc(post.contact || "Not listed")}</div></div>
+        <div class="info"><div class="info-label">Views / Replies</div><div class="info-value">${post.views || 0} views • ${(post.replies || []).length} replies</div></div>
+      </div>
+      <div class="actions">
+        <button id="replyBtn" class="btn primary" type="button">Reply</button>
+        ${canEdit ? `<button id="editBtn" class="btn" type="button">Edit</button><button id="soldBtn" class="btn" type="button">${post.status==="sold"?"Mark Active":"Mark Sold"}</button>` : ""}
+        ${isAdmin() ? `<button id="deleteBtn" class="btn danger" type="button">Delete</button>` : ""}
+        <button id="backBtn" class="btn" type="button">Back to ${esc(section.name)}</button>
+      </div>
+    </div>
+    <div class="replies-wrap"><div class="reply-title">Replies</div>${replyHtml}</div>
+  `;
+  byId("crumbBoards").addEventListener("click", (e) => {
+    e.preventDefault();
+    forumView = { type: "boards", sectionId: null, threadId: null };
+    render();
+  });
+  byId("crumbSection").addEventListener("click", (e) => {
+    e.preventDefault();
+    forumView = { type: "section", sectionId: section.id, threadId: null };
+    render();
+  });
+  byId("backBtn").addEventListener("click", () => {
+    forumView = { type: "section", sectionId: section.id, threadId: null };
+    render();
+  });
+  byId("replyBtn").addEventListener("click", () => {
+    replyTargetId = post.id;
+    byId("replyModal").hidden = false;
+  });
+  if(canEdit){
+    byId("editBtn").addEventListener("click", () => openComposer(post.id));
+    byId("soldBtn").addEventListener("click", () => toggleSold(post.id));
+  }
+  if(isAdmin()){
+    byId("deleteBtn").addEventListener("click", () => deletePost(post.id));
+  }
+  if(currentUser && post.ownerUid !== currentUser.uid){
+    await updateDoc(doc(db, "posts", post.id), { views: (post.views || 0) + 1 });
+  }
+}
+function updateModeButtons(){
+  byId("classicBtn").classList.toggle("active", currentMode === "classic");
+  byId("forumBtn").classList.toggle("active", currentMode === "forum");
+}
+function render(){
+  updateModeButtons();
+  if(currentMode === "classic"){ renderClassic(); }
+  else if(forumView.type === "boards"){ renderBoards(); }
+  else if(forumView.type === "section"){ renderSection(forumView.sectionId); }
+  else { renderThread(forumView.threadId); }
+}
+function fileToDataURL(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadImages(postId, files){
+  const urls = [];
+  const limited = [...files].slice(0, 10);
+  for(const file of limited){
+    const storageRef = ref(storage, `posts/${postId}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    urls.push(await getDownloadURL(storageRef));
+  }
+  return urls;
+}
+async function handleComposeImages(files){
+  const limited = [...files].slice(0, 10);
+  const previews = await Promise.all(limited.map(fileToDataURL));
+  const existingRemote = composeImages.filter(url => String(url).startsWith("http"));
+  composeImages = [...existingRemote, ...previews];
+  byId("composePreview").innerHTML = composeImages.map(src => `<img src="${src}" alt="">`).join("");
+}
+async function savePost(){
+  try{
+    hideNotice("composeMsg");
+    const sectionId = byId("composeSection").value;
+    const title = byId("composeTitle").value.trim();
+    const body = byId("composeBody").value.trim();
+    const rawPrice = byId("composePrice").value.trim();
+    const price = rawPrice || "FREE";
+    const location = byId("composeLocation").value.trim() || "Lakeland";
+    const contact = byId("composeContact").value.trim();
+    const status = byId("composeStatus").value;
+    const files = byId("composeImages").files;
+    if(!title || !body) throw new Error("Title and description are required.");
+
+    if(editingId){
+      const existing = getPostById(editingId);
+      let imageUrls = existing.imageUrls || [];
+      if(files.length){ imageUrls = await uploadImages(editingId, files); }
+      await updateDoc(doc(db, "posts", editingId), {
+        sectionId, title, body, price, location, contact, status, imageUrls, updatedAt: serverTimestamp()
+      });
+    } else {
+      const newRef = doc(collection(db, "posts"));
+      const newId = newRef.id;
+      let imageUrls = [];
+      if(files.length){ imageUrls = await uploadImages(newId, files); }
+      await setDoc(newRef, {
+        ownerUid: currentUser.uid,
+        ownerEmail: currentUser.email,
+        authorName: currentProfile.displayName,
+        sectionId, title, body, price, location, contact, status,
+        imageUrls, replies: [], views: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+    }
+
+    if(containsProfanity(`${title} ${body} ${contact}`)){
+      await addDoc(collection(db, "moderationAlerts"), {
+        type: "profanity",
+        postTitle: title,
+        byEmail: currentUser.email,
+        createdAt: serverTimestamp(),
+        message: "Profanity flagged for admin review."
+      });
+    }
+    closeComposer();
+  }catch(err){
+    showNotice("composeMsg", err.message || "Save failed.");
+  }
+}
+async function saveReply(){
+  try{
+    const body = byId("replyBody").value.trim();
+    if(!body || !replyTargetId) return;
+    const post = getPostById(replyTargetId);
+    const replies = [...(post.replies || []), {
+      author: currentProfile.displayName,
+      body,
+      createdAt: new Date().toISOString()
+    }];
+    await updateDoc(doc(db, "posts", replyTargetId), { replies });
+    byId("replyBody").value = "";
+    byId("replyModal").hidden = true;
+  }catch(err){
+    console.error(err);
+  }
+}
+async function toggleSold(postId){
+  const post = getPostById(postId);
+  if(!post) return;
+  await updateDoc(doc(db, "posts", postId), { status: post.status === "sold" ? "active" : "sold" });
+}
+async function deletePost(postId){
+  if(!isAdmin()) return;
+  if(!confirm("Delete this post?")) return;
+  await deleteDoc(doc(db, "posts", postId));
+}
+function subscribePosts(){
+  if(postsUnsub) postsUnsub();
+  const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+  postsUnsub = onSnapshot(q, (snap) => {
+    currentPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+}
+
+byId("loginTab").onclick = () => switchAuthTab("login");
+byId("signupTab").onclick = () => switchAuthTab("signup");
+byId("loginBtn").onclick = login;
+byId("signupBtn").onclick = signup;
+byId("forgotBtn").onclick = forgotPassword;
+byId("logoutBtn").onclick = logout;
+byId("boardsBtn").onclick = () => { currentMode = "forum"; forumView = { type: "boards", sectionId: null, threadId: null }; render(); };
+byId("classicBtn").onclick = () => { currentMode = "classic"; render(); };
+byId("forumBtn").onclick = () => { currentMode = "forum"; render(); };
+byId("newBtn").onclick = () => openComposer();
+byId("closeComposeBtn").onclick = closeComposer;
+byId("savePostBtn").onclick = savePost;
+byId("composeImages").addEventListener("change", (e) => handleComposeImages(e.target.files));
+byId("closeReplyBtn").onclick = () => { byId("replyModal").hidden = true; };
+byId("saveReplyBtn").onclick = saveReply;
+
+onAuthStateChanged(auth, async (user) => {
+  if(!user){
+    currentUser = null;
+    currentProfile = null;
+    syncAuthUI();
+    return;
+  }
+  if(!user.emailVerified){
+    showNotice("authMsg", "Verify your email first, then log in.");
+    await signOut(auth);
+    return;
+  }
+  currentUser = user;
+  currentProfile = await ensureProfile(user.uid);
+  if(!currentProfile){
+    await signOut(auth);
+    showNotice("authMsg", "Profile missing. Create the account again.");
+    return;
+  }
+  if(currentProfile.banned){
+    await signOut(auth);
+    showNotice("authMsg", "This account has been banned.");
+    return;
+  }
+  syncAuthUI();
+  subscribePosts();
+});

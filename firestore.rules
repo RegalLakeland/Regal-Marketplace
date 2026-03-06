@@ -1,13 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function employee() {
       return request.auth != null
         && request.auth.token.email != null
         && request.auth.token.email.matches('.*@regallakeland\\.com$')
         && request.auth.token.email_verified == true;
     }
-    function admin() {
+
+    function isAdmin() {
       return employee() && (
         request.auth.token.email == 'michael.h@regallakeland.com' ||
         request.auth.token.email == 'janni.r@regallakeland.com' ||
@@ -15,19 +17,27 @@ service cloud.firestore {
         request.auth.token.email == 'amy.m@regallakeland.com'
       );
     }
+
     match /profiles/{uid} {
       allow read: if employee();
       allow create: if employee() && request.auth.uid == uid;
-      allow update: if (employee() && request.auth.uid == uid) || admin();
+      allow update: if (employee() && request.auth.uid == uid) || isAdmin();
+      allow delete: if isAdmin();
     }
-    match /posts/{id} {
+
+    match /posts/{postId} {
       allow read: if employee();
-      allow create: if employee() && request.resource.data.uid == request.auth.uid && request.resource.data.email == request.auth.token.email;
-      allow update, delete: if admin() || (employee() && request.auth.uid == resource.data.uid);
+      allow create: if employee()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerEmail == request.auth.token.email;
+      allow update: if (employee() && request.auth.uid == resource.data.ownerUid) || isAdmin();
+      allow delete: if isAdmin();
     }
-    match /alerts/{id} {
+
+    match /moderationAlerts/{alertId} {
+      allow read: if isAdmin();
       allow create: if employee();
-      allow read, update, delete: if admin();
+      allow update, delete: if isAdmin();
     }
   }
 }
