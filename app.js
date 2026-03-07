@@ -572,3 +572,4 @@ if (document.readyState === "loading") {
 } else {
   initMarketplace();
 }
+}
