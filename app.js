@@ -565,7 +565,7 @@ function initMarketplace(){
     if (!id) return;
 
     if (action === "openThread") openThread(id);
-}
+  });
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initMarketplace, { once: true });
