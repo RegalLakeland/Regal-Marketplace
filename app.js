@@ -1,5 +1,3 @@
-
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
   getAuth,
@@ -30,7 +28,14 @@ import {
   getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+
+
+window.addEventListener("error", (e) => {
+  console.error("Marketplace JS error:", e.error || e.message);
+});
+
+function initMarketplace(){
+
 
   const firebaseConfig = {
     apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
@@ -430,7 +435,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }catch(e){
       console.error(e);
-      alert("Login failed. Check email/password.");
+      alert(e?.code ? `${e.code} — ${e.message}` : "Login failed. Check email/password.");
     }
   });
 
@@ -492,8 +497,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-  $("btnResendVerify")?.addEventListener("click", ()=>{
-    alert("Please use the verification email that was sent when the account was created. If you need a fresh one, create the account again or I can add a resend flow next.");
+  $("btnResendVerify")?.addEventListener("click", async ()=>{
+    try{
+      const currentUser = auth.currentUser;
+      if (currentUser){
+        await sendEmailVerification(currentUser);
+        alert("Verification email resent. Check your inbox and spam folder.");
+      } else {
+        alert("Sign in again or create the account again to trigger a new verification email.");
+      }
+    }catch(e){
+      console.error(e);
+      alert(e?.message || "Could not resend verification email.");
+    }
   });
 
   $("q")?.addEventListener("input", render);
@@ -549,4 +565,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!id) return;
 
     if (action === "openThread") openThread(id);
-  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initMarketplace, { once: true });
+} else {
+  initMarketplace();
+}
