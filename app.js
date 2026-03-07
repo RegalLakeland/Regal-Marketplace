@@ -33,11 +33,6 @@ import {
   getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
-/**
- * IMPORTANT:
- * This uses YOUR existing Firebase config you pasted earlier.
- * Keep these values as-is unless you changed them in Firebase.
- */
 const firebaseConfig = {
   apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
   authDomain: "regal-lakeland-marketplace.firebaseapp.com",
@@ -46,13 +41,6 @@ const firebaseConfig = {
   messagingSenderId: "1014346693296",
   appId: "1:1014346693296:web:fc76118d1a8db347945975"
 };
-
-const ADMINS = new Set([
-  "Michael.H@regallakeland.com",
-  "janni.r@regallakeland.com",
-  "chrissy.h@regallakeland.com",
-  "amy.m@regallakeland.com"
-].map(x => x.toLowerCase()));
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -64,7 +52,6 @@ const show = (id) => { $(id).style.display = "flex"; };
 const hide = (id) => { $(id).style.display = "none"; };
 const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
-// Auth tabs UI
 function showPane(which){
   const loginPane = document.getElementById("loginPane");
   const signupPane = document.getElementById("signupPane");
@@ -90,15 +77,12 @@ function isAllowedEmail(email){
   return e.endsWith("@regallakeland.com");
 }
 
-
 let user = null;
-let isAdmin = false;
 let profile = null;
 let listings = [];
 let activeBoard = "ALL";
 let openThreadId = null;
 
-// Board defs
 const BOARD_DEFS = [
   { key:"ALL", name:"All", desc:"Everything in one place" },
   { key:"FREE", name:"Free Items", desc:"Giveaways • curb alerts" },
@@ -130,7 +114,6 @@ function prettyTime(ts){
   }catch{ return "—";}
 }
 
-
 async function loadProfile(){
   const refDoc = doc(db, "profiles", user.uid);
   const snap = await getDoc(refDoc);
@@ -152,7 +135,6 @@ function displayName(){
 
 function isBanned(){ return !!profile?.banned; }
 
-
 function countByBoard(list){
   const map = { ALL: list.length };
   for (const b of BOARD_DEFS) map[b.key] = 0;
@@ -169,7 +151,6 @@ function setActiveBoard(key){
   $("boardPill").textContent = def.name;
   $("feedTitle").textContent = def.key === "ALL" ? "Marketplace" : def.name;
 
-  // toggle active classes
   [...$("boards").querySelectorAll(".boardBtn")].forEach(btn=>{
     btn.classList.toggle("active", btn.dataset.key === key);
   });
@@ -267,7 +248,6 @@ function render(){
         <span class="tag">${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
         <span class="tag">By: ${esc(x.displayName || x.userEmail || "—")}</span>
         <button class="btn mini" data-action="openThread">Open Thread</button>
-        ${isAdmin ? `<button class="btn mini danger" data-action="deletePost">Admin Delete</button>` : ""}
       </div>
     `;
 
@@ -275,7 +255,6 @@ function render(){
   }
 }
 
-/** THREAD VIEW */
 async function openThread(id){
   const item = listings.find(x => x.id === id);
   if (!item) return;
@@ -317,7 +296,6 @@ function renderReplies(replies){
   }
 }
 
-/** Upload image -> download URL */
 async function uploadImageToStorage(file){
   const path = `listingPhotos/${user.uid}/${Date.now()}_${file.name}`;
   const storageRef = ref(storage, path);
@@ -358,10 +336,8 @@ async function createPost(){
     photo: photoUrl,
     replies: [],
     createdAtMs: Date.now(),
-    createdAtMs: Date.now()
   });
 
-  // reset
   $("fTitle").value = "";
   $("fPrice").value = "";
   $("fLocation").value = "";
@@ -401,26 +377,13 @@ async function sendReply(){
   }
 }
 
-async function adminDelete(id){
-  if (!isAdmin) return alert("Admin only.");
-  if (!confirm("Admin delete this post?")) return;
-  await deleteDoc(doc(db, "listings", id));
-  // close thread if open
-  if (openThreadId === id){
-    openThreadId = null;
-    hide("threadOverlay");
-  }
-}
-
-// UI wiring
-$("btnLogin").addEventListener("click", async ()=>{
-  const email = $("loginEmail").value.trim();
-  const pass = $("loginPassword").value.trim();
+$("mainLoginButton").addEventListener("click", async ()=>{
+  const email = $("mainLoginEmail").value.trim();
+  const pass = $("mainLoginPassword").value.trim();
   if (!email || !pass) return alert("Enter email and password.");
   if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
   try{
     const cred = await signInWithEmailAndPassword(auth, email, pass);
-    // If not verified, block access until verified
     if (!cred.user.emailVerified){
       $("verifyNote").style.display = "block";
       $("btnResendVerify").style.display = "inline-flex";
@@ -489,7 +452,6 @@ $("btnSaveName").addEventListener("click", async ()=>{
   render();
 });
 
-
 document.body.addEventListener("click", (e)=>{
   const btn = e.target.closest("[data-close]");
   if (btn){
@@ -506,30 +468,26 @@ document.body.addEventListener("click", (e)=>{
   if (!id) return;
 
   if (action === "openThread") openThread(id);
-  if (action === "deletePost") adminDelete(id);
 });
 
 ["q","st","sort"].forEach(id => $(id).addEventListener("input", render));
 
-// Auth + realtime listener
 onAuthStateChanged(auth, async (u)=>{
   user = u;
   if (user && !user.emailVerified){
     alert("Please verify your email before using the marketplace.");
     await signOut(auth);
-    show("loginOverlay");
+    show("mainLoginOverlay");
     return;
   }
   if (!user){
     $("pillUser").textContent = "Not signed in";
-    show("loginOverlay");
+    show("mainLoginOverlay");
     return;
   }
 
-  hide("loginOverlay");
+  hide("mainLoginOverlay");
   $("pillUser").textContent = `Signed in: ${displayName()}`;
-  isAdmin = ADMINS.has(user.email.toLowerCase());
-  $("adminLink").style.display = isAdmin ? "inline-flex" : "none";
   
   (async ()=>{
     try{
@@ -550,18 +508,14 @@ onAuthStateChanged(auth, async (u)=>{
     }
   })();
 
-
-  // presence heartbeat
   setInterval(async ()=>{ try{ await upsertPresence({}); }catch{} }, 60_000);
 
-  // realtime listings
   const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
   onSnapshot(qy, (snap)=>{
     listings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     renderBoards();
     render();
 
-    // keep thread modal updated live if open
     if (openThreadId){
       const item = listings.find(x=>x.id===openThreadId);
       if (item){
