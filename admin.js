@@ -1,4 +1,3 @@
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
   getAuth,
@@ -60,7 +59,6 @@ $("btnLogin").addEventListener("click", async ()=>{
 
 $("btnLogout").addEventListener("click", async ()=>{
   await signOut(auth);
-  location.reload();
 });
 
 function render(){
@@ -158,29 +156,36 @@ function renderUsers(){
   });
 }
 
-hide("loginOverlay");
-
-onAuthStateChanged(auth, (u)=>{
+onAuthStateChanged(auth, (u) => {
   user = u;
-  if (!user || !ADMINS.has(user.email.toLowerCase())) {
+  if (user && user.email && ADMINS.has(user.email.toLowerCase())) {
+    hide("loginOverlay");
+    $("pillUser").textContent = `Admin: ${user.email}`;
+
+    const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
+    onSnapshot(qy, (snap) => {
+      posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    });
+
+    const pq = query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc"));
+    onSnapshot(pq, (snap) => {
+      profiles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderUsers();
+    });
+  } else {
+    if (user) {
+      alert("This account is not an admin.");
+      signOut(auth);
+    }
     user = null;
+    posts = [];
+    profiles = [];
     show("loginOverlay");
     $("pillUser").textContent = "Not signed in";
-    return;
+    $("tableWrap").innerHTML = "";
+    $("usersWrap").innerHTML = "";
+    $("countLine").textContent = "0 posts";
+    $("userCountLine").textContent = "0 users";
   }
-
-  hide("loginOverlay");
-  $("pillUser").textContent = `Admin: ${user.email}`;
-
-  const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
-  onSnapshot(qy, (snap)=>{
-    posts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-    render();
-  });
-
-  const pq = query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc"));
-  onSnapshot(pq, (snap)=>{
-    profiles = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-    renderUsers();
-  });
 });
