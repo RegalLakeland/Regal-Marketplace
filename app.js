@@ -51,10 +51,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
   function showPane(which){
-    const loginPane = document.getElementById("loginPane");
-    const signupPane = document.getElementById("signupPane");
-    const tabLogin = document.getElementById("tabLogin");
-    const tabSignup = document.getElementById("tabSignup");
+    const loginPane = $("loginPane");
+    const signupPane = $("signupPane");
+    const tabLogin = $("tabLogin");
+    const tabSignup = $("tabSignup");
     if (which === "login"){
       loginPane.style.display = "block";
       signupPane.style.display = "none";
@@ -67,8 +67,8 @@ document.addEventListener("DOMContentLoaded", () => {
       tabLogin.classList.remove("active");
     }
   }
-  document.getElementById("tabLogin")?.addEventListener("click", ()=>showPane("login"));
-  document.getElementById("tabSignup")?.addEventListener("click", ()=>showPane("signup"));
+  $("tabLogin")?.addEventListener("click", ()=>showPane("login"));
+  $("tabSignup")?.addEventListener("click", ()=>showPane("signup"));
 
   function isAllowedEmail(email){
     const e = String(email||"").trim().toLowerCase();
@@ -181,9 +181,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function applyFilters(list){
-    const q = ($("q").value || "").trim().toLowerCase();
-    const st = $("st").value;
-    const sort = $("sort").value;
+    const q = ($("q")?.value || "").trim().toLowerCase();
+    const st = $("st")?.value;
+    const sort = $("sort")?.value;
 
     let out = list.slice();
 
@@ -207,6 +207,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function render(){
     const cards = $("cards");
     const empty = $("empty");
+    if (!cards || !empty) return;
+
     const filtered = applyFilters(listings);
 
     $("countLine").textContent = `${filtered.length} shown • ${listings.length} total`;
@@ -375,7 +377,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  $("mainLoginButton").addEventListener("click", async ()=>{
+  $("mainLoginButton")?.addEventListener("click", async ()=>{
     const email = $("mainLoginEmail").value.trim();
     const pass = $("mainLoginPassword").value.trim();
     if (!email || !pass) return alert("Enter email and password.");
@@ -424,14 +426,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  $("btnLogout").addEventListener("click", async ()=>{
+  $("btnLogout")?.addEventListener("click", async ()=>{
     await signOut(auth);
     location.reload();
   });
 
-  $("btnNew").addEventListener("click", ()=> show("postOverlay"));
-  $("btnSavePost").addEventListener("click", ()=> createPost());
-  $("btnSendReply").addEventListener("click", ()=> sendReply());
+  $("btnNew")?.addEventListener("click", ()=> show("postOverlay"));
+  $("btnSavePost")?.addEventListener("click", ()=> createPost());
+  $("btnSendReply")?.addEventListener("click", ()=> sendReply());
           
   function showNameOverlay(){
     $("displayNameInput").value = profile?.name || "";
@@ -440,7 +442,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function hideNameOverlay(){ $("nameOverlay").style.display = "none"; }
 
-  $("btnSaveName").addEventListener("click", async ()=>{
+  $("btnSaveName")?.addEventListener("click", async ()=>{
     const name = ($("displayNameInput").value || "").trim();
     if (!name) return alert("Please enter your first and last name.");
     await upsertPresence({ name });
@@ -468,7 +470,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (action === "openThread") openThread(id);
   });
 
-  ["q","st","sort"].forEach(id => $(id).addEventListener("input", render));
+  ["q","st","sort"].forEach(id => $("id")?.addEventListener("input", render));
 
   onAuthStateChanged(auth, async (u)=>{
     user = u;
@@ -511,8 +513,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
     onSnapshot(qy, (snap)=>{
       listings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-      renderBoards();
-      render();
+      if(typeof renderBoards === 'function') renderBoards();
+      if(typeof render === 'function') render();
 
       if (openThreadId){
         const item = listings.find(x=>x.id===openThreadId);
