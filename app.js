@@ -1,5 +1,3 @@
-
-
 import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
@@ -230,11 +228,13 @@ async function ensureProfile(user) {
   if (!snap.exists()) {
     await setDoc(profileRef, {
       ...baseProfile,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      banned: false
     });
     currentProfile = {
       ...baseProfile,
-      createdAt: new Date()
+      createdAt: new Date(),
+      banned: false
     };
   } else {
     currentProfile = { id: snap.id, ...snap.data() };
@@ -250,6 +250,8 @@ async function ensureProfile(user) {
 
 function updateAuthUI() {
   const loggedIn = !!currentUser && !!currentProfile;
+
+  document.body.classList.toggle("auth-open", !loggedIn);
 
   if ($("pillUser")) {
     $("pillUser").textContent = loggedIn
@@ -280,7 +282,7 @@ async function handleLogin() {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || "login_error"} â ${err?.message || "Login failed."}`);
+    alert(`${err?.code || "login_error"} | ${err?.message || "Login failed."}`);
   }
 }
 
@@ -332,7 +334,7 @@ async function handleSignup() {
     alert("Account created. Verification email sent.");
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || "signup_error"} â ${err?.message || "Signup failed."}`);
+    alert(`${err?.code || "signup_error"} | ${err?.message || "Signup failed."}`);
   }
 }
 
@@ -344,7 +346,7 @@ async function handleResendVerification() {
   }
   try {
     await sendPasswordResetEmail(auth, email);
-    alert("Check your email. If your account exists, a message was sent. If you still need verification, sign in again after opening the verification email.");
+    alert("Check your email. If your account exists, a message was sent. After verifying, come back and log in.");
   } catch (err) {
     console.error(err);
     alert(err?.message || "Unable to send email right now.");
@@ -396,7 +398,8 @@ function renderBoards() {
   });
 
   listings.forEach((item) => {
-    counts[item.board] = (counts[item.board] || 0) + 1;
+    const boardKey = item.board || item.category;
+    counts[boardKey] = (counts[boardKey] || 0) + 1;
   });
 
   wrap.innerHTML = Object.entries(boardLabels).map(([key, label]) => `
@@ -424,7 +427,10 @@ function filteredListings() {
   const st = $("st")?.value || "ACTIVE";
   const sort = $("sort")?.value || "NEW";
 
-  let data = listings.filter((item) => activeBoard === "ALL" || item.board === activeBoard);
+  let data = listings.filter((item) => {
+    const boardKey = item.board || item.category;
+    return activeBoard === "ALL" || boardKey === activeBoard;
+  });
 
   if (st !== "ALL") {
     data = data.filter((item) => (item.status || "ACTIVE") === st);
@@ -434,10 +440,11 @@ function filteredListings() {
     data = data.filter((item) => {
       const hay = [
         item.title,
-        item.description,
+        item.description || item.desc,
         item.location,
         item.contact,
-        item.authorName
+        item.authorName || item.displayName,
+        item.authorEmail || item.userEmail
       ].join(" ").toLowerCase();
       return hay.includes(q);
     });
@@ -458,10 +465,7 @@ function filteredListings() {
 function formatPrice(v) {
   const n = Number(v || 0);
   if (!n) return "Free";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD"
-  }).format(n);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
 function formatDate(ms) {
@@ -481,7 +485,7 @@ function renderListings() {
   const data = filteredListings();
 
   if ($("countLine")) {
-    $("countLine").textContent = `${data.length} shown â¢ ${listings.length} total`;
+    $("countLine").textContent = `${data.length} shown | ${listings.length} total`;
   }
 
   if (!data.length) {
@@ -491,32 +495,39 @@ function renderListings() {
   }
 
   empty.style.display = "none";
-  wrap.innerHTML = data.map((item) => `
-    <article class="card ${item.status === "SOLD" ? "isSold" : ""}">
-      ${item.imageUrl ? `<img class="card-img" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ""}
-      <div class="card-b">
-        <div class="card-top">
-          <div>
-            <div class="card-title">${esc(item.title || "Untitled")}</div>
-            <div class="meta">${esc(boardLabels[item.board] || item.board || "Listing")} â¢ ${esc(item.authorName || item.authorEmail || "")}</div>
+  wrap.innerHTML = data.map((item) => {
+    const boardKey = item.board || item.category || "BUYSELL";
+    const title = item.title || "Untitled";
+    const description = item.description || item.desc || "";
+    const authorName = item.authorName || item.displayName || item.authorEmail || item.userEmail || "";
+    const imageUrl = item.imageUrl || item.photo || "";
+    return `
+      <article class="card ${item.status === "SOLD" ? "isSold" : ""}">
+        ${imageUrl ? `<img class="card-img" src="${esc(imageUrl)}" alt="${esc(title)}" />` : ""}
+        <div class="card-b">
+          <div class="card-top">
+            <div>
+              <div class="card-title">${esc(title)}</div>
+              <div class="meta">${esc(boardLabels[boardKey] || boardKey)} | ${esc(authorName)}</div>
+            </div>
+            <div class="price">${esc(formatPrice(item.price))}</div>
           </div>
-          <div class="price">${esc(formatPrice(item.price))}</div>
+          <div class="desc">${esc(description)}</div>
+          <div class="meta card-meta">
+            <span>${esc(item.location || "No location")}</span>
+            <span>${esc(item.contact || "No contact")}</span>
+            <span>${esc(formatDate(item.createdAtMs))}</span>
+            <span class="status ${item.status === "SOLD" ? "sold" : "active"}">${esc(item.status || "ACTIVE")}</span>
+          </div>
+          <div class="rowBtns">
+            <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
+            ${canModify(item) && item.status !== "SOLD" ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ""}
+            ${canModify(item) ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
+          </div>
         </div>
-        <div class="desc">${esc(item.description || "")}</div>
-        <div class="meta card-meta">
-          <span>${esc(item.location || "No location")}</span>
-          <span>${esc(item.contact || "No contact")}</span>
-          <span>${esc(formatDate(item.createdAtMs))}</span>
-          <span class="status ${item.status === "SOLD" ? "sold" : "active"}">${esc(item.status || "ACTIVE")}</span>
-        </div>
-        <div class="rowBtns">
-          <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
-          ${canModify(item) && item.status !== "SOLD" ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ""}
-          ${canModify(item) ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
-        </div>
-      </div>
-    </article>
-  `).join("");
+      </article>
+    `;
+  }).join("");
 }
 
 async function handleSavePost() {
@@ -556,14 +567,19 @@ async function handleSavePost() {
       uid: currentUser.uid,
       authorEmail: currentUser.email || "",
       authorName: currentProfile.displayName || currentUser.email || "",
+      displayName: currentProfile.displayName || currentUser.email || "",
+      userEmail: currentUser.email || "",
       board,
+      category: board,
       status,
       title,
       description,
+      desc: description,
       location,
       contact,
       price: Number(priceRaw || 0),
       imageUrl,
+      photo: imageUrl,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -573,7 +589,7 @@ async function handleSavePost() {
     hide("postOverlay");
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || "post_error"} â ${err?.message || "Unable to create post."}`);
+    alert(`${err?.code || "post_error"} | ${err?.message || "Unable to create post."}`);
   }
 }
 
@@ -620,27 +636,30 @@ async function openThread(id) {
   if (!item) return;
 
   activeThread = item;
+  const boardKey = item.board || item.category || "BUYSELL";
+  const imageUrl = item.imageUrl || item.photo || "";
+  const description = item.description || item.desc || "";
+  const authorName = item.authorName || item.displayName || item.authorEmail || item.userEmail || "";
 
   if ($("threadTitle")) $("threadTitle").textContent = item.title || "Thread";
   if ($("threadMeta")) {
-    $("threadMeta").textContent = `${boardLabels[item.board] || item.board} â¢ ${item.authorName || item.authorEmail || ""} â¢ ${formatDate(item.createdAtMs)}`;
+    $("threadMeta").textContent = `${boardLabels[boardKey] || boardKey} | ${authorName} | ${formatDate(item.createdAtMs)}`;
   }
 
   if ($("threadBody")) {
     $("threadBody").innerHTML = `
-      ${item.imageUrl ? `<img class="thread-img" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ""}
-      <div class="threadText">${esc(item.description || "")}</div>
-      <div class="meta" style="margin-top:10px;">Location: ${esc(item.location || "â")} â¢ Contact: ${esc(item.contact || "â")} â¢ Price: ${esc(formatPrice(item.price))}</div>
+      ${imageUrl ? `<img class="thread-img" src="${esc(imageUrl)}" alt="${esc(item.title)}" />` : ""}
+      <div class="threadText">${esc(description)}</div>
+      <div class="meta" style="margin-top:10px;">Location: ${esc(item.location || "-")} | Contact: ${esc(item.contact || "-")} | Price: ${esc(formatPrice(item.price))}</div>
     `;
   }
 
-  if ($("threadReplies")) $("threadReplies").innerHTML = `<div class="note">Loading repliesâ¦</div>`;
+  if ($("threadReplies")) $("threadReplies").innerHTML = `<div class="note">Loading replies...</div>`;
   if ($("replyText")) $("replyText").value = "";
 
   show("threadOverlay");
 
   if (repliesUnsub) repliesUnsub();
-
   const qRef = query(collection(db, "listings", id, "replies"), orderBy("createdAtMs", "asc"));
   repliesUnsub = onSnapshot(qRef, (snap) => {
     const replies = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
