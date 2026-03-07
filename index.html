@@ -7,27 +7,38 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="site-bg"></div>
+
   <header class="topbar">
-    <div class="logo">Regal Lakeland Marketplace</div>
+    <div class="logoWrap">
+      <div class="logoMark"></div>
+      <div class="logoText">
+        <div class="logoTitle">Regal Lakeland Marketplace</div>
+        <div class="logoSub">Private employee board</div>
+      </div>
+    </div>
 
     <div class="top-actions">
       <span id="pillUser" class="pill">Not signed in</span>
-      <span id="boardPill" class="pill">All</span>
-      <a id="adminLink" class="btn" href="#" style="display:none;">Admin</a>
+      <span id="boardPill" class="pill">All Boards</span>
+      <a id="adminLink" class="btn ghost" href="#" style="display:none;">Admin</a>
       <button id="btnNew" class="btn primary" style="display:none;" type="button">Post</button>
-      <button id="btnLogout" class="btn" style="display:none;" type="button">Logout</button>
+      <button id="btnLogout" class="btn ghost" style="display:none;" type="button">Logout</button>
     </div>
   </header>
 
-  <main class="page">
-    <section class="hero">
-      <h1 id="feedTitle">Marketplace</h1>
-      <div id="countLine" class="subline">0 shown • 0 total</div>
+  <main class="pageShell">
+    <section class="heroBanner glass">
+      <div>
+        <div class="eyebrow">Regal Employee Marketplace</div>
+        <h1 id="feedTitle">Marketplace</h1>
+        <div id="countLine" class="subline">0 shown • 0 total</div>
+      </div>
     </section>
 
-    <section id="boards" class="boards"></section>
+    <section id="boards" class="boards glass"></section>
 
-    <section class="toolbar">
+    <section class="toolbar glass">
       <input id="q" type="text" placeholder="Search listings..." />
       <select id="st">
         <option value="ACTIVE">Active</option>
@@ -43,68 +54,88 @@
     </section>
 
     <section id="cards" class="cards"></section>
-    <div id="empty" class="empty" style="display:none;">No listings found.</div>
+    <div id="empty" class="empty glass" style="display:none;">No listings found.</div>
   </main>
 
-  <!-- LOGIN / SIGNUP OVERLAY -->
-  <div id="loginOverlay" class="overlay">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Employee Login</strong>
-      </div>
+  <div id="loginOverlay" class="overlay loginOverlay">
+    <div class="login-bg">
+      <div class="login-slide s1"></div>
+      <div class="login-slide s2"></div>
+      <div class="login-slide s3"></div>
+      <div class="login-slide s4"></div>
+      <div class="login-darken"></div>
+    </div>
 
-      <div class="tabs">
-        <button id="tabLogin" class="active" type="button">Login</button>
-        <button id="tabSignup" type="button">Create Account</button>
-      </div>
-
-      <div id="loginPane" class="modal-b">
-        <div class="field">
-          <label>Email</label>
-          <input id="loginEmail" type="email" placeholder="name@regallakeland.com" />
-        </div>
-
-        <div class="field">
-          <label>Password</label>
-          <input id="loginPassword" type="password" placeholder="Password" />
-        </div>
-
-        <div id="verifyNote" class="note" style="display:none;">
-          Please verify your email before logging in.
-        </div>
-
-        <div class="rowBtns">
-          <button id="btnLogin" class="btn primary" type="button">Login</button>
-          <button id="btnResendVerify" class="btn" type="button" style="display:none;">Resend Verification Email</button>
+    <div class="loginShell">
+      <div class="loginPromo glass">
+        <div class="promoBadge">Regal</div>
+        <div class="promoText">
+          <div class="promoEyebrow">Employee Marketplace</div>
+          <h2>Buy, sell, free items, and work news in one place.</h2>
+          <p>Private access for Regal Lakeland employees using company email only.</p>
         </div>
       </div>
 
-      <div id="signupPane" class="modal-b" style="display:none;">
-        <div class="field">
-          <label>Email</label>
-          <input id="signupEmail" type="email" placeholder="name@regallakeland.com" />
+      <div class="modal authModal">
+        <div class="modal-h authHead">
+          <div>
+            <strong>Employee Login</strong>
+            <div class="note">Use your @regallakeland.com email</div>
+          </div>
         </div>
 
-        <div class="field">
-          <label>Password</label>
-          <input id="signupPassword" type="password" placeholder="Create password" />
+        <div class="tabs authTabs">
+          <button id="tabLogin" class="active" type="button">Login</button>
+          <button id="tabSignup" type="button">Create Account</button>
         </div>
 
-        <div class="field">
-          <label>Confirm Password</label>
-          <input id="signupPassword2" type="password" placeholder="Confirm password" />
+        <div id="loginPane" class="modal-b">
+          <div class="field">
+            <label>Email</label>
+            <input id="loginEmail" type="email" placeholder="name@regallakeland.com" />
+          </div>
+
+          <div class="field">
+            <label>Password</label>
+            <input id="loginPassword" type="password" placeholder="Password" />
+          </div>
+
+          <div id="verifyNote" class="note warning" style="display:none;">
+            Please verify your email before logging in.
+          </div>
+
+          <div class="rowBtns">
+            <button id="btnLogin" class="btn primary wideBtn" type="button">Login</button>
+            <button id="btnResendVerify" class="btn ghost" type="button" style="display:none;">Resend Verification Email</button>
+          </div>
         </div>
 
-        <div id="signupMsg" class="note" style="display:none;"></div>
+        <div id="signupPane" class="modal-b" style="display:none;">
+          <div class="field">
+            <label>Email</label>
+            <input id="signupEmail" type="email" placeholder="name@regallakeland.com" />
+          </div>
 
-        <div class="rowBtns">
-          <button id="btnSignup" class="btn primary" type="button">Create Account</button>
+          <div class="field">
+            <label>Password</label>
+            <input id="signupPassword" type="password" placeholder="Create password" />
+          </div>
+
+          <div class="field">
+            <label>Confirm Password</label>
+            <input id="signupPassword2" type="password" placeholder="Confirm password" />
+          </div>
+
+          <div id="signupMsg" class="note" style="display:none;"></div>
+
+          <div class="rowBtns">
+            <button id="btnSignup" class="btn primary wideBtn" type="button">Create Account</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- DISPLAY NAME OVERLAY -->
   <div id="nameOverlay" class="overlay" style="display:none;">
     <div class="modal">
       <div class="modal-h">
@@ -124,7 +155,6 @@
     </div>
   </div>
 
-  <!-- CREATE POST OVERLAY -->
   <div id="postOverlay" class="overlay" style="display:none;">
     <div class="modal wide">
       <div class="modal-h">
@@ -190,13 +220,12 @@
 
         <div class="rowBtns">
           <button id="btnSavePost" class="btn primary" type="button">Post Listing</button>
-          <button class="btn" data-close="postOverlay" type="button">Cancel</button>
+          <button class="btn ghost" data-close="postOverlay" type="button">Cancel</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- THREAD OVERLAY -->
   <div id="threadOverlay" class="overlay" style="display:none;">
     <div class="modal wide">
       <div class="modal-h">
@@ -218,7 +247,7 @@
 
         <div class="rowBtns">
           <button id="btnSendReply" class="btn primary" type="button">Send Reply</button>
-          <button class="btn" data-close="threadOverlay" type="button">Close</button>
+          <button class="btn ghost" data-close="threadOverlay" type="button">Close</button>
         </div>
       </div>
     </div>
