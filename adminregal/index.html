@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin • Regal Marketplace</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+
+  <div class="bg-slideshow" aria-hidden="true">
+    <div class="bg bg1"></div>
+    <div class="bg bg2"></div>
+    <div class="bg bg3"></div>
+    <div class="bg-overlay"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="left">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <span class="logo-text">Regal Honda</span>
+      </div>
+      <div class="title">
+        <div class="h1">Admin Panel</div>
+        <div class="h2">Moderate posts • Review activity</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <span class="pill" id="pillUser">Not signed in</span>
+      <a class="btn ghost" href="../">Back</a>
+      <button class="btn danger" id="btnLogout">Logout</button>
+    </div>
+  </header>
+
+  <main class="layout" style="grid-template-columns:1fr;">
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-title">Posts</div>
+        <div class="meta" id="countLine">0</div>
+      </div>
+      <div class="panel-b">
+        <div class="filters" style="grid-template-columns:1fr 1fr;">
+          <div class="field">
+            <label>Search</label>
+            <input id="q" placeholder="Search title / email…" />
+          </div>
+          <div class="field">
+            <label>Board</label>
+            <select id="board">
+              <option value="ALL">All</option>
+              <option value="FREE">Free Items</option>
+              <option value="BUYSELL">Buy / Sell</option>
+              <option value="GARAGE">Garage Sales</option>
+              <option value="EVENTS">Events</option>
+              <option value="WORK">Work News</option>
+              <option value="SERVICES">Local Services</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+        <div id="tableWrap" style="overflow:auto;max-height:70vh;"></div>
+      </div>
+    </section>
+  </main>
+  <main class="layout" style="grid-template-columns:1fr; gap:16px;">
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-title">Users</div>
+        <div class="meta" id="userCountLine">0</div>
+      </div>
+      <div class="panel-b">
+        <div class="field">
+          <label>Search users</label>
+          <input id="uq" placeholder="Search name / email…" />
+        </div>
+        <div style="height:12px"></div>
+        <div id="usersWrap" style="overflow:auto;max-height:52vh;"></div>
+        <div class="note" style="margin-top:10px;">IP address cannot be reliably collected by a static website. Use ban by account (email/uid).</div>
+      </div>
+    </section>
+  </main>
+
+
+  <div class="overlay" id="adminLoginOverlay" style="display: none;">
+    <div class="modal">
+      <div class="modal-h"><strong>Admin Login</strong></div>
+      <div class="modal-b">
+        <div class="field">
+          <label>Email</label>
+          <input id="adminLoginEmail" type="email" placeholder="name@regallakeland.com" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="adminLoginPassword" type="password" autocomplete="current-password" />
+        </div>
+        <div class="note">Admins only. If you don’t see the admin tools after login, your email isn’t in the admin list.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="adminLoginButton">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
