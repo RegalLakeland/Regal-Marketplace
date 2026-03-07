@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Honda Employee Marketplace</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="bg-slideshow" aria-hidden="true">
@@ -34,11 +34,11 @@
 
         <div id="loginPane">
           <div class="field">
-            <label>Email</label>
+            <label for="loginEmail">Email</label>
             <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
           </div>
           <div class="field">
-            <label>Password</label>
+            <label for="loginPassword">Password</label>
             <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
           </div>
           <div class="note" id="verifyNote" style="display:none">
@@ -52,23 +52,23 @@
 
         <div id="signupPane" style="display:none">
           <div class="note">
-            Create an account using your work email. You must verify your email before you can use the marketplace.
+            Create an account using your work email. You must verify your email before you can post or view listings.
           </div>
           <div style="height:10px"></div>
           <div class="field">
-            <label>Work Email</label>
+            <label for="signupEmail">Work Email</label>
             <input id="signupEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
           </div>
           <div class="field">
-            <label>Password</label>
+            <label for="signupPassword">Password</label>
             <input id="signupPassword" type="password" placeholder="Create a password" autocomplete="new-password" />
           </div>
           <div class="field">
-            <label>Confirm Password</label>
+            <label for="signupPassword2">Confirm Password</label>
             <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
           </div>
           <div class="note" id="signupMsg" style="display:none"></div>
-          <div class="modal-actions" style="padding:0; border:0; justify-content:flex-start">
+          <div class="modal-actions" style="padding:0;border:0;justify-content:flex-start;margin-top:12px;">
             <button class="btn primary" id="btnSignup" type="button">Create Account</button>
           </div>
         </div>
@@ -89,7 +89,7 @@
       </div>
       <div class="modal-b">
         <div class="field">
-          <label>First & Last Name</label>
+          <label for="displayNameInput">First & Last Name</label>
           <input id="displayNameInput" placeholder="e.g. Michael Hall" autocomplete="name" />
         </div>
         <div class="note">This name will show on posts and replies instead of your email.</div>
@@ -114,9 +114,9 @@
 
     <div class="right">
       <span class="pill" id="pillUser">Not signed in</span>
-      <button class="btn" id="btnNew" type="button">+ Post</button>
+      <button class="btn" id="btnNew" type="button" style="display:none">+ Post</button>
       <a class="btn ghost" id="adminLink" href="adminregal/" style="display:none">Admin</a>
-      <button class="btn danger" id="btnLogout" type="button">Logout</button>
+      <button class="btn danger" id="btnLogout" type="button" style="display:none">Logout</button>
     </div>
   </header>
 
@@ -138,11 +138,11 @@
       <div class="panel-b">
         <div class="filters">
           <div class="field">
-            <label>Search</label>
+            <label for="q">Search</label>
             <input id="q" placeholder="Search title, description, location, contact…" />
           </div>
           <div class="field">
-            <label>Status</label>
+            <label for="st">Status</label>
             <select id="st">
               <option value="ACTIVE">Active</option>
               <option value="ALL">All</option>
@@ -150,7 +150,7 @@
             </select>
           </div>
           <div class="field">
-            <label>Sort</label>
+            <label for="sort">Sort</label>
             <select id="sort">
               <option value="NEW">Newest</option>
               <option value="OLD">Oldest</option>
@@ -175,7 +175,7 @@
       <div class="modal-b">
         <div class="grid2">
           <div class="field">
-            <label>Board</label>
+            <label for="fBoard">Board</label>
             <select id="fBoard">
               <option value="FREE">Free Items</option>
               <option value="BUYSELL">Buy / Sell</option>
@@ -186,7 +186,7 @@
             </select>
           </div>
           <div class="field">
-            <label>Status</label>
+            <label for="fStatus">Status</label>
             <select id="fStatus">
               <option value="ACTIVE">Active</option>
               <option value="SOLD">Sold</option>
@@ -195,33 +195,33 @@
         </div>
 
         <div class="field">
-          <label>Title</label>
+          <label for="fTitle">Title</label>
           <input id="fTitle" placeholder="e.g. Free couch • Garage sale Saturday…" />
         </div>
 
         <div class="grid2">
           <div class="field">
-            <label>Price (optional)</label>
+            <label for="fPrice">Price (optional)</label>
             <input id="fPrice" inputmode="decimal" placeholder="0 for free, 25, 100…" />
           </div>
           <div class="field">
-            <label>Location (optional)</label>
+            <label for="fLocation">Location (optional)</label>
             <input id="fLocation" placeholder="Lakeland, Plant City…" />
           </div>
         </div>
 
         <div class="field">
-          <label>Description</label>
+          <label for="fDesc">Description</label>
           <textarea id="fDesc" placeholder="Condition, pickup window, details…"></textarea>
         </div>
 
         <div class="grid2">
           <div class="field">
-            <label>Contact</label>
+            <label for="fContact">Contact</label>
             <input id="fContact" placeholder="Text/call/email or where to find you at work" />
           </div>
           <div class="field">
-            <label>Photo (optional)</label>
+            <label for="fPhoto">Photo (optional)</label>
             <input id="fPhoto" type="file" accept="image/*" />
           </div>
         </div>
@@ -248,7 +248,7 @@
         <div id="threadReplies" class="replies"></div>
 
         <div class="field" style="margin-top:10px;">
-          <label>Write a reply</label>
+          <label for="replyText">Write a reply</label>
           <textarea id="replyText" placeholder="Type your reply…"></textarea>
         </div>
       </div>
@@ -258,6 +258,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
