@@ -1,5 +1,4 @@
-
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
   authDomain: "regal-lakeland-marketplace.firebaseapp.com",
   projectId: "regal-lakeland-marketplace",
@@ -9,8 +8,8 @@ const firebaseConfig = {
 };
 
 export const ADMIN_EMAILS = [
-"michael.h@regallakeland.com",
-"janni.r@regallakeland.com",
-"chrissy.h@regallakeland.com",
-"amy.m@regallakeland.com"
+  "michael.h@regallakeland.com",
+  "janni.r@regallakeland.com",
+  "chrissy.h@regallakeland.com",
+  "amy.m@regallakeland.com"
 ];

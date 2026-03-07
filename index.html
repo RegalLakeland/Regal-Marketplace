@@ -1,15 +1,12 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Honda Employee Marketplace</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-
-  <!-- Background slideshow (uses /Images/regal1.jpg etc) -->
   <div class="bg-slideshow" aria-hidden="true">
     <div class="bg bg1"></div>
     <div class="bg bg2"></div>
@@ -17,7 +14,6 @@
     <div class="bg-overlay"></div>
   </div>
 
-  <!-- LOGIN / SIGNUP -->
   <div class="overlay" id="loginOverlay">
     <div class="modal">
       <div class="modal-h">
@@ -49,14 +45,14 @@
             Your email is not verified yet. Check your inbox and click the verification link, then come back and log in.
           </div>
           <div class="rowBtns">
-            <button class="btn primary" id="btnLogin">Login</button>
+            <button class="btn primary" id="btnLogin" type="button">Login</button>
             <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Resend Verification Email</button>
           </div>
         </div>
 
         <div id="signupPane" style="display:none">
           <div class="note">
-            Create an account using your work email. You must verify your email before you can post or view listings.
+            Create an account using your work email. You must verify your email before you can use the marketplace.
           </div>
           <div style="height:10px"></div>
           <div class="field">
@@ -86,8 +82,6 @@
     </div>
   </div>
 
-
-  <!-- NAME SETUP (first login) -->
   <div class="overlay" id="nameOverlay" style="display:none">
     <div class="modal">
       <div class="modal-h">
@@ -101,12 +95,11 @@
         <div class="note">This name will show on posts and replies instead of your email.</div>
       </div>
       <div class="modal-actions">
-        <button class="btn primary" id="btnSaveName">Save</button>
+        <button class="btn primary" id="btnSaveName" type="button">Save</button>
       </div>
     </div>
   </div>
 
-  <!-- APP -->
   <header class="topbar">
     <div class="left">
       <div class="logo">
@@ -121,9 +114,9 @@
 
     <div class="right">
       <span class="pill" id="pillUser">Not signed in</span>
-      <button class="btn" id="btnNew">+ Post</button>
+      <button class="btn" id="btnNew" type="button">+ Post</button>
       <a class="btn ghost" id="adminLink" href="adminregal/" style="display:none">Admin</a>
-      <button class="btn danger" id="btnLogout">Logout</button>
+      <button class="btn danger" id="btnLogout" type="button">Logout</button>
     </div>
   </header>
 
@@ -173,12 +166,11 @@
     </section>
   </main>
 
-  <!-- CREATE POST MODAL -->
   <div class="overlay" id="postOverlay" style="display:none">
     <div class="modal wide">
       <div class="modal-h">
         <strong>Create Post</strong>
-        <button class="btn ghost" data-close="postOverlay">Close</button>
+        <button class="btn ghost" data-close="postOverlay" type="button">Close</button>
       </div>
       <div class="modal-b">
         <div class="grid2">
@@ -237,17 +229,16 @@
         <div class="note">Posts are visible to logged-in employees only. Admins can delete posts.</div>
       </div>
       <div class="modal-actions">
-        <button class="btn primary" id="btnSavePost">Post</button>
+        <button class="btn primary" id="btnSavePost" type="button">Post</button>
       </div>
     </div>
   </div>
 
-  <!-- THREAD MODAL -->
   <div class="overlay" id="threadOverlay" style="display:none">
     <div class="modal wide">
       <div class="modal-h">
         <strong id="threadTitle">Thread</strong>
-        <button class="btn ghost" data-close="threadOverlay">Close</button>
+        <button class="btn ghost" data-close="threadOverlay" type="button">Close</button>
       </div>
       <div class="modal-b">
         <div id="threadMeta" class="meta" style="margin-bottom:10px;"></div>
@@ -262,11 +253,11 @@
         </div>
       </div>
       <div class="modal-actions">
-        <button class="btn primary" id="btnSendReply">Reply</button>
+        <button class="btn primary" id="btnSendReply" type="button">Reply</button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
