@@ -91,6 +91,31 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeBoard = "ALL";
   let openThreadId = null;
 
+
+  let listingsUnsub = null;
+
+  function startListingsListener(){
+    if (listingsUnsub) return;
+    const qRef = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
+    listingsUnsub = onSnapshot(qRef, (snap)=>{
+      listings = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      renderBoards();
+      render();
+    }, (err)=>{
+      console.error(err);
+    });
+  }
+
+  function stopListingsListener(){
+    if (listingsUnsub){
+      listingsUnsub();
+      listingsUnsub = null;
+    }
+    listings = [];
+    renderBoards();
+    render();
+  }
+
   const BOARD_DEFS = [
     { key:"ALL", name:"All", desc:"Everything in one place" },
     { key:"FREE", name:"Free Items", desc:"Giveaways • curb alerts" },
@@ -389,9 +414,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  $("mainLoginButton")?.addEventListener("click", async ()=>{
-    const email = $("mainLoginEmail").value.trim();
-    const pass = $("mainLoginPassword").value.trim();
+  $("btnLogin")?.addEventListener("click", async ()=>{
+    const email = $("loginEmail")?.value.trim();
+    const pass = $("loginPassword")?.value.trim();
     if (!email || !pass) return alert("Enter email and password.");
     if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
     try{
@@ -463,6 +488,49 @@ document.addEventListener("DOMContentLoaded", () => {
     hideNameOverlay();
     if($("pillUser")) $("pillUser").textContent = `Signed in: ${displayName()}`;
     render();
+  });
+
+
+
+  $("btnResendVerify")?.addEventListener("click", ()=>{
+    alert("Please use the verification email that was sent when the account was created. If you need a fresh one, create the account again or I can add a resend flow next.");
+  });
+
+  $("q")?.addEventListener("input", render);
+  $("st")?.addEventListener("change", render);
+  $("sort")?.addEventListener("change", render);
+
+  onAuthStateChanged(auth, async (currentUser)=>{
+    user = currentUser || null;
+
+    if (!user){
+      profile = null;
+      if ($("pillUser")) $("pillUser").textContent = "Signed out";
+      stopListingsListener();
+      show("loginOverlay");
+      hide("nameOverlay");
+      return;
+    }
+
+    if (!user.emailVerified){
+      if($("verifyNote")) $("verifyNote").style.display = "block";
+      if($("btnResendVerify")) $("btnResendVerify").style.display = "inline-flex";
+      alert("Please verify your email before using the marketplace. Check your inbox.");
+      await signOut(auth);
+      return;
+    }
+
+    hide("loginOverlay");
+    await upsertPresence();
+    await loadProfile();
+    if ($("pillUser")) $("pillUser").textContent = `Signed in: ${displayName()}`;
+    startListingsListener();
+
+    if (!profile?.name){
+      showNameOverlay();
+    } else {
+      hideNameOverlay();
+    }
   });
 
   document.body.addEventListener("click", (e)=>{
