@@ -5,12 +5,12 @@ import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, dele
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js';
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
+  apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
+  authDomain: "regal-lakeland-marketplace.firebaseapp.com",
   projectId: "regal-lakeland-marketplace",
   storageBucket: "regal-lakeland-marketplace.firebasestorage.app",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  messagingSenderId: "1014346693296",
+  appId: "1:1014346693296:web:fc76118d1a8db347945975"
 };
 
 // Initialize Firebase
