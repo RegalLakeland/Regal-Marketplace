@@ -1,4 +1,3 @@
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
   getAuth,
@@ -8,7 +7,6 @@ import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-
 import {
   getFirestore,
   collection,
@@ -20,12 +18,8 @@ import {
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp,
-  where,
-  getDocs,
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-
 import {
   getStorage,
   ref,
@@ -85,7 +79,6 @@ function isAllowedEmail(email){
   return e.endsWith("@regallakeland.com");
 }
 
-
 let user = null;
 let isAdmin = false;
 let profile = null;
@@ -93,7 +86,6 @@ let listings = [];
 let activeBoard = "ALL";
 let openThreadId = null;
 
-// Board defs
 const BOARD_DEFS = [
   { key:"ALL", name:"All", desc:"Everything in one place" },
   { key:"FREE", name:"Free Items", desc:"Giveaways • curb alerts" },
@@ -125,7 +117,6 @@ function prettyTime(ts){
   }catch{ return "—";}
 }
 
-
 async function loadProfile(){
   const refDoc = doc(db, "profiles", user.uid);
   const snap = await getDoc(refDoc);
@@ -147,7 +138,6 @@ function displayName(){
 
 function isBanned(){ return !!profile?.banned; }
 
-
 function countByBoard(list){
   const map = { ALL: list.length };
   for (const b of BOARD_DEFS) map[b.key] = 0;
@@ -163,12 +153,9 @@ function setActiveBoard(key){
   const def = BOARD_DEFS.find(b=>b.key===key) || BOARD_DEFS[0];
   $("boardPill").textContent = def.name;
   $("feedTitle").textContent = def.key === "ALL" ? "Marketplace" : def.name;
-
-  // toggle active classes
   [...$("boards").querySelectorAll(".boardBtn")].forEach(btn=>{
     btn.classList.toggle("active", btn.dataset.key === key);
   });
-
   render();
 }
 
@@ -176,7 +163,6 @@ function renderBoards(){
   const wrap = $("boards");
   const counts = countByBoard(listings);
   wrap.innerHTML = "";
-
   for (const b of BOARD_DEFS){
     const btn = document.createElement("button");
     btn.type = "button";
@@ -184,15 +170,14 @@ function renderBoards(){
     btn.dataset.key = b.key;
     btn.innerHTML = `
       <div>
-        <div style="font-weight:950">${esc(b.name)}</div>
-        <div class="boardDesc">${esc(b.desc)}</div>
+        <div style=\'font-weight:950\'>${esc(b.name)}</div>
+        <div class=\'boardDesc\'>${esc(b.desc)}</div>
       </div>
-      <div class="boardCount">${counts[b.key] ?? 0}</div>
+      <div class=\'boardCount\'>${counts[b.key] ?? 0}</div>
     `;
     btn.addEventListener("click", ()=> setActiveBoard(b.key));
     wrap.appendChild(btn);
   }
-
   setActiveBoard(activeBoard || "ALL");
 }
 
@@ -200,23 +185,15 @@ function applyFilters(list){
   const q = ($("q").value || "").trim().toLowerCase();
   const st = ($("st").value);
   const sort = ($("sort").value);
-
   let out = list.slice();
-
   if (activeBoard !== "ALL") out = out.filter(x => x.category === activeBoard);
-
-  if (q){
-    out = out.filter(x => (`${x.title} ${x.desc} ${x.location} ${x.contact} ${x.displayName}`.toLowerCase()).includes(q));
-  }
-
+  if (q) out = out.filter(x => (`${x.title} ${x.desc} ${x.location} ${x.contact} ${x.displayName}`.toLowerCase()).includes(q));
   if (st === "ACTIVE") out = out.filter(x => x.status !== "SOLD");
   if (st === "SOLD") out = out.filter(x => x.status === "SOLD");
-
   if (sort === "NEW") out.sort((a,b)=> (b.createdAtMs||0) - (a.createdAtMs||0));
   if (sort === "OLD") out.sort((a,b)=> (a.createdAtMs||0) - (b.createdAtMs||0));
   if (sort === "PRICE_ASC") out.sort((a,b)=> (Number(a.price)||0) - (Number(b.price)||0));
   if (sort === "PRICE_DESC") out.sort((a,b)=> (Number(b.price)||0) - (Number(a.price)||0));
-
   return out;
 }
 
@@ -224,68 +201,57 @@ function render(){
   const cards = $("cards");
   const empty = $("empty");
   const filtered = applyFilters(listings);
-
   $("countLine").textContent = `${filtered.length} shown • ${listings.length} total`;
   cards.innerHTML = "";
-
   if (filtered.length === 0){
     empty.style.display = "block";
     return;
   }
   empty.style.display = "none";
-
   for (const x of filtered){
     const priceText = fmtPrice(x.price);
     const isFree = priceText === "FREE" || x.category === "FREE" || Number(x.price) === 0;
     const badgeClass = x.status === "SOLD" ? "sold" : (isFree ? "free" : "");
-
     const el = document.createElement("div");
     el.className = "card";
     el.dataset.id = x.id;
-
     el.innerHTML = `
-      <div class="thumb">
-        ${x.photo ? `<img src="${x.photo}" alt="">` : `<div style="color:rgba(156,163,175,.85);font-weight:950;font-size:12px">No photo</div>`}
-        <div class="badge ${badgeClass}">${x.status==="SOLD" ? "SOLD" : (isFree ? "FREE" : "AVAILABLE")}</div>
+      <div class=\'thumb\'>
+        ${x.photo ? `<img src=\"${x.photo}\" alt=\"">` : `<div style=\'color:rgba(156,163,175,.85);font-weight:950;font-size:12px\'>No photo</div>`}
+        <div class=\'badge ${badgeClass}\'>${x.status==="SOLD" ? "SOLD" : (isFree ? "FREE" : "AVAILABLE")}</div>
       </div>
-
-      <div class="card-b">
-        <div class="row">
-          <div class="name">${esc(x.title)}</div>
-          <div class="price">${esc(priceText || "—")}</div>
+      <div class=\'card-b\'>
+        <div class=\'row\'>
+          <div class=\'name\'>${esc(x.title)}</div>
+          <div class=\'price\'>${esc(priceText || "—")}</div>
         </div>
-        <div class="meta">${esc(catLabel(x.category))}${x.location ? ` • ${esc(x.location)}` : ""}</div>
-        <div class="desc">${esc(x.desc||"").slice(0, 220)}${(x.desc||"").length>220 ? "…" : ""}</div>
+        <div class=\'meta\'>${esc(catLabel(x.category))}${x.location ? ` • ${esc(x.location)}` : ""}</div>
+        <div class=\'desc\'>${esc(x.desc||"").slice(0, 220)}${(x.desc||"").length>220 ? "…" : ""}</div>
       </div>
-
-      <div class="card-f">
-        <span class="tag">${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
-        <span class="tag">By: ${esc(x.displayName || x.userEmail || "—")}</span>
-        <button class="btn mini" data-action="openThread">Open Thread</button>
-        ${isAdmin ? `<button class="btn mini danger" data-action="deletePost">Admin Delete</button>` : ""}
+      <div class=\'card-f\'>
+        <span class=\'tag\'>${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
+        <span class=\'tag\'>By: ${esc(x.displayName || x.userEmail || "—")}</span>
+        <button class=\'btn mini\' data-action=\'openThread\'>Open Thread</button>
+        ${isAdmin ? `<button class=\'btn mini danger\' data-action=\'deletePost\'>Admin Delete</button>` : ""}
       </div>
     `;
-
     cards.appendChild(el);
   }
 }
 
-/** THREAD VIEW */
 async function openThread(id){
   const item = listings.find(x => x.id === id);
   if (!item) return;
-
   openThreadId = id;
   $("threadTitle").textContent = item.title || "Thread";
   $("threadMeta").textContent = `${catLabel(item.category)} • Posted by ${item.displayName || item.userEmail || "—"} • ${prettyTime(item.createdAt)}`;
   $("threadBody").innerHTML = `
-    <div style="display:grid;gap:10px">
-      ${item.photo ? `<img src="${item.photo}" style="width:100%;max-height:360px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.10)">` : ""}
+    <div style=\'display:grid;gap:10px\'>
+      ${item.photo ? `<img src=\"${item.photo}\" style=\'width:100%;max-height:360px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.10)\'>` : ""}
       <div>${esc(item.desc || "")}</div>
-      <div class="meta">${item.location ? `Location: ${esc(item.location)} • ` : ""}${item.contact ? `Contact: ${esc(item.contact)}` : ""}</div>
+      <div class=\'meta\'>${item.location ? `Location: ${esc(item.location)} • ` : ""}${item.contact ? `Contact: ${esc(item.contact)}` : ""}</div>
     </div>
   `;
-
   renderReplies(item.replies || []);
   $("replyText").value = "";
   show("threadOverlay");
@@ -295,24 +261,23 @@ function renderReplies(replies){
   const wrap = $("threadReplies");
   wrap.innerHTML = "";
   if (!replies || replies.length === 0){
-    wrap.innerHTML = `<div class="note">No replies yet. Be the first to respond.</div>`;
+    wrap.innerHTML = `<div class=\'note\'>No replies yet. Be the first to respond.</div>`;
     return;
   }
   for (const r of replies){
     const div = document.createElement("div");
     div.className = "replyItem";
     div.innerHTML = `
-      <div class="replyTop">
-        <div class="replyUser">${esc(r.displayName || r.userEmail || "—")}</div>
-        <div class="replyTime">${esc(prettyTime(r.createdAt ?? r.createdAtMs))}</div>
+      <div class=\'replyTop\'>
+        <div class=\'replyUser\'>${esc(r.displayName || r.userEmail || "—")}</div>
+        <div class=\'replyTime\'>${esc(prettyTime(r.createdAt ?? r.createdAtMs))}</div>
       </div>
-      <div class="replyText">${esc(r.text || "")}</div>
+      <div class=\'replyText\'>${esc(r.text || "")}</div>
     `;
     wrap.appendChild(div);
   }
 }
 
-/** Upload image -> download URL */
 async function uploadImageToStorage(file){
   const path = `listingPhotos/${user.uid}/${Date.now()}_${file.name}`;
   const storageRef = ref(storage, path);
@@ -323,7 +288,6 @@ async function uploadImageToStorage(file){
 async function createPost(){
   const title = $("fTitle").value.trim();
   if (!title) return alert("Enter a title.");
-
   const priceRaw = $("fPrice").value.trim();
   let price = "";
   if (priceRaw !== ""){
@@ -331,14 +295,12 @@ async function createPost(){
     if (!Number.isFinite(n) || n < 0) return alert("Price must be 0 or more.");
     price = n;
   }
-
   let photoUrl = "";
   const file = $("fPhoto").files?.[0];
   if (file){
     if (!file.type.startsWith("image/")) return alert("Select an image file.");
     photoUrl = await uploadImageToStorage(file);
   }
-
   await addDoc(collection(db, "listings"), {
     uid: user.uid,
     userEmail: user.email,
@@ -354,8 +316,6 @@ async function createPost(){
     replies: [],
     createdAtMs: Date.now(),
   });
-
-  // reset
   $("fTitle").value = "";
   $("fPrice").value = "";
   $("fLocation").value = "";
@@ -364,7 +324,6 @@ async function createPost(){
   $("fPhoto").value = "";
   $("fStatus").value = "ACTIVE";
   $("fBoard").value = "FREE";
-
   hide("postOverlay");
 }
 
@@ -372,11 +331,9 @@ async function sendReply(){
   if (!openThreadId) return;
   const txt = $("replyText").value.trim();
   if (!txt) return;
-
   const refDoc = doc(db, "listings", openThreadId);
   const snap = await getDoc(refDoc);
   if (!snap.exists()) return alert("Post not found.");
-
   const data = snap.data();
   const replies = Array.isArray(data.replies) ? data.replies.slice() : [];
   replies.push({
@@ -385,13 +342,12 @@ async function sendReply(){
     text: txt,
     createdAtMs: Date.now()
   });
-
   try{
     await updateDoc(refDoc, { replies });
     $("replyText").value = "";
   }catch(e){
     console.error(e);
-    alert("Reply failed to post. Ask Michael to check Firestore rules or internet.");
+    alert("Reply failed to post.");
   }
 }
 
@@ -399,7 +355,6 @@ async function adminDelete(id){
   if (!isAdmin) return alert("Admin only.");
   if (!confirm("Admin delete this post?")) return;
   await deleteDoc(doc(db, "listings", id));
-  // close thread if open
   if (openThreadId === id){
     openThreadId = null;
     hide("threadOverlay");
@@ -414,13 +369,11 @@ $("mainLoginButton").addEventListener("click", async ()=>{
   if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
   try{
     const cred = await signInWithEmailAndPassword(auth, email, pass);
-    // If not verified, block access until verified
     if (!cred.user.emailVerified){
       $("verifyNote").style.display = "block";
       $("btnResendVerify").style.display = "inline-flex";
-      alert("Please verify your email before using the marketplace. Check your inbox.");
+      alert("Please verify your email before using the marketplace.");
       await signOut(auth);
-      return;
     }
   }catch(e){
     console.error(e);
@@ -435,7 +388,7 @@ $("btnSignup")?.addEventListener("click", async ()=>{
   const msg = $("signupMsg");
   msg.style.display = "none";
   msg.textContent = "";
-  if (!email || !p1 || !p2) return alert("Fill out email and both password boxes.");
+  if (!email || !p1 || !p2) return alert("Fill out all fields.");
   if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
   if (p1.length < 8) return alert("Password must be at least 8 characters.");
   if (p1 !== p2) return alert("Passwords do not match.");
@@ -443,14 +396,12 @@ $("btnSignup")?.addEventListener("click", async ()=>{
     const cred = await createUserWithEmailAndPassword(auth, email, p1);
     await sendEmailVerification(cred.user);
     msg.style.display = "block";
-    msg.textContent = "Account created! Verification email sent. Verify your email, then return to Login.";
-    alert("Account created. Check your email to verify before logging in.");
+    msg.textContent = "Account created! Verification email sent. Check your inbox, then return to Login.";
     await signOut(auth);
     showPane("login");
     $("mainLoginEmail").value = email;
     $("mainLoginPassword").value = "";
     $("verifyNote").style.display = "block";
-    $("btnResendVerify").style.display = "inline-flex";
   }catch(e){
     console.error(e);
     alert(e?.message || "Signup failed.");
@@ -465,7 +416,7 @@ $("btnLogout").addEventListener("click", async ()=>{
 $("btnNew").addEventListener("click", ()=> show("postOverlay"));
 $("btnSavePost").addEventListener("click", ()=> createPost());
 $("btnSendReply").addEventListener("click", ()=> sendReply());
-        
+
 function showNameOverlay(){
   $("displayNameInput").value = profile?.name || "";
   $("nameOverlay").style.display = "flex";
@@ -483,24 +434,20 @@ $("btnSaveName").addEventListener("click", async ()=>{
   render();
 });
 
-
 document.body.addEventListener("click", (e)=>{
   const btn = e.target.closest("[data-close]");
-  if (btn){
-    hide(btn.dataset.close);
-    return;
-  }
+  if (btn) hide(btn.dataset.close);
 
   const actionBtn = e.target.closest("[data-action]");
-  if (!actionBtn) return;
-
-  const action = actionBtn.dataset.action;
-  const card = actionBtn.closest(".card");
-  const id = card?.dataset?.id;
-  if (!id) return;
-
-  if (action === "openThread") openThread(id);
-  if (action === "deletePost") adminDelete(id);
+  if (actionBtn) {
+    const action = actionBtn.dataset.action;
+    const card = actionBtn.closest(".card");
+    const id = card?.dataset?.id;
+    if (id) {
+        if (action === "openThread") openThread(id);
+        if (action === "deletePost") adminDelete(id);
+    }
+  }
 });
 
 ["q","st","sort"].forEach(id => $(id).addEventListener("input", render));
@@ -508,59 +455,46 @@ document.body.addEventListener("click", (e)=>{
 // Auth + realtime listener
 onAuthStateChanged(auth, async (u)=>{
   user = u;
-  if (user && !user.emailVerified){
+  if (!user) {
+    show("mainLoginOverlay");
+    return;
+  }
+  if (!user.emailVerified) {
     alert("Please verify your email before using the marketplace.");
     await signOut(auth);
     show("mainLoginOverlay");
     return;
   }
-  if (!user){
-    $("pillUser").textContent = "Not signed in";
-    show("mainLoginOverlay");
-    return;
-  }
 
   hide("mainLoginOverlay");
-  $("pillUser").textContent = `Signed in: ${displayName()}`;
   isAdmin = ADMINS.has(user.email.toLowerCase());
   $("adminLink").style.display = isAdmin ? "inline-flex" : "none";
   
-  (async ()=>{
-    try{
-      await loadProfile();
-      await upsertPresence({});
-      if (isBanned()){
-        alert("Access removed by admin.");
-        await signOut(auth);
-        return;
-      }
-      if (!profile?.name || !String(profile.name).trim()){
-        showNameOverlay();
-      } else {
-        $("pillUser").textContent = `Signed in: ${displayName()}`;
-      }
-    }catch(e){
-      console.error(e);
-    }
-  })();
+  await loadProfile();
+  await upsertPresence({});
+  
+  if (isBanned()) {
+    alert("Your account has been suspended by an administrator.");
+    await signOut(auth);
+    return;
+  }
+  
+  if (!profile?.name || !String(profile.name).trim()) {
+    showNameOverlay();
+  } else {
+    $("pillUser").textContent = `Signed in: ${displayName()}`;
+  }
 
+  setInterval(()=> upsertPresence({}), 60_000);
 
-  // presence heartbeat
-  setInterval(async ()=>{ try{ await upsertPresence({}); }catch{} }, 60_000);
-
-  // realtime listings
   const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
   onSnapshot(qy, (snap)=>{
     listings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     renderBoards();
     render();
-
-    // keep thread modal updated live if open
     if (openThreadId){
       const item = listings.find(x=>x.id===openThreadId);
-      if (item){
-        renderReplies(item.replies || []);
-      }
+      if (item) renderReplies(item.replies || []);
     }
   });
 });
