@@ -6,16 +6,17 @@ import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-
 import {
   getFirestore,
   collection,
-  deleteDoc,
   doc,
-  updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
-  orderBy
+  orderBy,
+  updateDoc,
+  getDocs,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -44,157 +45,143 @@ const hide = (id) => { $(id).style.display = "none"; };
 const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
 let user = null;
-let posts = [];
-let profiles = [];
+let isAdmin = false;
+let allPosts = [];
+let allUsers = [];
 
-$("btnLogin").addEventListener("click", async ()=>{
+function prettyTime(ts){
+  try{
+    const d = ts?.toDate ? ts.toDate() : (typeof ts === "number" ? new Date(ts) : null);
+    if (!d) return "—";
+    return d.toLocaleString();
+  }catch{ return "—";}
+}
+
+function renderPosts(){
+  const wrap = $("tableWrap");
+  const q = ($("q").value || "").trim().toLowerCase();
+  const board = $("board").value;
+
+  let posts = allPosts.slice();
+  if (q) posts = posts.filter(p => `${p.title} ${p.userEmail}`.toLowerCase().includes(q));
+  if (board !== "ALL") posts = posts.filter(p => p.category === board);
+
+  $("countLine").textContent = `${posts.length} posts`;
+
+  let html = `<table class="adminTable"><thead><tr>
+    <th>Title</th><th>Board</th><th>User</th><th>Posted</th><th>Actions</th>
+  </tr></thead><tbody>`;
+
+  for(const p of posts){
+    html += `<tr data-id="${p.id}">
+      <td>${esc(p.title)}</td>
+      <td>${esc(p.category)}</td>
+      <td>${esc(p.userEmail)}</td>
+      <td>${esc(prettyTime(p.createdAtMs))}</td>
+      <td><button class="btn mini danger" data-action="deletePost">Delete</button></td>
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+}
+
+function renderUsers(){
+  const wrap = $("usersWrap");
+  const q = ($("uq").value || "").trim().toLowerCase();
+  let users = allUsers.slice();
+  if (q) users = users.filter(u => `${u.name} ${u.email}`.toLowerCase().includes(q));
+
+  $("userCountLine").textContent = `${users.length} users`;
+  
+  let html = `<table class="adminTable"><thead><tr>
+    <th>Name</th><th>Email</th><th>Last Seen</th><th>Actions</th>
+  </tr></thead><tbody>`;
+
+  for(const u of users){
+    const isBanned = u.banned;
+    html += `<tr data-id="${u.id}">
+      <td>${esc(u.name)}</td>
+      <td>${esc(u.email)}</td>
+      <td>${esc(prettyTime(u.lastSeenAtMs))}</td>
+      <td><button class="btn mini ${isBanned ? '' : 'danger'}" data-action="toggleBan">${isBanned ? 'Unban' : 'Ban'}</button></td>
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+}
+
+
+async function loadAdminData(){
+  onSnapshot(query(collection(db, "listings"), orderBy("createdAtMs", "desc")), (snap)=>{
+    allPosts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderPosts();
+  });
+
+  onSnapshot(query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc")), (snap)=>{
+    allUsers = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderUsers();
+  });
+}
+
+$("btnLogin")?.addEventListener("click", async () => {
   const email = $("loginEmail").value.trim();
   const pass = $("loginPassword").value.trim();
   if (!email || !pass) return alert("Enter email and password.");
-  try{
+  try {
     await signInWithEmailAndPassword(auth, email, pass);
-  }catch(e){
-    alert("Login failed.");
+  } catch (e) {
+    console.error(e);
+    alert("Admin login failed.");
   }
 });
 
-$("btnLogout").addEventListener("click", async ()=>{
+$("btnLogout")?.addEventListener("click", async () => {
   await signOut(auth);
   location.reload();
 });
 
-function render(){
-  const qText = ($("q").value || "").toLowerCase().trim();
-  const board = $("board").value;
+onAuthStateChanged(auth, async (u) => {
+  user = u;
+  isAdmin = user && ADMINS.has(user.email.toLowerCase());
 
-  let list = posts.slice();
-  if (board !== "ALL") list = list.filter(p => p.category === board);
-  if (qText) list = list.filter(p => (`${p.title} ${p.userEmail}`.toLowerCase()).includes(qText));
-
-  $("countLine").textContent = `${list.length} posts`;
-
-  let html = `
-    <table style="width:100%;border-collapse:collapse">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Title</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Board</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Posted By</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Photo</th>
-          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)"></th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  for (const p of list){
-    html += `
-      <tr>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.title || "")}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.category || "")}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.userEmail || "")}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${p.photo ? "Yes" : "No"}</td>
-        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">
-          <button class="btn danger" data-del="${esc(p.id)}">Delete</button>
-        </td>
-      </tr>
-    `;
-  }
-
-  html += `</tbody></table>`;
-  $("tableWrap").innerHTML = html;
-
-  $("tableWrap").querySelectorAll("[data-del]").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      const id = btn.getAttribute("data-del");
-      if (!confirm("Delete this post?")) return;
-      await deleteDoc(doc(db, "listings", id));
-    });
-  });
-}
-
-["q","board"].forEach(id => $(id).addEventListener("input", render));
-["uq"].forEach(id => $(id).addEventListener("input", renderUsers));
-
-function renderUsers(){
-  const qText = ($("uq").value || "").toLowerCase().trim();
-  let list = profiles.slice();
-  if (qText){
-    list = list.filter(p => (`${p.name||""} ${p.email||""} ${p.uid||""}`.toLowerCase()).includes(qText));
-  }
-  $("userCountLine").textContent = `${list.length} users`;
-  let html = `<table style="width:100%;border-collapse:collapse"><thead><tr>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Name</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Email</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">UID</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Last Seen</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Status</th>
-    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)"></th>
-  </tr></thead><tbody>`;
-
-  for (const p of list){
-    const last = p.lastSeenAtMs ? new Date(p.lastSeenAtMs).toLocaleString() : "—";
-    html += `<tr>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.name || "—")}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.email || "—")}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.uid || "—")}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(last)}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${p.banned ? "BANNED" : "ACTIVE"}</td>
-      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">
-        <button class="btn ${p.banned ? "" : "danger"}" data-ban="${esc(p.uid)}" data-state="${p.banned ? "unban" : "ban"}">${p.banned ? "Unban" : "Ban"}</button>
-      </td>
-    </tr>`;
-  }
-  html += `</tbody></table>`;
-  $("usersWrap").innerHTML = html;
-  $("usersWrap").querySelectorAll("[data-ban]").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      const uid = btn.getAttribute("data-ban");
-      const state = btn.getAttribute("data-state");
-      const willBan = state === "ban";
-      if (!confirm(`${willBan ? "BAN" : "UNBAN"} this user?`)) return;
-      await updateDoc(doc(db, "profiles", uid), { banned: willBan, bannedAtMs: Date.now() });
-    });
-  });
-}
-
-onAuthStateChanged(auth, (u) => {
-    // Case 1: A user is logged in, but they are not an admin.
-    if (u && u.email && !ADMINS.has(u.email.toLowerCase())) {
-        alert("Access Denied. This page is for administrators only.");
-        signOut(auth); // Sign them out, which will re-run this listener with u=null
-        return;
-    }
-
-    // Case 2: No user is logged in (or they were just logged out).
-    if (!u) {
-        user = null;
-        posts = [];
-        profiles = [];
-        show("loginOverlay");
-        $("pillUser").textContent = "Not signed in";
-        $("tableWrap").innerHTML = "";
-        $("usersWrap").innerHTML = "";
-        $("countLine").textContent = "0 posts";
-        $("userCountLine").textContent = "0 users";
-        return;
-    }
-
-    // Case 3: A valid admin is logged in.
-    user = u;
+  if (isAdmin) {
     hide("loginOverlay");
-    $("pillUser").textContent = `Admin: ${user.email}`;
-
-    // Attach Firestore listeners for admin data
-    const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
-    onSnapshot(qy, (snap) => {
-        posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        render();
-    });
-
-    const pq = query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc"));
-    onSnapshot(pq, (snap) => {
-        profiles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderUsers();
-    });
+    $("pillUser").textContent = user.email;
+    loadAdminData();
+  } else {
+    show("loginOverlay");
+    $("pillUser").textContent = "Not signed in";
+    if (user) {
+      alert("You do not have admin permissions.");
+      await signOut(auth);
+    }
+  }
 });
+
+document.body.addEventListener("click", async e => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const row = btn.closest("tr");
+  const id = row?.dataset.id;
+  if (!id) return;
+
+  if (action === "deletePost"){
+    if (confirm(`Delete post ${id}?`)) {
+      await deleteDoc(doc(db, "listings", id));
+    }
+  }
+
+  if (action === "toggleBan"){
+    const userRef = doc(db, "profiles", id);
+    const userSnap = await getDoc(userRef);
+    const isBanned = userSnap.data()?.banned;
+    if (confirm(`${isBanned ? 'Unban' : 'Ban'} user ${id}?`)){
+      await setDoc(userRef, { banned: !isBanned }, { merge: true });
+    }
+  }
+});
+
+$("q").addEventListener("input", renderPosts);
+$("board").addEventListener("input", renderPosts);
+$("uq").addEventListener("input", renderUsers);
