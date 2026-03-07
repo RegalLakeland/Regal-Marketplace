@@ -385,7 +385,7 @@ function startListingsListener() {
 }
 
 function renderBoards() {
-  const      loginPane.style.display = "none";
+  const replies = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       signupPane.style.display = "block";
       tabSignup.classList.add("active");
       tabLogin.classList.remove("active");
