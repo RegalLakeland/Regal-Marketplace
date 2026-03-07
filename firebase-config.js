@@ -1,4 +1,4 @@
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
   authDomain: "regal-lakeland-marketplace.firebaseapp.com",
   projectId: "regal-lakeland-marketplace",
