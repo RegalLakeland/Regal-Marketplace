@@ -1,10 +1,10 @@
+
 /* General Styles */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #121212;
-    color: #ffffff;
+    background-color: #0d1117;
+    color: #c9d1d9;
     margin: 0;
-    overflow-x: hidden;
 }
 
 .container {
@@ -17,8 +17,8 @@ header {
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
-    background-color: #1a1a1a;
-    border-bottom: 1px solid #333;
+    background-color: #161b22;
+    border-bottom: 1px solid #30363d;
 }
 
 .header-left {
@@ -26,9 +26,17 @@ header {
     align-items: center;
 }
 
-.header-left h1 {
+.logo {
+    background-color: #238636;
+    color: #ffffff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
     margin-right: 1rem;
-    font-size: 1.5rem;
 }
 
 .header-title h2 {
@@ -39,64 +47,49 @@ header {
 .header-title p {
     margin: 0;
     font-size: 0.8rem;
-    color: #a0a0a0;
+    color: #8b949e;
 }
 
 .header-right p {
     margin-right: 1rem;
-}
-
-#login-button {
-    background-color: #007bff;
-    color: #ffffff;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-#login-button:hover {
-    background-color: #0056b3;
+    color: #8b949e;
 }
 
 /* Sidebar */
 .sidebar {
-    width: 200px;
+    width: 250px;
     padding: 2rem;
-    background-color: #1a1a1a;
-    border-right: 1px solid #333;
+    background-color: #0d1117;
+    border-right: 1px solid #30363d;
 }
 
 .sidebar h3 {
     margin-top: 0;
 }
 
-.sidebar ul {
+.rules {
+    margin-top: 2rem;
+}
+
+.rules h4 {
+    color: #8b949e;
+}
+
+.rules ul {
     list-style: none;
     padding: 0;
+    color: #8b949e;
 }
 
-.sidebar li {
-    padding: 0.5rem 0;
-    cursor: pointer;
+.rules li {
+    margin-bottom: 0.5rem;
 }
 
-.sidebar li.active {
-    color: #007bff;
-    font-weight: bold;
-}
 
 /* Marketplace */
 .marketplace {
     flex-grow: 1;
     padding: 2rem;
-}
-
-.marketplace-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
 }
 
 .controls {
@@ -107,74 +100,26 @@ header {
 
 .search-bar input {
     width: 300px;
-    padding: 0.5rem;
-    border-radius: 5px;
-    border: 1px solid #333;
-    background-color: #2a2a2a;
-    color: #ffffff;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    background-color: #0d1117;
+    color: #c9d1d9;
 }
 
-.filter-sort {
-    display: flex;
-}
-
-.filter, .sort {
-    margin-left: 2rem;
-}
-
-.filter select, .sort select {
-    padding: 0.5rem;
-    border-radius: 5px;
-    border: 1px solid #333;
-    background-color: #2a2a2a;
-    color: #ffffff;
-}
-
-.item-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1.5rem;
-}
-
-.item-card {
-    background-color: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.item-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-}
-
-.item-card img {
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-}
-
-.item-card-content {
-    padding: 1rem;
-}
-
-.item-card-content h3 {
-    margin-top: 0;
-}
-
-.item-card-content p {
-    color: #a0a0a0;
-}
-
-.item-card-content .price {
-    font-weight: bold;
-    color: #007bff;
+.sort select {
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    background-color: #0d1117;
+    color: #c9d1d9;
 }
 
 /* Modal */
 .modal {
-    display: none;
+    display: flex; /* Changed from none to flex */
+    justify-content: center;
+    align-items: center;
     position: fixed;
     z-index: 1;
     left: 0;
@@ -182,63 +127,82 @@ header {
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0,0,0,0.4);
+    background-color: rgba(0,0,0,0.8);
 }
 
 .modal-content {
-    background-color: #2a2a2a;
-    margin: 15% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 80%;
-    max-width: 400px;
-    border-radius: 8px;
-    position: relative;
+    background-color: #161b22;
+    padding: 2rem;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    width: 400px;
 }
 
-.close-button {
-    color: #aaa;
-    position: absolute;
-    top: 10px;
-    right: 20px;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
+.login-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 2rem;
 }
 
-.close-button:hover, .close-button:focus {
-    color: #ffffff;
-    text-decoration: none;
+.login-options {
+    display: flex;
+    margin-bottom: 1rem;
+}
+
+.login-options button {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border: none;
+    background-color: transparent;
+    color: #c9d1d9;
     cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.login-options button.active {
+    border-bottom: 2px solid #2f81f7;
+    color: #2f81f7;
+}
+
+#login-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #8b949e;
 }
 
 #login-form input {
     width: 100%;
-    padding: 12px 20px;
-    margin: 8px 0;
-    display: inline-block;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    background-color: #0d1117;
+    color: #c9d1d9;
     box-sizing: border-box;
-    background-color: #333;
-    color: #fff;
 }
 
-#login-form button {
-    width: 100%;
-    background-color: #007bff;
-    color: white;
-    padding: 14px 20px;
-    margin: 8px 0;
+.form-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.form-footer button {
+    background-color: #238636;
+    color: #ffffff;
     border: none;
-    border-radius: 4px;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
     cursor: pointer;
 }
 
-#login-form button:hover {
-    background-color: #0056b3;
+.form-footer a {
+    color: #2f81f7;
+    text-decoration: none;
 }
 
-a {
-    color: #007bff;
+.email-verification {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    color: #8b949e;
 }

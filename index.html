@@ -9,15 +9,14 @@
 <body>
     <header>
         <div class="header-left">
-            <h1>RH</h1>
+            <div class="logo">RH</div>
             <div class="header-title">
                 <h2>Regal Employee Marketplace</h2>
-                <p>Private • Verified work email required</p>
+                <p>Internal buy/sell board</p>
             </div>
         </div>
         <div class="header-right">
             <p id="user-status">Not signed in</p>
-            <button id="login-button">Login</button>
         </div>
     </header>
 
@@ -25,37 +24,31 @@
         <div class="container">
             <aside class="sidebar">
                 <h3>Boards</h3>
-                <ul>
-                    <li class="active">All</li>
-                </ul>
+                <div class="rules">
+                    <h4>Rules</h4>
+                    <ul>
+                        <li>Work friends only</li>
+                        <li>No drama / no spam</li>
+                        <li>Include contact info</li>
+                        <li>Free items hide the price</li>
+                        <li>Sale items can be marked sold</li>
+                    </ul>
+                </div>
             </aside>
             <section class="marketplace">
-                <div class="marketplace-header">
-                    <h2>Marketplace</h2>
-                    <p><span id="item-count">0</span> shown • <span id="total-count">0</span> total</p>
-                </div>
                 <div class="controls">
                     <div class="search-bar">
-                        <input type="text" placeholder="Search titles, descriptions...">
+                        <input type="text" placeholder="Search titles, descriptions, comments...">
                     </div>
-                    <div class="filter-sort">
-                        <div class="filter">
-                            <label for="status">Status</label>
-                            <select id="status">
-                                <option value="active">Active</option>
-                                <option value="sold">Sold</option>
-                            </select>
-                        </div>
-                        <div class="sort">
-                            <label for="sort">Sort</label>
-                            <select id="sort">
-                                <option value="pinned-newest">Pinned + Newest</option>
-                                <option value="newest">Newest</option>
-                                <option value="oldest">Oldest</option>
-                            </select>
-                        </div>
+                    <div class="sort">
+                        <select id="sort">
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                        </select>
                     </div>
                 </div>
+                <h2>Marketplace</h2>
+                <p><span id="item-count">0</span> shown • <span id="total-count">0</span> total</p>
                 <div id="item-grid" class="item-grid">
                     <!-- Marketplace items will be injected here by JavaScript -->
                 </div>
@@ -65,14 +58,28 @@
 
     <div id="login-modal" class="modal">
         <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Login</h2>
+            <div class="login-header">
+                <div class="logo">RH</div>
+                <div class="header-title">
+                    <h2>Regal Employee Marketplace</h2>
+                    <p>Verified @regallakeland.com employees only</p>
+                </div>
+            </div>
+            <div class="login-options">
+                <button class="active">Login</button>
+                <button>Create Account</button>
+            </div>
             <form id="login-form">
-                <input type="email" id="email" placeholder="Email" required>
+                <label for="email">Work Email</label>
+                <input type="email" id="email" placeholder="username@regallakeland.com" required>
+                <label for="password">Password</label>
                 <input type="password" id="password" placeholder="Password" required>
-                <button type="submit">Login</button>
+                <div class="form-footer">
+                    <button type="submit">Login</button>
+                    <a href="#" id="forgot-password">Forgot Password</a>
+                </div>
             </form>
-            <p>Don't have an account? <a href="#" id="signup-link">Sign up</a></p>
+            <p class="email-verification">Accounts require email verification. After creating an account, check your inbox and verify before logging in.</p>
         </div>
     </div>
 
