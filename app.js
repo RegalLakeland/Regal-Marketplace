@@ -1,9 +1,11 @@
+import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
@@ -13,13 +15,13 @@ import {
   addDoc,
   doc,
   getDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
   query,
   orderBy,
-  where,
-  setDoc
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import {
   getStorage,
@@ -28,55 +30,362 @@ import {
   getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "")
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;");
+
+const boardLabels = {
+  ALL: "All Boards",
+  FREE: "Free Items",
+  BUYSELL: "Buy / Sell",
+  GARAGE: "Garage Sales",
+  EVENTS: "Events",
+  WORK: "Work News",
+  SERVICES: "Local Services"
+};
+
+let currentUser = null;
+let currentProfile = null;
+let listings = [];
+let activeBoard = "ALL";
+let activeThread = null;
+let listingsUnsub = null;
+let repliesUnsub = null;
+let lastUnverifiedEmail = "";
 
 window.addEventListener("error", (e) => {
-  console.error("Marketplace JS error:", e.error || e.message);
+  console.error("Marketplace JS error:", e.error || e.message || e);
 });
 
-function initMarketplace(){
+document.addEventListener("DOMContentLoaded", () => {
+  bindStaticEvents();
+  renderBoards();
+  renderListings();
 
+  onAuthStateChanged(auth, async (user) => {
+    try {
+      if (!user) {
+        currentUser = null;
+        currentProfile = null;
+        stopListeners();
+        updateAuthUI();
+        return;
+      }
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
-    authDomain: "regal-lakeland-marketplace.firebaseapp.com",
-    projectId: "regal-lakeland-marketplace",
-    storageBucket: "regal-lakeland-marketplace.firebasestorage.app",
-    messagingSenderId: "1014346693296",
-    appId: "1:1014346693296:web:fc76118d1a8db347945975"
+      await user.reload().catch(() => {});
+      if (!user.emailVerified) {
+        lastUnverifiedEmail = user.email || "";
+        if ($("verifyNote")) $("verifyNote").style.display = "block";
+        if ($("btnResendVerify")) $("btnResendVerify").style.display = "inline-flex";
+        await signOut(auth);
+        alert("Please verify your email before logging in.");
+        return;
+      }
+
+      currentUser = user;
+      lastUnverifiedEmail = "";
+
+      if ($("verifyNote")) $("verifyNote").style.display = "none";
+      if ($("btnResendVerify")) $("btnResendVerify").style.display = "none";
+
+      await ensureProfile(user);
+      updateAuthUI();
+      startListingsListener();
+
+      if (!currentProfile?.displayName) {
+        if ($("displayNameInput")) $("displayNameInput").value = user.displayName || "";
+        show("nameOverlay");
+      } else {
+        hide("nameOverlay");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err?.message || "Authentication error.");
+    }
+  });
+});
+
+function bindStaticEvents() {
+  $("tabLogin")?.addEventListener("click", () => showPane("login"));
+  $("tabSignup")?.addEventListener("click", () => showPane("signup"));
+
+  $("btnLogin")?.addEventListener("click", handleLogin);
+  $("btnSignup")?.addEventListener("click", handleSignup);
+  $("btnResendVerify")?.addEventListener("click", handleResendVerification);
+  $("btnSaveName")?.addEventListener("click", handleSaveName);
+  $("btnLogout")?.addEventListener("click", async () => {
+    await signOut(auth);
+  });
+
+  $("btnNew")?.addEventListener("click", () => {
+    if (!currentUser) {
+      alert("Please log in first.");
+      return;
+    }
+    show("postOverlay");
+  });
+
+  $("btnSavePost")?.addEventListener("click", handleSavePost);
+  $("btnSendReply")?.addEventListener("click", handleSendReply);
+
+  document.querySelectorAll("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => hide(btn.dataset.close));
+  });
+
+  $("q")?.addEventListener("input", renderListings);
+  $("st")?.addEventListener("change", renderListings);
+  $("sort")?.addEventListener("change", renderListings);
+
+  document.body.addEventListener("click", async (e) => {
+    const actionEl = e.target.closest("[data-action]");
+    if (!actionEl) return;
+
+    const action = actionEl.dataset.action;
+    const id = actionEl.dataset.id;
+    if (!id) return;
+
+    if (action === "openThread") {
+      await openThread(id);
+    } else if (action === "deletePost") {
+      await handleDeletePost(id);
+    } else if (action === "markSold") {
+      await handleMarkSold(id);
+    }
+  });
+}
+
+function showPane(which) {
+  const loginPane = $("loginPane");
+  const signupPane = $("signupPane");
+  const tabLogin = $("tabLogin");
+  const tabSignup = $("tabSignup");
+  if (!loginPane || !signupPane || !tabLogin || !tabSignup) return;
+
+  if (which === "login") {
+    loginPane.style.display = "block";
+    signupPane.style.display = "none";
+    tabLogin.classList.add("active");
+    tabSignup.classList.remove("active");
+  } else {
+    loginPane.style.display = "none";
+    signupPane.style.display = "block";
+    tabSignup.classList.add("active");
+    tabLogin.classList.remove("active");
+  }
+}
+
+function show(id) {
+  const el = $(id);
+  if (el) el.style.display = "flex";
+}
+
+function hide(id) {
+  const el = $(id);
+  if (el) el.style.display = "none";
+}
+
+function isAllowedEmail(email) {
+  return String(email || "").trim().toLowerCase().endsWith("@regallakeland.com");
+}
+
+function isAdmin(email) {
+  return ADMIN_EMAILS.includes(String(email || "").trim().toLowerCase());
+}
+
+function stopListeners() {
+  if (listingsUnsub) {
+    listingsUnsub();
+    listingsUnsub = null;
+  }
+  if (repliesUnsub) {
+    repliesUnsub();
+    repliesUnsub = null;
+  }
+  listings = [];
+  activeThread = null;
+  renderListings();
+}
+
+async function ensureProfile(user) {
+  const profileRef = doc(db, "profiles", user.uid);
+  const snap = await getDoc(profileRef);
+
+  const baseProfile = {
+    uid: user.uid,
+    email: user.email || "",
+    displayName: (user.displayName || "").trim(),
+    isAdmin: isAdmin(user.email),
+    updatedAt: serverTimestamp()
   };
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const storage = getStorage(app);
+  if (!snap.exists()) {
+    await setDoc(profileRef, {
+      ...baseProfile,
+      createdAt: serverTimestamp()
+    });
+    currentProfile = {
+      ...baseProfile,
+      createdAt: new Date()
+    };
+  } else {
+    currentProfile = { id: snap.id, ...snap.data() };
+    if (currentProfile.isAdmin !== isAdmin(user.email)) {
+      await updateDoc(profileRef, {
+        isAdmin: isAdmin(user.email),
+        updatedAt: serverTimestamp()
+      });
+      currentProfile.isAdmin = isAdmin(user.email);
+    }
+  }
+}
 
-  const $ = (id) => document.getElementById(id);
-  
-  const show = (id) => {
-    const el = $(id);
-    if (el) el.style.display = "flex";
-  };
-  const hide = (id) => {
-    const el = $(id);
-    if (el) el.style.display = "none";
-  };
-  
-  const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+function updateAuthUI() {
+  const loggedIn = !!currentUser && !!currentProfile;
 
-  function showPane(which){
-    const loginPane = $("loginPane");
-    const signupPane = $("signupPane");
-    const tabLogin = $("tabLogin");
-    const tabSignup = $("tabSignup");
-    if(!loginPane || !signupPane || !tabLogin || !tabSignup) return;
-    if (which === "login"){
-      loginPane.style.display = "block";
-      signupPane.style.display = "none";
-      tabLogin.classList.add("active");
-      tabSignup.classList.remove("active");
-    } else {
-      loginPane.style.display = "none";
+  if ($("pillUser")) {
+    $("pillUser").textContent = loggedIn
+      ? `${currentProfile.displayName || currentUser.email}`
+      : "Not signed in";
+  }
+
+  if ($("adminLink")) $("adminLink").style.display = loggedIn && currentProfile.isAdmin ? "inline-flex" : "none";
+  if ($("btnLogout")) $("btnLogout").style.display = loggedIn ? "inline-flex" : "none";
+  if ($("btnNew")) $("btnNew").style.display = loggedIn ? "inline-flex" : "none";
+  if ($("loginOverlay")) $("loginOverlay").style.display = loggedIn ? "none" : "flex";
+}
+
+async function handleLogin() {
+  const email = $("loginEmail")?.value.trim().toLowerCase();
+  const password = $("loginPassword")?.value || "";
+
+  if (!email || !password) {
+    alert("Enter email and password.");
+    return;
+  }
+  if (!isAllowedEmail(email)) {
+    alert("Use your @regallakeland.com email.");
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    console.error(err);
+    alert(`${err?.code || "login_error"} — ${err?.message || "Login failed."}`);
+  }
+}
+
+async function handleSignup() {
+  const email = $("signupEmail")?.value.trim().toLowerCase();
+  const password = $("signupPassword")?.value || "";
+  const password2 = $("signupPassword2")?.value || "";
+  const msg = $("signupMsg");
+
+  if (msg) {
+    msg.style.display = "none";
+    msg.textContent = "";
+  }
+
+  if (!email || !password || !password2) {
+    alert("Complete all signup fields.");
+    return;
+  }
+  if (!isAllowedEmail(email)) {
+    alert("Use your @regallakeland.com email.");
+    return;
+  }
+  if (password.length < 6) {
+    alert("Password must be at least 6 characters.");
+    return;
+  }
+  if (password !== password2) {
+    alert("Passwords do not match.");
+    return;
+  }
+
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await sendEmailVerification(cred.user);
+    await signOut(auth);
+
+    if (msg) {
+      msg.textContent = "Account created. Check your email and click the verification link, then log in.";
+      msg.style.display = "block";
+    }
+
+    if ($("loginEmail")) $("loginEmail").value = email;
+    if ($("loginPassword")) $("loginPassword").value = "";
+
+    lastUnverifiedEmail = email;
+    if ($("btnResendVerify")) $("btnResendVerify").style.display = "inline-flex";
+
+    showPane("login");
+    alert("Account created. Verification email sent.");
+  } catch (err) {
+    console.error(err);
+    alert(`${err?.code || "signup_error"} — ${err?.message || "Signup failed."}`);
+  }
+}
+
+async function handleResendVerification() {
+  const email = (lastUnverifiedEmail || $("loginEmail")?.value || "").trim().toLowerCase();
+  if (!email) {
+    alert("Enter your email first.");
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    alert("Check your email. If your account exists, a message was sent. If you still need verification, sign in again after opening the verification email.");
+  } catch (err) {
+    console.error(err);
+    alert(err?.message || "Unable to send email right now.");
+  }
+}
+
+async function handleSaveName() {
+  const name = $("displayNameInput")?.value.trim();
+  if (!currentUser) {
+    alert("Please log in again.");
+    return;
+  }
+  if (!name) {
+    alert("Enter your name.");
+    return;
+  }
+
+  await updateDoc(doc(db, "profiles", currentUser.uid), {
+    displayName: name,
+    updatedAt: serverTimestamp()
+  });
+
+  currentProfile.displayName = name;
+  updateAuthUI();
+  hide("nameOverlay");
+}
+
+function startListingsListener() {
+  if (listingsUnsub) return;
+
+  const qRef = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
+  listingsUnsub = onSnapshot(qRef, (snap) => {
+    listings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderBoards();
+    renderListings();
+  }, (err) => {
+    console.error(err);
+    alert(`Listings error: ${err?.message || err}`);
+  });
+}
+
+function renderBoards() {
+  const      loginPane.style.display = "none";
       signupPane.style.display = "block";
       tabSignup.classList.add("active");
       tabLogin.classList.remove("active");
