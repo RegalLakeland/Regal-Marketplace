@@ -46,7 +46,9 @@ let user = null;
 let posts = [];
 let profiles = [];
 
+// Use the new unique ID for the admin login button
 $("adminLoginButton").addEventListener("click", async ()=>{
+  // Use the new unique IDs for the email and password fields
   const email = $("adminLoginEmail").value.trim();
   const pass = $("adminLoginPassword").value.trim();
   if (!email || !pass) return alert("Enter email and password.");
@@ -54,49 +56,56 @@ $("adminLoginButton").addEventListener("click", async ()=>{
     await signInWithEmailAndPassword(auth, email, pass);
   }catch(e){
     console.error("Admin login failed:", e);
-    alert("Login failed. You must be an admin.");
+    alert("Login failed.");
   }
 });
 
 $("btnLogout").addEventListener("click", async ()=>{
   await signOut(auth);
+  // No need to reload, onAuthStateChanged will handle it
 });
 
-function render() {
+function render(){
   const qText = ($("q").value || "").toLowerCase().trim();
-  const board = ($("board").value);
+  const board = $("board").value;
+
   let list = posts.slice();
   if (board !== "ALL") list = list.filter(p => p.category === board);
   if (qText) list = list.filter(p => (`${p.title} ${p.userEmail}`.toLowerCase()).includes(qText));
+
   $("countLine").textContent = `${list.length} posts`;
+
   let html = `
-    <table style=\"width:100%;border-collapse:collapse\">
+    <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr>
-          <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Title</th>
-          <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Board</th>
-          <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Posted By</th>
-          <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Photo</th>
-          <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\"></th>
+          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Title</th>
+          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Board</th>
+          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Posted By</th>
+          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Photo</th>
+          <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)"></th>
         </tr>
       </thead>
       <tbody>
   `;
+
   for (const p of list){
     html += `
       <tr>
-        <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${esc(p.title || "")}</td>
-        <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${esc(p.category || "")}</td>
-        <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${esc(p.userEmail || "")}</td>
-        <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${p.photo ? "Yes" : "No"}</td>
-        <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">
-          <button class=\"btn mini danger\" data-del=\"${esc(p.id)}\">Delete</button>
+        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.title || "")}</td>
+        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.category || "")}</td>
+        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.userEmail || "")}</td>
+        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${p.photo ? "Yes" : "No"}</td>
+        <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">
+          <button class="btn danger" data-del="${esc(p.id)}">Delete</button>
         </td>
       </tr>
     `;
   }
+
   html += `</tbody></table>`;
   $("tableWrap").innerHTML = html;
+
   $("tableWrap").querySelectorAll("[data-del]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       const id = btn.getAttribute("data-del");
@@ -109,31 +118,32 @@ function render() {
 ["q","board"].forEach(id => $(id).addEventListener("input", render));
 ["uq"].forEach(id => $(id).addEventListener("input", renderUsers));
 
-function renderUsers() {
+function renderUsers(){
   const qText = ($("uq").value || "").toLowerCase().trim();
   let list = profiles.slice();
   if (qText){
-    list = list.filter(p => (`${p.name||''} ${p.email||''} ${p.uid||''}`.toLowerCase()).includes(qText));
+    list = list.filter(p => (`${p.name||""} ${p.email||""} ${p.uid||""}`.toLowerCase()).includes(qText));
   }
   $("userCountLine").textContent = `${list.length} users`;
-  let html = `<table style=\"width:100%;border-collapse:collapse\"><thead><tr>
-    <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Name</th>
-    <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Email</th>
-    <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">UID</th>
-    <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Last Seen</th>
-    <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\">Status</th>
-    <th style=\"text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)\"></th>
+  let html = `<table style="width:100%;border-collapse:collapse"><thead><tr>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Name</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Email</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">UID</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Last Seen</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)">Status</th>
+    <th style="text-align:left;padding:10px 6px;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.1)"></th>
   </tr></thead><tbody>`;
+
   for (const p of list){
     const last = p.lastSeenAtMs ? new Date(p.lastSeenAtMs).toLocaleString() : "—";
     html += `<tr>
-      <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${esc(p.name || "—")}</td>
-      <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${esc(p.email || "—")}</td>
-      <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${esc(p.uid || "—")}</td>
-      <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${esc(last)}</td>
-      <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">${p.banned ? "BANNED" : "ACTIVE"}</td>
-      <td style=\"padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)\">
-        <button class=\"btn mini ${p.banned ? '' : 'danger'}\" data-ban=\"${esc(p.uid)}\" data-state=\"${p.banned ? 'unban' : 'ban'}\">${p.banned ? "Un-ban" : "Ban"}</button>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.name || "—")}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.email || "—")}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(p.uid || "—")}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${esc(last)}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">${p.banned ? "BANNED" : "ACTIVE"}</td>
+      <td style="padding:10px 6px;border-bottom:1px solid rgba(255,255,255,.08)">
+        <button class="btn ${p.banned ? "" : "danger"}" data-ban="${esc(p.uid)}" data-state="${p.banned ? "unban" : "ban"}">${p.banned ? "Unban" : "Ban"}</button>
       </td>
     </tr>`;
   }
@@ -144,8 +154,8 @@ function renderUsers() {
       const uid = btn.getAttribute("data-ban");
       const state = btn.getAttribute("data-state");
       const willBan = state === "ban";
-      if (!confirm(`${willBan ? "BAN" : "UN-BAN"} this user?`)) return;
-      await updateDoc(doc(db, "profiles", uid), { banned: willBan });
+      if (!confirm(`${willBan ? "BAN" : "UNBAN"} this user?`)) return;
+      await updateDoc(doc(db, "profiles", uid), { banned: willBan, bannedAtMs: Date.now() });
     });
   });
 }
@@ -161,31 +171,42 @@ function cleanup() {
     if (profileListener) profileListener(); // Unsubscribe
     postListener = null;
     profileListener = null;
+
     $("pillUser").textContent = "Not signed in";
     $("tableWrap").innerHTML = "";
     $("usersWrap").innerHTML = "";
+    $("countLine").textContent = "0 posts";
+    $("userCountLine").textContent = "0 users";
     show("adminLoginOverlay");
 }
 
 onAuthStateChanged(auth, (u) => {
     if (u && u.email && ADMINS.has(u.email.toLowerCase())) {
+        // Admin is logged in
         user = u;
         hide("adminLoginOverlay");
         $("pillUser").textContent = `Admin: ${user.email}`;
+
         if (postListener) postListener();
         const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
         postListener = onSnapshot(qy, (snap) => {
             posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             render();
         });
+
         if (profileListener) profileListener();
         const pq = query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc"));
         profileListener = onSnapshot(pq, (snap) => {
             profiles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             renderUsers();
         });
+
     } else {
-        if (u) signOut(auth);
+        // Not an admin or not logged in
+        if (u) {
+            // If a non-admin user somehow lands here, sign them out.
+            signOut(auth);
+        }
         cleanup();
     }
 });
