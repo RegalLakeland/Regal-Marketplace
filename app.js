@@ -390,7 +390,7 @@ function renderBoards() {
       tabSignup.classList.add("active");
       tabLogin.classList.remove("active");
     }
-  }
+  }}
   $("tabLogin")?.addEventListener("click", ()=>showPane("login"));
   $("tabSignup")?.addEventListener("click", ()=>showPane("signup"));
 
