@@ -1,3 +1,4 @@
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
   getAuth,
@@ -59,6 +60,7 @@ $("btnLogin").addEventListener("click", async ()=>{
 
 $("btnLogout").addEventListener("click", async ()=>{
   await signOut(auth);
+  location.reload();
 });
 
 function render(){
@@ -157,35 +159,42 @@ function renderUsers(){
 }
 
 onAuthStateChanged(auth, (u) => {
-  user = u;
-  if (user && user.email && ADMINS.has(user.email.toLowerCase())) {
+    // Case 1: A user is logged in, but they are not an admin.
+    if (u && u.email && !ADMINS.has(u.email.toLowerCase())) {
+        alert("Access Denied. This page is for administrators only.");
+        signOut(auth); // Sign them out, which will re-run this listener with u=null
+        return;
+    }
+
+    // Case 2: No user is logged in (or they were just logged out).
+    if (!u) {
+        user = null;
+        posts = [];
+        profiles = [];
+        show("loginOverlay");
+        $("pillUser").textContent = "Not signed in";
+        $("tableWrap").innerHTML = "";
+        $("usersWrap").innerHTML = "";
+        $("countLine").textContent = "0 posts";
+        $("userCountLine").textContent = "0 users";
+        return;
+    }
+
+    // Case 3: A valid admin is logged in.
+    user = u;
     hide("loginOverlay");
     $("pillUser").textContent = `Admin: ${user.email}`;
 
+    // Attach Firestore listeners for admin data
     const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
     onSnapshot(qy, (snap) => {
-      posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      render();
+        posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        render();
     });
 
     const pq = query(collection(db, "profiles"), orderBy("lastSeenAtMs", "desc"));
     onSnapshot(pq, (snap) => {
-      profiles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderUsers();
+        profiles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderUsers();
     });
-  } else {
-    if (user) {
-      alert("This account is not an admin.");
-      signOut(auth);
-    }
-    user = null;
-    posts = [];
-    profiles = [];
-    show("loginOverlay");
-    $("pillUser").textContent = "Not signed in";
-    $("tableWrap").innerHTML = "";
-    $("usersWrap").innerHTML = "";
-    $("countLine").textContent = "0 posts";
-    $("userCountLine").textContent = "0 users";
-  }
 });
