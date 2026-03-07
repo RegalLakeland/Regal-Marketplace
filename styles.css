@@ -120,11 +120,9 @@ textarea{min-height:120px; resize:vertical}
 .login-slide.s4{background-image:url("Images/background4.jpg"); animation-delay:21s}
 .login-darken{position:absolute; inset:0; background:linear-gradient(90deg, rgba(4,10,18,.82) 0%, rgba(4,10,18,.62) 38%, rgba(4,10,18,.74) 100%)}
 @keyframes loginFade{
-  0%{opacity:0; transform:scale(1.05)}
-  8%{opacity:1}
-  24%{opacity:1; transform:scale(1.01)}
-  32%{opacity:0}
-  100%{opacity:0}
+  0%{opacity:0; transform:scale(1.06)}
+  10%{opacity:1; transform:scale(1.02)}
+  100%{opacity:1; transform:scale(1)}
 }
 .loginShell{position:relative; z-index:1; width:min(1180px, 100%); display:grid; grid-template-columns:1.15fr .85fr; gap:24px; padding:24px}
 .loginPromo{min-height:560px; padding:34px; display:flex; flex-direction:column; justify-content:flex-end; background:linear-gradient(180deg, rgba(7,15,27,.18), rgba(7,15,27,.54))}
