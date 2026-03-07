@@ -1,4 +1,5 @@
 
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
   getAuth,
@@ -46,8 +47,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const storage = getStorage(app);
 
   const $ = (id) => document.getElementById(id);
-  const show = (id) => { $(id).style.display = "flex"; };
-  const hide = (id) => { $(id).style.display = "none"; };
+  
+  const show = (id) => {
+    const el = $(id);
+    if (el) el.style.display = "flex";
+  };
+  const hide = (id) => {
+    const el = $(id);
+    if (el) el.style.display = "none";
+  };
+  
   const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
   function showPane(which){
@@ -55,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const signupPane = $("signupPane");
     const tabLogin = $("tabLogin");
     const tabSignup = $("tabSignup");
+    if(!loginPane || !signupPane || !tabLogin || !tabSignup) return;
     if (which === "login"){
       loginPane.style.display = "block";
       signupPane.style.display = "none";
@@ -146,10 +156,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function setActiveBoard(key){
     activeBoard = key;
     const def = BOARD_DEFS.find(b=>b.key===key) || BOARD_DEFS[0];
-    $("boardPill").textContent = def.name;
-    $("feedTitle").textContent = def.key === "ALL" ? "Marketplace" : def.name;
+    if($("boardPill")) $("boardPill").textContent = def.name;
+    if($("feedTitle")) $("feedTitle").textContent = def.key === "ALL" ? "Marketplace" : def.name;
 
-    [...$("boards").querySelectorAll(".boardBtn")].forEach(btn=>{
+    [...($("boards")?.querySelectorAll(".boardBtn") || [])].forEach(btn=>{
       btn.classList.toggle("active", btn.dataset.key === key);
     });
 
@@ -158,6 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderBoards(){
     const wrap = $("boards");
+    if(!wrap) return;
     const counts = countByBoard(listings);
     wrap.innerHTML = "";
 
@@ -211,7 +222,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const filtered = applyFilters(listings);
 
-    $("countLine").textContent = `${filtered.length} shown • ${listings.length} total`;
+    if($("countLine")) $("countLine").textContent = `${filtered.length} shown • ${listings.length} total`;
     cards.innerHTML = "";
 
     if (filtered.length === 0){
@@ -260,9 +271,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!item) return;
 
     openThreadId = id;
-    $("threadTitle").textContent = item.title || "Thread";
-    $("threadMeta").textContent = `${catLabel(item.category)} • Posted by ${item.displayName || item.userEmail || "—"} • ${prettyTime(item.createdAt)}`;
-    $("threadBody").innerHTML = `
+    if($("threadTitle")) $("threadTitle").textContent = item.title || "Thread";
+    if($("threadMeta")) $("threadMeta").textContent = `${catLabel(item.category)} • Posted by ${item.displayName || item.userEmail || "—"} • ${prettyTime(item.createdAt)}`;
+    if($("threadBody")) $("threadBody").innerHTML = `
       <div style="display:grid;gap:10px">
         ${item.photo ? `<img src="${item.photo}" style="width:100%;max-height:360px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.10)">` : ""}
         <div>${esc(item.desc || "")}</div>
@@ -271,12 +282,13 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
     renderReplies(item.replies || []);
-    $("replyText").value = "";
+    if($("replyText")) $("replyText").value = "";
     show("threadOverlay");
   }
 
   function renderReplies(replies){
     const wrap = $("threadReplies");
+    if(!wrap) return;
     wrap.innerHTML = "";
     if (!replies || replies.length === 0){
       wrap.innerHTML = `<div class="note">No replies yet. Be the first to respond.</div>`;
@@ -304,10 +316,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function createPost(){
-    const title = $("fTitle").value.trim();
+    const title = $("fTitle")?.value.trim();
     if (!title) return alert("Enter a title.");
 
-    const priceRaw = $("fPrice").value.trim();
+    const priceRaw = $("fPrice")?.value.trim();
     let price = "";
     if (priceRaw !== ""){
       const n = Number(priceRaw);
@@ -316,7 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     let photoUrl = "";
-    const file = $("fPhoto").files?.[0];
+    const file = $("fPhoto")?.files?.[0];
     if (file){
       if (!file.type.startsWith("image/")) return alert("Select an image file.");
       photoUrl = await uploadImageToStorage(file);
@@ -338,21 +350,21 @@ document.addEventListener("DOMContentLoaded", () => {
       createdAtMs: Date.now(),
     });
 
-    $("fTitle").value = "";
-    $("fPrice").value = "";
-    $("fLocation").value = "";
-    $("fDesc").value = "";
-    $("fContact").value = "";
-    $("fPhoto").value = "";
-    $("fStatus").value = "ACTIVE";
-    $("fBoard").value = "FREE";
+    if($("fTitle")) $("fTitle").value = "";
+    if($("fPrice")) $("fPrice").value = "";
+    if($("fLocation")) $("fLocation").value = "";
+    if($("fDesc")) $("fDesc").value = "";
+    if($("fContact")) $("fContact").value = "";
+    if($("fPhoto")) $("fPhoto").value = "";
+    if($("fStatus")) $("fStatus").value = "ACTIVE";
+    if($("fBoard")) $("fBoard").value = "FREE";
 
     hide("postOverlay");
   }
 
   async function sendReply(){
     if (!openThreadId) return;
-    const txt = $("replyText").value.trim();
+    const txt = $("replyText")?.value.trim();
     if (!txt) return;
 
     const refDoc = doc(db, "listings", openThreadId);
@@ -370,7 +382,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try{
       await updateDoc(refDoc, { replies });
-      $("replyText").value = "";
+      if($("replyText")) $("replyText").value = "";
     }catch(e){
       console.error(e);
       alert("Reply failed to post. Ask Michael to check Firestore rules or internet.");
@@ -385,8 +397,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try{
       const cred = await signInWithEmailAndPassword(auth, email, pass);
       if (!cred.user.emailVerified){
-        $("verifyNote").style.display = "block";
-        $("btnResendVerify").style.display = "inline-flex";
+        if($("verifyNote")) $("verifyNote").style.display = "block";
+        if($("btnResendVerify")) $("btnResendVerify").style.display = "inline-flex";
         alert("Please verify your email before using the marketplace. Check your inbox.");
         await signOut(auth);
         return;
@@ -402,6 +414,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const p1 = $("signupPassword").value.trim();
     const p2 = $("signupPassword2").value.trim();
     const msg = $("signupMsg");
+    if(!msg) return;
     msg.style.display = "none";
     msg.textContent = "";
     if (!email || !p1 || !p2) return alert("Fill out email and both password boxes.");
@@ -416,10 +429,10 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Account created. Check your email to verify before logging in.");
       await signOut(auth);
       showPane("login");
-      $("loginEmail").value = email;
-      $("loginPassword").value = "";
-      $("verifyNote").style.display = "block";
-      $("btnResendVerify").style.display = "inline-flex";
+      if($("loginEmail")) $("loginEmail").value = email;
+      if($("loginPassword")) $("loginPassword").value = "";
+      if($("verifyNote")) $("verifyNote").style.display = "block";
+      if($("btnResendVerify")) $("btnResendVerify").style.display = "inline-flex";
     }catch(e){
       console.error(e);
       alert(e?.message || "Signup failed.");
@@ -436,19 +449,19 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnSendReply")?.addEventListener("click", ()=> sendReply());
           
   function showNameOverlay(){
-    $("displayNameInput").value = profile?.name || "";
-    $("nameOverlay").style.display = "flex";
-    $("displayNameInput").focus();
+    if($("displayNameInput")) $("displayNameInput").value = profile?.name || "";
+    show("nameOverlay");
+    $("displayNameInput")?.focus();
   }
-  function hideNameOverlay(){ $("nameOverlay").style.display = "none"; }
+  function hideNameOverlay(){ hide("nameOverlay"); }
 
   $("btnSaveName")?.addEventListener("click", async ()=>{
-    const name = ($("displayNameInput").value || "").trim();
+    const name = ($("displayNameInput")?.value || "").trim();
     if (!name) return alert("Please enter your first and last name.");
     await upsertPresence({ name });
     await loadProfile();
     hideNameOverlay();
-    $("pillUser").textContent = `Signed in: ${displayName()}`;
+    if($("pillUser")) $("pillUser").textContent = `Signed in: ${displayName()}`;
     render();
   });
 
@@ -469,60 +482,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (action === "openThread") openThread(id);
   });
-
-  ["q","st","sort"].forEach(id => $("id")?.addEventListener("input", render));
-
-  onAuthStateChanged(auth, async (u)=>{
-    user = u;
-    if (user && !user.emailVerified){
-      alert("Please verify your email before using the marketplace.");
-      await signOut(auth);
-      show("mainLoginOverlay");
-      return;
-    }
-    if (!user){
-      $("pillUser").textContent = "Not signed in";
-      show("mainLoginOverlay");
-      return;
-    }
-
-    hide("mainLoginOverlay");
-    $("pillUser").textContent = `Signed in: ${displayName()}`;
-    
-    (async ()=>{
-      try{
-        await loadProfile();
-        await upsertPresence({});
-        if (isBanned()){
-          alert("Access removed by admin.");
-          await signOut(auth);
-          return;
-        }
-        if (!profile?.name || !String(profile.name).trim()){
-          showNameOverlay();
-        } else {
-          $("pillUser").textContent = `Signed in: ${displayName()}`;
-        }
-      }catch(e){
-        console.error(e);
-      }
-    })();
-
-    setInterval(async ()=>{ try{ await upsertPresence({}); }catch{} }, 60_000);
-
-    const qy = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
-    onSnapshot(qy, (snap)=>{
-      listings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-      if(typeof renderBoards === 'function') renderBoards();
-      if(typeof render === 'function') render();
-
-      if (openThreadId){
-        const item = listings.find(x=>x.id===openThreadId);
-        if (item){
-          renderReplies(item.replies || []);
-        }
-      }
-    });
-  });
-
-});
