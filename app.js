@@ -33,11 +33,6 @@ import {
   getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
-/**
- * IMPORTANT:
- * This uses YOUR existing Firebase config you pasted earlier.
- * Keep these values as-is unless you changed them in Firebase.
- */
 const firebaseConfig = {
   apiKey: "AIzaSyB6IAiH6zILQKuJRuXc55Q4hEX8q6F2kxE",
   authDomain: "regal-lakeland-marketplace.firebaseapp.com",
@@ -189,10 +184,10 @@ function renderBoards(){
     btn.dataset.key = b.key;
     btn.innerHTML = `
       <div>
-        <div style="font-weight:950">${esc(b.name)}</div>
-        <div class="boardDesc">${esc(b.desc)}</div>
+        <div style=\"font-weight:950\">${esc(b.name)}</div>
+        <div class=\"boardDesc\">${esc(b.desc)}</div>
       </div>
-      <div class="boardCount">${counts[b.key] ?? 0}</div>
+      <div class=\"boardCount\">${counts[b.key] ?? 0}</div>
     `;
     btn.addEventListener("click", ()=> setActiveBoard(b.key));
     wrap.appendChild(btn);
@@ -203,8 +198,8 @@ function renderBoards(){
 
 function applyFilters(list){
   const q = ($("q").value || "").trim().toLowerCase();
-  const st = $("st").value;
-  const sort = $("sort").value;
+  const st = ($("st").value);
+  const sort = ($("sort").value);
 
   let out = list.slice();
 
@@ -249,25 +244,25 @@ function render(){
     el.dataset.id = x.id;
 
     el.innerHTML = `
-      <div class="thumb">
-        ${x.photo ? `<img src="${x.photo}" alt="">` : `<div style="color:rgba(156,163,175,.85);font-weight:950;font-size:12px">No photo</div>`}
-        <div class="badge ${badgeClass}">${x.status==="SOLD" ? "SOLD" : (isFree ? "FREE" : "AVAILABLE")}</div>
+      <div class=\"thumb\">
+        ${x.photo ? `<img src=\"${x.photo}\" alt=\"\">` : `<div style=\"color:rgba(156,163,175,.85);font-weight:950;font-size:12px\">No photo</div>`}
+        <div class=\"badge ${badgeClass}\">${x.status==="SOLD" ? "SOLD" : (isFree ? "FREE" : "AVAILABLE")}</div>
       </div>
 
-      <div class="card-b">
-        <div class="row">
-          <div class="name">${esc(x.title)}</div>
-          <div class="price">${esc(priceText || "—")}</div>
+      <div class=\"card-b\">
+        <div class=\"row\">
+          <div class=\"name\">${esc(x.title)}</div>
+          <div class=\"price\">${esc(priceText || "—")}</div>
         </div>
-        <div class="meta">${esc(catLabel(x.category))}${x.location ? ` • ${esc(x.location)}` : ""}</div>
-        <div class="desc">${esc(x.desc||"").slice(0, 220)}${(x.desc||"").length>220 ? "…" : ""}</div>
+        <div class=\"meta\">${esc(catLabel(x.category))}${x.location ? ` • ${esc(x.location)}` : ""}</div>
+        <div class=\"desc\">${esc(x.desc||"").slice(0, 220)}${(x.desc||"").length>220 ? "…" : ""}</div>
       </div>
 
-      <div class="card-f">
-        <span class="tag">${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
-        <span class="tag">By: ${esc(x.displayName || x.userEmail || "—")}</span>
-        <button class="btn mini" data-action="openThread">Open Thread</button>
-        ${isAdmin ? `<button class="btn mini danger" data-action="deletePost">Admin Delete</button>` : ""}
+      <div class=\"card-f\">
+        <span class=\"tag\">${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
+        <span class=\"tag\">By: ${esc(x.displayName || x.userEmail || "—")}</span>
+        <button class=\"btn mini\" data-action=\"openThread\">Open Thread</button>
+        ${isAdmin ? `<button class=\"btn mini danger\" data-action=\"deletePost\">Admin Delete</button>` : ""}
       </div>
     `;
 
@@ -284,10 +279,10 @@ async function openThread(id){
   $("threadTitle").textContent = item.title || "Thread";
   $("threadMeta").textContent = `${catLabel(item.category)} • Posted by ${item.displayName || item.userEmail || "—"} • ${prettyTime(item.createdAt)}`;
   $("threadBody").innerHTML = `
-    <div style="display:grid;gap:10px">
-      ${item.photo ? `<img src="${item.photo}" style="width:100%;max-height:360px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.10)">` : ""}
+    <div style=\"display:grid;gap:10px\">
+      ${item.photo ? `<img src=\"${item.photo}\" style=\"width:100%;max-height:360px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.10)\">` : ""}
       <div>${esc(item.desc || "")}</div>
-      <div class="meta">${item.location ? `Location: ${esc(item.location)} • ` : ""}${item.contact ? `Contact: ${esc(item.contact)}` : ""}</div>
+      <div class=\"meta\">${item.location ? `Location: ${esc(item.location)} • ` : ""}${item.contact ? `Contact: ${esc(item.contact)}` : ""}</div>
     </div>
   `;
 
@@ -300,18 +295,18 @@ function renderReplies(replies){
   const wrap = $("threadReplies");
   wrap.innerHTML = "";
   if (!replies || replies.length === 0){
-    wrap.innerHTML = `<div class="note">No replies yet. Be the first to respond.</div>`;
+    wrap.innerHTML = `<div class=\"note\">No replies yet. Be the first to respond.</div>`;
     return;
   }
   for (const r of replies){
     const div = document.createElement("div");
     div.className = "replyItem";
     div.innerHTML = `
-      <div class="replyTop">
-        <div class="replyUser">${esc(r.displayName || r.userEmail || "—")}</div>
-        <div class="replyTime">${esc(prettyTime(r.createdAt ?? r.createdAtMs))}</div>
+      <div class=\"replyTop\">
+        <div class=\"replyUser\">${esc(r.displayName || r.userEmail || "—")}</div>
+        <div class=\"replyTime\">${esc(prettyTime(r.createdAt ?? r.createdAtMs))}</div>
       </div>
-      <div class="replyText">${esc(r.text || "")}</div>
+      <div class=\"replyText\">${esc(r.text || "")}</div>
     `;
     wrap.appendChild(div);
   }
@@ -413,9 +408,9 @@ async function adminDelete(id){
 }
 
 // UI wiring
-$("btnLogin").addEventListener("click", async ()=>{
-  const email = $("loginEmail").value.trim();
-  const pass = $("loginPassword").value.trim();
+$("mainLoginButton").addEventListener("click", async ()=>{
+  const email = $("mainLoginEmail").value.trim();
+  const pass = $("mainLoginPassword").value.trim();
   if (!email || !pass) return alert("Enter email and password.");
   if (!isAllowedEmail(email)) return alert("Use your @regallakeland.com email.");
   try{
@@ -453,8 +448,8 @@ $("btnSignup")?.addEventListener("click", async ()=>{
     alert("Account created. Check your email to verify before logging in.");
     await signOut(auth);
     showPane("login");
-    $("loginEmail").value = email;
-    $("loginPassword").value = "";
+    $("mainLoginEmail").value = email;
+    $("mainLoginPassword").value = "";
     $("verifyNote").style.display = "block";
     $("btnResendVerify").style.display = "inline-flex";
   }catch(e){
@@ -517,16 +512,16 @@ onAuthStateChanged(auth, async (u)=>{
   if (user && !user.emailVerified){
     alert("Please verify your email before using the marketplace.");
     await signOut(auth);
-    show("loginOverlay");
+    show("mainLoginOverlay");
     return;
   }
   if (!user){
     $("pillUser").textContent = "Not signed in";
-    show("loginOverlay");
+    show("mainLoginOverlay");
     return;
   }
 
-  hide("loginOverlay");
+  hide("mainLoginOverlay");
   $("pillUser").textContent = `Signed in: ${displayName()}`;
   isAdmin = ADMINS.has(user.email.toLowerCase());
   $("adminLink").style.display = isAdmin ? "inline-flex" : "none";
