@@ -1,11 +1,10 @@
 import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import { getFirestore, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch((e)=>console.warn("Auth persistence warning:", e));
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
@@ -20,9 +19,11 @@ function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(St
 ensureEditOverlay();
 bindAdminEditEvents();
 
+let authResolved = false;
 onAuthStateChanged(auth, (user) => {
+  authResolved = true;
   const allowed = !!(user && isAdmin(user.email));
-  if ($('adminUser')) $('adminUser').textContent = user ? user.email : 'Not signed in';
+  if ($('adminUser')) $('adminUser').textContent = allowed ? user.email : (user ? user.email : 'Not signed in');
   adminReady = allowed;
   if (!allowed) return;
   startListings();

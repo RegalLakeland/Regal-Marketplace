@@ -9,9 +9,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
-  onAuthStateChanged,
-  setPersistence,
-  browserLocalPersistence
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import {
   getFirestore,
@@ -36,7 +34,6 @@ import {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch((e)=>console.warn("Auth persistence warning:", e));
 const db = getFirestore(app);
 const storage = getStorage(app);
 
@@ -281,7 +278,7 @@ function updateAuthUI() {
       : "Not signed in";
   }
 
-  if ($("adminLink")) { $("adminLink").style.display = loggedIn && currentProfile.isAdmin ? "inline-flex" : "none"; $("adminLink").setAttribute("href","admin.html"); }
+  if ($("adminLink")) $("adminLink").style.display = loggedIn && currentProfile.isAdmin ? "inline-flex" : "none";
   if ($("btnLogout")) $("btnLogout").style.display = loggedIn ? "inline-flex" : "none";
   if ($("btnNew")) $("btnNew").style.display = loggedIn ? "inline-flex" : "none";
   if ($("loginOverlay")) $("loginOverlay").style.display = loggedIn ? "none" : "flex";

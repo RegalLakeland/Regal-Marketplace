@@ -96,8 +96,6 @@ select option{color:#111}
 .btn.primary{background:linear-gradient(180deg, rgba(34,197,94,.28), rgba(34,197,94,.18)); border-color:rgba(34,197,94,.42)}
 .btn.ghost{background:rgba(255,255,255,.02)}
 .btn.danger{background:rgba(239,68,68,.14); border-color:rgba(239,68,68,.38)}
-
-.topbar,.layout,.admin-wrap{position:relative; z-index:1;}
 .topbar{
   position:sticky; top:0; z-index:18; display:flex; justify-content:space-between; align-items:center; gap:18px;
   padding:14px 18px; border-bottom:1px solid var(--border); background:rgba(7,15,27,.62); backdrop-filter:blur(12px)
@@ -229,9 +227,3 @@ hr{border:none; border-top:1px solid rgba(255,255,255,.10); margin:18px 0}
 @media (max-width:780px){.card{grid-template-columns:1fr}.card-img{height:180px}}
 
 #loginOverlay[style*="display:none"]{display:none !important;}
-
-.thread-img{max-width:100%;height:220px;object-fit:cover;display:block;border-radius:18px;}
-.thread-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;}
-@media (max-width:560px){.thread-img{height:180px}.thread-gallery{grid-template-columns:1fr}}
-
-.modal select,.modal input,.modal textarea{color:var(--text); background:rgba(15,23,42,.88);} .modal label{color:#cbd5e1;}
