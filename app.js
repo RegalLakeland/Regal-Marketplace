@@ -157,6 +157,8 @@ function bindStaticEvents() {
       await handleDeletePost(id);
     } else if (action === "markSold") {
       await handleMarkSold(id);
+    } else if (action === "requestReactivation") {
+      await handleRequestReactivation(id);
     }
   });
 }
@@ -456,7 +458,7 @@ function renderBoards() {
 
 function filteredListings() {
   const q = $("q")?.value.trim().toLowerCase() || "";
-  const st = $("st")?.value || "ACTIVE";
+  const st = $("st")?.value || "ALL";
   const sort = $("sort")?.value || "NEW";
 
   let data = listings.filter((item) => {
@@ -559,6 +561,8 @@ function renderListings() {
         <div class="topicActions">
           <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
           ${canModify(item) && item.status !== "SOLD" ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ""}
+          ${canModify(item) && item.status === "SOLD" && !item.reactivationRequested ? `<button class="btn ghost" data-action="requestReactivation" data-id="${esc(item.id)}" type="button">Request Active</button>` : ""}
+          ${canModify(item) && item.status === "SOLD" && item.reactivationRequested ? `<span class="pill request-pill">Active request pending</span>` : ""}
           ${canModify(item) ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
         </div>
       </article>
@@ -659,11 +663,30 @@ async function handleMarkSold(id) {
   try {
     await updateDoc(doc(db, "listings", id), {
       status: "SOLD",
+      reactivationRequested: false,
+      reactivationRequestedAt: null,
       updatedAt: serverTimestamp()
     });
   } catch (err) {
     console.error(err);
     alert(err?.message || "Unable to update post.");
+  }
+}
+
+async function handleRequestReactivation(id) {
+  const item = listings.find((x) => x.id === id);
+  if (!item || !canModify(item) || item.status !== "SOLD") return;
+
+  try {
+    await updateDoc(doc(db, "listings", id), {
+      reactivationRequested: true,
+      reactivationRequestedAt: Date.now(),
+      updatedAt: serverTimestamp()
+    });
+    alert("Reactivation request sent to admin.");
+  } catch (err) {
+    console.error(err);
+    alert(err?.message || "Unable to request reactivation.");
   }
 }
 
@@ -687,6 +710,7 @@ async function openThread(id) {
       ${imageUrl ? `<img class="thread-img" src="${esc(imageUrl)}" alt="${esc(item.title)}" />` : ""}
       <div class="threadText">${esc(description)}</div>
       <div class="meta" style="margin-top:10px;">Location: ${esc(item.location || "-")} | Contact: ${esc(item.contact || "-")} | Price: ${esc(formatPrice(item.price))}</div>
+      ${item.reactivationRequested ? `<div class="note" style="margin-top:12px;">Reactivation requested and waiting on admin review.</div>` : ""}
     `;
   }
 
