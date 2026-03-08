@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin | Regal Marketplace</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="site-bg" aria-hidden="true">
+    <div class="market-bg market-bg1"></div>
+    <div class="market-bg market-bg2"></div>
+    <div class="market-bg market-bg3"></div>
+    <div class="market-bg-overlay"></div>
+  </div>
+
+  <div class="overlay" id="adminLoginOverlay">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Admin Login</strong>
+      </div>
+      <div class="modal-b">
+        <div class="field">
+          <label>Email</label>
+          <input id="adminLoginEmail" type="email" placeholder="name@regallakeland.com" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="adminLoginPassword" type="password" autocomplete="current-password" />
+        </div>
+        <div class="note">Admins only. Use the same marketplace login.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="adminLoginButton" type="button">Login</button>
+        <a class="btn ghost" href="index.html">Back</a>
+      </div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="left">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <span class="logo-text">Regal Honda</span>
+      </div>
+      <div class="title">
+        <div class="h1">Admin Portal</div>
+        <div class="h2">Moderate posts | Review users | Mark sold</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <span class="pill" id="pillUser">Not signed in</span>
+      <a class="btn ghost" href="index.html">Back to Marketplace</a>
+      <button class="btn danger" id="btnLogout" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="admin-wrap">
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-title">Posts</div>
+        <div class="meta" id="countLine">0 posts</div>
+      </div>
+      <div class="panel-b">
+        <div class="filters" style="grid-template-columns:1.4fr .8fr .8fr;">
+          <div class="field">
+            <label>Search</label>
+            <input id="q" placeholder="Search title or user email..." />
+          </div>
+          <div class="field">
+            <label>Board</label>
+            <select id="board">
+              <option value="ALL">All</option>
+              <option value="FREE">Free Items</option>
+              <option value="BUYSELL">Buy / Sell</option>
+              <option value="GARAGE">Garage Sales</option>
+              <option value="EVENTS">Events</option>
+              <option value="WORK">Work News</option>
+              <option value="SERVICES">Local Services</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="statusFilter">
+              <option value="ALL">All</option>
+              <option value="ACTIVE">Active</option>
+              <option value="SOLD">Sold</option>
+            </select>
+          </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="table-scroll" id="tableWrap"></div>
+      </div>
+    </section>
+
+    <section class="admin-grid">
+      <section class="panel">
+        <div class="panel-h">
+          <div class="panel-title">Users</div>
+          <div class="meta" id="userCountLine">0 users</div>
+        </div>
+        <div class="panel-b">
+          <div class="field">
+            <label>Search users</label>
+            <input id="uq" placeholder="Search name or email..." />
+          </div>
+          <div style="height:12px"></div>
+          <div class="table-scroll" id="usersWrap"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-h">
+          <div class="panel-title">Admin Notes</div>
+        </div>
+        <div class="panel-b">
+          <div class="note">Delete removes a post permanently.</div>
+          <div style="height:10px"></div>
+          <div class="note">Ban only prevents access if your Firestore rules honor the profile flag. It is still useful for moderation records.</div>
+          <div style="height:10px"></div>
+          <div class="note">If a user reports a bad post, mark it sold or delete it here.</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
