@@ -207,3 +207,6 @@ hr{border:none; border-top:1px solid rgba(255,255,255,.10); margin:18px 0}
 }
 
 .modal-b .field input,.modal-b .field textarea,.modal-b .field select{box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+
+.status.featured{background:rgba(251,191,36,.16);border-color:rgba(251,191,36,.34)}
+input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}

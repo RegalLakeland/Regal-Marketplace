@@ -214,6 +214,17 @@ function isAdmin(email) {
   return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(String(email || '').trim().toLowerCase());
 }
 
+function isViewerAdmin() {
+  return !!currentProfile?.isAdmin || isAdmin(currentUser?.email);
+}
+
+function isVisibleToViewer(item) {
+  if (!item) return false;
+  if (item.hidden && !isViewerAdmin()) return false;
+  if (String(item.status || 'ACTIVE').toUpperCase() === 'SOLD' && !isViewerAdmin()) return false;
+  return true;
+}
+
 function stopListeners() {
   if (listingsUnsub) {
     listingsUnsub();
@@ -409,21 +420,27 @@ function normalizeListing(item) {
     description: item.description || item.desc || '',
     imageUrl: item.imageUrl || item.photo || '',
     reactivationRequested: !!item.reactivationRequested,
+    featured: !!item.featured,
+    hidden: !!item.hidden,
+    status: String(item.status || 'ACTIVE').toUpperCase(),
     replies: Array.isArray(item.replies) ? item.replies : []
   };
 }
 
 function boardCounts() {
-  const counts = { ALL: listings.length };
+  const visible = listings.filter((item) => isVisibleToViewer(item));
+  const counts = { ALL: visible.length };
   BOARD_DEFS.forEach((b) => { if (b.key !== 'ALL') counts[b.key] = 0; });
-  listings.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
+  visible.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
   return counts;
 }
 
+
 function latestForBoard(boardKey) {
-  const list = listings.filter((item) => boardKey === 'ALL' || item.board === boardKey);
+  const list = listings.filter((item) => isVisibleToViewer(item) && (boardKey === 'ALL' || item.board === boardKey));
   return list[0] || null;
 }
+
 
 function renderBoards() {
   const wrap = $('boards');
@@ -464,7 +481,7 @@ function filteredListings() {
   const st = $('st')?.value || 'ALL';
   const sort = $('sort')?.value || 'NEW';
 
-  let data = listings.filter((item) => activeBoard === 'ALL' || item.board === activeBoard);
+  let data = listings.filter((item) => isVisibleToViewer(item) && (activeBoard === 'ALL' || item.board === activeBoard));
 
   if (st !== 'ALL') {
     data = data.filter((item) => (item.status || 'ACTIVE') === st);
@@ -496,6 +513,7 @@ function filteredListings() {
   return data;
 }
 
+
 function formatPrice(v) {
   const n = Number(v || 0);
   if (!n) return 'Free';
@@ -515,13 +533,14 @@ function renderListings() {
   const empty = $('empty');
   if (!wrap || !empty) return;
 
+  const visibleListings = listings.filter((item) => isVisibleToViewer(item));
   const data = filteredListings();
-  const latest = data[0] || listings[0] || null;
+  const latest = data[0] || visibleListings[0] || null;
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${listings.length} total`;
-  if ($('heroListingCount')) $('heroListingCount').textContent = String(listings.length);
+  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
+  if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
 
   if (!data.length) {
@@ -534,14 +553,15 @@ function renderListings() {
   wrap.innerHTML = data.map((item) => {
     const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
     const statusText = item.reactivationRequested ? 'Reactivation Requested' : (item.status || 'ACTIVE');
-    const showRequestActive = item.status === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
+    const showRequestActive = isViewerAdmin() && item.status === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
     const requestPending = item.status === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
+    const featuredPill = item.featured ? `<span class="status featured">Featured</span>` : '';
     return `
       <article class="topicRow">
         <div class="topicMain">
           <div class="topicHeader">
             <div class="topicTitle">${esc(item.title || 'Untitled')}</div>
-            <span class="status ${statusClass}">${esc(statusText)}</span>
+            <span class="status ${statusClass}">${esc(statusText)}</span>${featuredPill}
           </div>
           <div class="topicMeta">
             <span>${esc(BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board)}</span>
@@ -623,6 +643,8 @@ async function handleSavePost() {
       photo: imageUrl,
       imageUrl,
       replies: [],
+      featured: false,
+      hidden: false,
       reactivationRequested: false,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
