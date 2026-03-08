@@ -9,7 +9,9 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import {
   getFirestore,
@@ -34,6 +36,7 @@ import {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence).catch(() => {});
 const db = getFirestore(app);
 const storage = getStorage(app);
 
@@ -79,6 +82,8 @@ document.addEventListener("DOMContentLoaded", () => {
         currentUser = null;
         currentProfile = null;
         stopListeners();
+        sessionStorage.removeItem("market_user_email");
+        sessionStorage.removeItem("market_is_admin");
         updateAuthUI();
         return;
       }
@@ -100,6 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if ($("btnResendVerify")) $("btnResendVerify").style.display = "none";
 
       await ensureProfile(user);
+      sessionStorage.setItem("market_user_email", user.email || "");
+      sessionStorage.setItem("market_is_admin", currentProfile?.isAdmin ? "1" : "0");
       updateAuthUI();
       startListingsListener();
 
@@ -125,6 +132,8 @@ function bindStaticEvents() {
   $("btnResendVerify")?.addEventListener("click", handleResendVerification);
   $("btnSaveName")?.addEventListener("click", handleSaveName);
   $("btnLogout")?.addEventListener("click", async () => {
+    sessionStorage.removeItem("market_user_email");
+    sessionStorage.removeItem("market_is_admin");
     await signOut(auth);
   });
 
