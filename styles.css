@@ -213,3 +213,17 @@ hr{border:none; border-top:1px solid rgba(255,255,255,.10); margin:18px 0}
   .thread-gallery{grid-template-columns:1fr}
   .thread-img{height:220px}
 }
+
+
+/* Listing card styles used by app.js */
+.card{display:grid;grid-template-columns:minmax(220px,360px) 1fr;gap:18px;align-items:stretch;padding:18px;border-radius:22px;background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.09);box-shadow:0 10px 24px rgba(0,0,0,.16)}
+.card-img{width:100%;height:220px;object-fit:cover;border-radius:18px;border:1px solid rgba(255,255,255,.08);display:block;background:rgba(255,255,255,.04)}
+.card-b{display:grid;gap:10px;min-width:0}
+.card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.card-title{font-size:22px;font-weight:950;line-height:1.05}
+.card-meta{display:flex;gap:10px;flex-wrap:wrap}
+.desc{color:#dce6f2;line-height:1.5}
+.threadText{color:#dce6f2;line-height:1.6}
+@media (max-width:780px){.card{grid-template-columns:1fr}.card-img{height:180px}}
+
+#loginOverlay[style*="display:none"]{display:none !important;}
