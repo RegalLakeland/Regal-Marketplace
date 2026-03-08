@@ -57,7 +57,7 @@ let activeBoard = 'ALL';
 let activeThread = null;
 let listingsUnsub = null;
 let lastUnverifiedEmail = '';
-let isSavingPost = false;
+let postingInFlight = false;
 
 window.addEventListener('error', (e) => {
   console.error('Marketplace JS error:', e.error || e.message || e);
@@ -214,17 +214,6 @@ function isAdmin(email) {
   return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(String(email || '').trim().toLowerCase());
 }
 
-function isViewerAdmin() {
-  return !!currentProfile?.isAdmin || isAdmin(currentUser?.email);
-}
-
-function isVisibleToViewer(item) {
-  if (!item) return false;
-  if (item.hidden && !isViewerAdmin()) return false;
-  if (String(item.status || 'ACTIVE').toUpperCase() === 'SOLD' && !isViewerAdmin()) return false;
-  return true;
-}
-
 function stopListeners() {
   if (listingsUnsub) {
     listingsUnsub();
@@ -280,8 +269,7 @@ function updateAuthUI() {
       : 'Not signed in';
   }
 
-  const showAdmin = loggedIn && (currentProfile.isAdmin || isAdmin(currentUser?.email));
-  if ($('adminLink')) $('adminLink').style.display = showAdmin ? 'inline-flex' : 'none';
+  if ($('adminLink')) $('adminLink').style.display = loggedIn && (currentProfile.isAdmin || isAdmin(currentUser?.email)) ? 'inline-flex' : 'none';
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
@@ -419,28 +407,31 @@ function normalizeListing(item) {
     authorName: item.authorName || item.displayName || item.userEmail || '',
     description: item.description || item.desc || '',
     imageUrl: item.imageUrl || item.photo || '',
-    reactivationRequested: !!item.reactivationRequested,
-    featured: !!item.featured,
-    hidden: !!item.hidden,
     status: String(item.status || 'ACTIVE').toUpperCase(),
+    reactivationRequested: !!item.reactivationRequested,
     replies: Array.isArray(item.replies) ? item.replies : []
   };
 }
 
+function getStatusScopedListings() {
+  const st = ($('st')?.value || 'ACTIVE').toUpperCase();
+  if (st === 'ALL') return listings.slice();
+  return listings.filter((item) => String(item.status || 'ACTIVE').toUpperCase() === st);
+}
+
 function boardCounts() {
-  const visible = listings.filter((item) => isVisibleToViewer(item));
-  const counts = { ALL: visible.length };
+  const scoped = getStatusScopedListings();
+  const counts = { ALL: scoped.length };
   BOARD_DEFS.forEach((b) => { if (b.key !== 'ALL') counts[b.key] = 0; });
-  visible.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
+  scoped.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
   return counts;
 }
 
-
 function latestForBoard(boardKey) {
-  const list = listings.filter((item) => isVisibleToViewer(item) && (boardKey === 'ALL' || item.board === boardKey));
+  const scoped = getStatusScopedListings();
+  const list = scoped.filter((item) => boardKey === 'ALL' || item.board === boardKey);
   return list[0] || null;
 }
-
 
 function renderBoards() {
   const wrap = $('boards');
@@ -478,13 +469,13 @@ function renderBoards() {
 
 function filteredListings() {
   const q = $('q')?.value.trim().toLowerCase() || '';
-  const st = $('st')?.value || 'ALL';
+  const st = ($('st')?.value || 'ACTIVE').toUpperCase();
   const sort = $('sort')?.value || 'NEW';
 
-  let data = listings.filter((item) => isVisibleToViewer(item) && (activeBoard === 'ALL' || item.board === activeBoard));
+  let data = listings.filter((item) => activeBoard === 'ALL' || item.board === activeBoard);
 
   if (st !== 'ALL') {
-    data = data.filter((item) => (item.status || 'ACTIVE') === st);
+    data = data.filter((item) => String(item.status || 'ACTIVE').toUpperCase() === st);
   }
 
   if (q) {
@@ -513,7 +504,6 @@ function filteredListings() {
   return data;
 }
 
-
 function formatPrice(v) {
   const n = Number(v || 0);
   if (!n) return 'Free';
@@ -533,14 +523,14 @@ function renderListings() {
   const empty = $('empty');
   if (!wrap || !empty) return;
 
-  const visibleListings = listings.filter((item) => isVisibleToViewer(item));
   const data = filteredListings();
-  const latest = data[0] || visibleListings[0] || null;
+  const scoped = getStatusScopedListings().filter((item) => activeBoard === 'ALL' || item.board === activeBoard);
+  const latest = data[0] || scoped[0] || getStatusScopedListings()[0] || null;
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
-  if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
+  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${scoped.length} total`;
+  if ($('heroListingCount')) $('heroListingCount').textContent = String(getStatusScopedListings().length);
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
 
   if (!data.length) {
@@ -551,17 +541,17 @@ function renderListings() {
 
   empty.style.display = 'none';
   wrap.innerHTML = data.map((item) => {
-    const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
-    const statusText = item.reactivationRequested ? 'Reactivation Requested' : (item.status || 'ACTIVE');
-    const showRequestActive = isViewerAdmin() && item.status === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
-    const requestPending = item.status === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
-    const featuredPill = item.featured ? `<span class="status featured">Featured</span>` : '';
+    const normalizedStatus = String(item.status || 'ACTIVE').toUpperCase();
+    const statusClass = normalizedStatus === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
+    const statusText = item.reactivationRequested ? 'Reactivation Requested' : normalizedStatus;
+    const showRequestActive = normalizedStatus === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
+    const requestPending = normalizedStatus === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
     return `
       <article class="topicRow">
         <div class="topicMain">
           <div class="topicHeader">
             <div class="topicTitle">${esc(item.title || 'Untitled')}</div>
-            <span class="status ${statusClass}">${esc(statusText)}</span>${featuredPill}
+            <span class="status ${statusClass}">${esc(statusText)}</span>
           </div>
           <div class="topicMeta">
             <span>${esc(BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board)}</span>
@@ -591,8 +581,7 @@ function renderListings() {
   }).join('');
 }
 
-async function handleSavePost() {
-  if (isSavingPost) return;
+async async function handleSavePost() {
   if (!currentUser || !currentProfile) {
     alert('Please log in first.');
     return;
@@ -616,9 +605,16 @@ async function handleSavePost() {
     return;
   }
 
+  if (postingInFlight) return;
+  postingInFlight = true;
+  const postBtn = $('btnSavePost');
+  const originalBtnText = postBtn?.textContent || 'Post Listing';
+  if (postBtn) {
+    postBtn.disabled = true;
+    postBtn.textContent = 'Posting…';
+  }
+
   let imageUrl = '';
-  isSavingPost = true;
-  if ($('btnSavePost')) $('btnSavePost').disabled = true;
   try {
     if (file) {
       const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
@@ -643,8 +639,6 @@ async function handleSavePost() {
       photo: imageUrl,
       imageUrl,
       replies: [],
-      featured: false,
-      hidden: false,
       reactivationRequested: false,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
@@ -657,8 +651,11 @@ async function handleSavePost() {
     console.error(err);
     alert(`${err?.code || 'post_error'} — ${err?.message || 'Unable to create post.'}`);
   } finally {
-    isSavingPost = false;
-    if ($('btnSavePost')) $('btnSavePost').disabled = false;
+    postingInFlight = false;
+    if (postBtn) {
+      postBtn.disabled = false;
+      postBtn.textContent = originalBtnText;
+    }
   }
 }
 

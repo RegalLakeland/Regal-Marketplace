@@ -13,12 +13,10 @@ const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sa
 function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
 function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').toLowerCase()); }
 
-let authResolved = false;
+let adminReady = false;
 onAuthStateChanged(auth, (user) => {
-  authResolved = true;
   if (!user) {
-    alert('Please log in first.');
-    location.href = 'index.html';
+    if ($('adminUser')) $('adminUser').textContent = 'Sign in required';
     return;
   }
   if (!isAdmin(user.email)) {
@@ -27,6 +25,8 @@ onAuthStateChanged(auth, (user) => {
     return;
   }
   if ($('adminUser')) $('adminUser').textContent = user.email;
+  if (adminReady) return;
+  adminReady = true;
   startListings();
   startUsers();
 });
@@ -42,21 +42,16 @@ function startListings(){
       const board = item.board || item.category || 'BUYSELL';
       const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
       const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
-      const hiddenPill = item.hidden ? `<div class="note">Hidden from marketplace view</div>` : '';
-      const featuredPill = item.featured ? `<div class="note">Featured on homepage</div>` : '';
       return `
         <tr>
-          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}${hiddenPill}${featuredPill}</td>
+          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}</td>
           <td>${esc(boardLabels[board] || board)}</td>
           <td>${esc(item.status || 'ACTIVE')}</td>
           <td>${esc(poster)}</td>
           <td>
             <div class="rowBtns">
-              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : ''}
-              ${item.status === 'SOLD' ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Mark Active</button>` : ''}
-              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny Request</button>` : ''}
-              <button class="btn ghost" data-feature="${esc(item.id)}" data-on="${item.featured ? '1' : '0'}" type="button">${item.featured ? 'Unfeature' : 'Feature'}</button>
-              <button class="btn ghost" data-hide="${esc(item.id)}" data-on="${item.hidden ? '1' : '0'}" type="button">${item.hidden ? 'Unhide' : 'Hide'}</button>
+              ${String(item.status || 'ACTIVE').toUpperCase() !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : `<button class="btn primary" data-active="${esc(item.id)}" type="button">Mark Active</button>`}
+              ${String(item.status || 'ACTIVE').toUpperCase() === 'SOLD' && item.reactivationRequested ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Approve Active</button><button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny</button>` : ''}
               <button class="btn danger" data-delete="${esc(item.id)}" type="button">Delete</button>
             </div>
           </td>
@@ -65,6 +60,9 @@ function startListings(){
 
     document.querySelectorAll('[data-sold]').forEach(btn => btn.onclick = async () => {
       await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', reactivationRequested:false });
+    });
+    document.querySelectorAll('[data-active]').forEach(btn => btn.onclick = async () => {
+      await updateDoc(doc(db, 'listings', btn.dataset.active), { status:'ACTIVE', reactivationRequested:false, reactivationRequestedAt:null, reactivationDeniedAt:null });
     });
     document.querySelectorAll('[data-approve]').forEach(btn => btn.onclick = async () => {
       await updateDoc(doc(db, 'listings', btn.dataset.approve), {
@@ -80,12 +78,6 @@ function startListings(){
         reactivationRequestedAt:null,
         reactivationDeniedAt: Date.now()
       });
-    });
-    document.querySelectorAll('[data-feature]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.feature), { featured: btn.dataset.on !== '1' });
-    });
-    document.querySelectorAll('[data-hide]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.hide), { hidden: btn.dataset.on !== '1' });
     });
     document.querySelectorAll('[data-delete]').forEach(btn => btn.onclick = async () => {
       if (!confirm('Delete this post permanently?')) return;
