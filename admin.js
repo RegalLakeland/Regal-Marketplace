@@ -10,8 +10,14 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
 
-function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
-function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').toLowerCase()); }
+function isAdmin(email){
+  return ADMIN_EMAILS.map((x) => String(x).toLowerCase()).includes(String(email || '').toLowerCase());
+}
+function fmtDate(ms){
+  try { return new Date(Number(ms || Date.now())).toLocaleString(); }
+  catch { return '—'; }
+}
+function boardKey(item){ return item.board || item.category || 'BUYSELL'; }
 
 onAuthStateChanged(auth, (user) => {
   if (!user || !isAdmin(user.email)) {
@@ -27,35 +33,49 @@ onAuthStateChanged(auth, (user) => {
 function startListings(){
   const qRef = query(collection(db, 'listings'), orderBy('createdAtMs', 'desc'));
   onSnapshot(qRef, (snap) => {
-    const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     if ($('adminListingCount')) $('adminListingCount').textContent = String(rows.length);
-    if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter(r => r.reactivationRequested).length);
+    if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter((r) => r.reactivationRequested).length);
     if (!$('listingRows')) return;
-    $('listingRows').innerHTML = rows.map(item => {
-      const board = item.board || item.category || 'BUYSELL';
+    $('listingRows').innerHTML = rows.map((item) => {
       const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
-      const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
+      const sold = (item.status || 'ACTIVE') === 'SOLD';
       return `
         <tr>
-          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}</td>
-          <td>${esc(boardLabels[board] || board)}</td>
+          <td>
+            <strong>${esc(item.title || 'Untitled')}</strong>
+            <div class="meta">${esc(fmtDate(item.createdAtMs))}</div>
+            ${item.reactivationRequested ? `<div class="note" style="margin-top:8px;">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : ''}
+          </td>
+          <td>${esc(boardLabels[boardKey(item)] || boardKey(item))}</td>
           <td>${esc(item.status || 'ACTIVE')}</td>
           <td>${esc(poster)}</td>
           <td>
             <div class="rowBtns">
-              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : ''}
-              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Approve Active</button><button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny</button>` : ''}
-              ${item.status === 'SOLD' && !item.reactivationRequested ? `<span class="pill">Sold</span>` : ''}
+              ${!sold ? `<button class="btn warning" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : `<button class="btn primary" data-active="${esc(item.id)}" type="button">Mark Active</button>`}
+              ${sold && item.reactivationRequested ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Approve Active</button><button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny</button>` : ''}
               <button class="btn danger" data-delete="${esc(item.id)}" type="button">Delete</button>
             </div>
           </td>
         </tr>`;
     }).join('');
 
-    document.querySelectorAll('[data-sold]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', reactivationRequested:false });
+    document.querySelectorAll('[data-sold]').forEach((btn) => btn.onclick = async () => {
+      await updateDoc(doc(db, 'listings', btn.dataset.sold), {
+        status:'SOLD',
+        reactivationRequested:false,
+        reactivationRequestedAt:null
+      });
     });
-    document.querySelectorAll('[data-approve]').forEach(btn => btn.onclick = async () => {
+    document.querySelectorAll('[data-active]').forEach((btn) => btn.onclick = async () => {
+      await updateDoc(doc(db, 'listings', btn.dataset.active), {
+        status:'ACTIVE',
+        reactivationRequested:false,
+        reactivationRequestedAt:null,
+        reactivationDeniedAt:null
+      });
+    });
+    document.querySelectorAll('[data-approve]').forEach((btn) => btn.onclick = async () => {
       await updateDoc(doc(db, 'listings', btn.dataset.approve), {
         status:'ACTIVE',
         reactivationRequested:false,
@@ -63,14 +83,14 @@ function startListings(){
         reactivationDeniedAt:null
       });
     });
-    document.querySelectorAll('[data-deny]').forEach(btn => btn.onclick = async () => {
+    document.querySelectorAll('[data-deny]').forEach((btn) => btn.onclick = async () => {
       await updateDoc(doc(db, 'listings', btn.dataset.deny), {
         reactivationRequested:false,
         reactivationRequestedAt:null,
-        reactivationDeniedAt: Date.now()
+        reactivationDeniedAt:Date.now()
       });
     });
-    document.querySelectorAll('[data-delete]').forEach(btn => btn.onclick = async () => {
+    document.querySelectorAll('[data-delete]').forEach((btn) => btn.onclick = async () => {
       if (!confirm('Delete this post permanently?')) return;
       await deleteDoc(doc(db, 'listings', btn.dataset.delete));
     });
@@ -79,19 +99,19 @@ function startListings(){
 
 function startUsers(){
   onSnapshot(collection(db, 'profiles'), (snap) => {
-    const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     if ($('adminUserCount')) $('adminUserCount').textContent = String(rows.length);
     if (!$('userRows')) return;
-    $('userRows').innerHTML = rows.map(user => `
+    $('userRows').innerHTML = rows.map((user) => `
       <tr>
         <td>${esc(user.email || '—')}</td>
         <td>${esc(user.displayName || '—')}</td>
         <td>${user.banned ? 'Blocked' : 'Active'}</td>
         <td><button class="btn ${user.banned ? 'ghost' : 'danger'}" data-ban="${esc(user.id)}" data-state="${user.banned ? '0' : '1'}" type="button">${user.banned ? 'Restore Access' : 'Block Access'}</button></td>
-      </tr>
-    `).join('');
-    document.querySelectorAll('[data-ban]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'profiles', btn.dataset.ban), { banned: btn.dataset.state === '1' });
+      </tr>`).join('');
+
+    document.querySelectorAll('[data-ban]').forEach((btn) => btn.onclick = async () => {
+      await updateDoc(doc(db, 'profiles', btn.dataset.ban), { banned:btn.dataset.state === '1' });
     });
   });
 }

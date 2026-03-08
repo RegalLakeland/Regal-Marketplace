@@ -125,7 +125,7 @@
 
     <div class="right">
       <span class="pill" id="pillUser">Not signed in</span>
-      <span class="pill" id="boardPill">All</span>
+      <span class="pill" id="boardPill">All Boards</span>
       <a class="btn ghost" id="adminLink" href="admin.html" style="display:none">Admin</a>
       <button class="btn primary" id="btnNew" type="button">+ Post</button>
       <button class="btn danger" id="btnLogout" type="button">Logout</button>
@@ -173,8 +173,8 @@
           <div class="filters compact-filters">
             <input id="q" placeholder="Search title, description, location, contact…" />
             <select id="st">
+              <option value="ALL" selected>All</option>
               <option value="ACTIVE">Active</option>
-              <option value="ALL">All</option>
               <option value="SOLD">Sold</option>
             </select>
             <select id="sort">
@@ -222,23 +222,23 @@
 
         <div class="field">
           <label>Title</label>
-          <input id="fTitle" placeholder="e.g. Free couch • Garage sale Saturday…" />
+          <input id="fTitle" placeholder="e.g. Free couch | Garage sale Saturday..." />
         </div>
 
         <div class="grid2">
           <div class="field">
             <label>Price (optional)</label>
-            <input id="fPrice" inputmode="decimal" placeholder="0 for free, 25, 100…" />
+            <input id="fPrice" inputmode="decimal" placeholder="0 for free, 25, 100..." />
           </div>
           <div class="field">
             <label>Location (optional)</label>
-            <input id="fLocation" placeholder="Lakeland, Plant City…" />
+            <input id="fLocation" placeholder="Lakeland, Plant City..." />
           </div>
         </div>
 
         <div class="field">
           <label>Description</label>
-          <textarea id="fDesc" placeholder="Condition, pickup window, details…"></textarea>
+          <textarea id="fDesc" placeholder="Condition, pickup window, details..."></textarea>
         </div>
 
         <div class="grid2">
@@ -252,37 +252,34 @@
           </div>
         </div>
 
-        <div class="note">Posts are visible to logged-in employees only. Sold posts stay visible and can be reactivated by admin approval.</div>
+        <div class="note">Posts are visible to logged-in employees only. Admins can delete posts.</div>
       </div>
       <div class="modal-actions sticky-actions">
-        <button class="btn primary" id="btnSavePost" type="button">Post Listing</button>
+        <button class="btn primary" id="btnSavePost" type="button">Post</button>
       </div>
     </div>
   </div>
 
-  <div class="overlay" id="threadOverlay" style="display:none;">
+  <div class="overlay" id="threadOverlay" style="display:none">
     <div class="modal wide modal-scroll">
       <div class="modal-h sticky-head">
         <strong id="threadTitle">Thread</strong>
         <button class="btn ghost" data-close="threadOverlay" type="button">Close</button>
       </div>
-
       <div class="modal-b">
-        <div id="threadMeta" class="meta"></div>
-        <div id="threadBody"></div>
+        <div id="threadMeta" class="meta" style="margin-bottom:10px;"></div>
+        <div id="threadBody" class="threadBody"></div>
 
-        <hr />
+        <div class="note" style="margin:10px 0;">Replies (everyone can respond)</div>
+        <div id="threadReplies" class="replies"></div>
 
-        <div id="threadReplies"></div>
-
-        <div class="field thread-reply-box">
-          <label>Reply</label>
-          <textarea id="replyText" rows="4" placeholder="Write a reply"></textarea>
+        <div class="field" style="margin-top:10px;">
+          <label>Write a reply</label>
+          <textarea id="replyText" placeholder="Type your reply..."></textarea>
         </div>
-
-        <div class="rowBtns sticky-actions thread-actions">
-          <button id="btnSendReply" class="btn primary" type="button">Send Reply</button>
-        </div>
+      </div>
+      <div class="modal-actions sticky-actions">
+        <button class="btn primary" id="btnSendReply" type="button">Reply</button>
       </div>
     </div>
   </div>
