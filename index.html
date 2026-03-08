@@ -6,7 +6,7 @@
   <title>Regal Honda Employee Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="auth-open">
   <div class="site-bg" aria-hidden="true">
     <div class="market-bg market-bg1"></div>
     <div class="market-bg market-bg2"></div>
@@ -14,7 +14,7 @@
     <div class="market-bg-overlay"></div>
   </div>
 
-  <div class="overlay login-overlay" id="loginOverlay" style="display:none;">
+  <div class="overlay login-overlay" id="loginOverlay">
     <div class="login-shell">
       <section class="login-promo" aria-hidden="true">
         <div class="login-hero-image"></div>
@@ -173,8 +173,8 @@
           <div class="filters compact-filters">
             <input id="q" placeholder="Search title, description, location, contact…" />
             <select id="st">
-              <option value="ACTIVE">Active</option>
               <option value="ALL">All</option>
+              <option value="ACTIVE">Active</option>
               <option value="SOLD">Sold</option>
             </select>
             <select id="sort">

@@ -14,12 +14,14 @@
   --shadow:0 18px 48px rgba(0,0,0,.34);
 }
 *{box-sizing:border-box}
-html,body{
+html,body{height:100%}
+body{
   margin:0;
   font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   color:var(--text);
-  background:transparent;
+  background:radial-gradient(circle at top, #11233f 0%, var(--bg) 42%, #060c15 100%);
   overflow-x:hidden;
+  position:relative;
 }
 body.auth-open{overflow:hidden}
 body.modal-open{overflow:hidden}
@@ -30,11 +32,11 @@ a{color:inherit}
 .market-bg1{background-image:url("Images/background1.jpg"); animation:marketRotate 24s infinite}
 .market-bg2{background-image:url("Images/background2.jpg"); animation:marketRotate 24s infinite 8s}
 .market-bg3{background-image:url("Images/background3.jpg"); animation:marketRotate 24s infinite 16s}
-.market-bg-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(5,10,18,.30), rgba(5,10,18,.62) 35%, rgba(5,10,18,.84) 100%)}
+.market-bg-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(5,10,18,.08), rgba(5,10,18,.22) 35%, rgba(5,10,18,.42) 100%)}
 @keyframes marketRotate{
   0%{opacity:0; transform:scale(1.06)}
-  8%{opacity:.68; transform:scale(1.02)}
-  28%{opacity:.82; transform:scale(1)}
+  8%{opacity:.84; transform:scale(1.02)}
+  28%{opacity:.98; transform:scale(1)}
   36%{opacity:0; transform:scale(1.01)}
   100%{opacity:0; transform:scale(1.01)}
 }
@@ -56,7 +58,7 @@ a{color:inherit}
 .login-card-wrap{display:flex; align-items:center; justify-content:center}
 .modal{
   width:min(100%,580px); border:1px solid var(--border); border-radius:26px; overflow:hidden;
-  background:linear-gradient(180deg, rgba(11,20,35,.84), rgba(8,18,32,.92));
+  background:linear-gradient(180deg, rgba(11,20,35,.96), rgba(8,18,32,.985));
   box-shadow:var(--shadow); backdrop-filter:blur(14px)
 }
 .modal.wide{width:min(100%,940px)}
@@ -79,7 +81,7 @@ a{color:inherit}
 label{font-size:13px; font-weight:800; color:#cfdae8}
 input,textarea,select{
   width:100%; padding:14px 15px; border-radius:16px; border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.06); color:var(--text); outline:none; font-size:16px;
+  background:rgba(7,14,26,.92); color:var(--text); outline:none; font-size:16px;
 }
 textarea{min-height:132px; resize:vertical}
 select option{color:#111}
@@ -95,7 +97,7 @@ select option{color:#111}
 .btn.primary{background:linear-gradient(180deg, rgba(34,197,94,.28), rgba(34,197,94,.18)); border-color:rgba(34,197,94,.42)}
 .btn.ghost{background:rgba(255,255,255,.02)}
 .btn.danger{background:rgba(239,68,68,.14); border-color:rgba(239,68,68,.38)}
-.topbar{
+.topbar{position:sticky; z-index:18; 
   position:sticky; top:0; z-index:18; display:flex; justify-content:space-between; align-items:center; gap:18px;
   padding:14px 18px; border-bottom:1px solid var(--border); background:rgba(7,15,27,.62); backdrop-filter:blur(12px)
 }
@@ -107,12 +109,12 @@ select option{color:#111}
 .h1{font-size:18px; font-weight:950}
 .h2{font-size:12px; color:var(--muted)}
 .pill{font-size:12px; color:#dbe4f0; padding:8px 12px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,.04)}
-.pageShell{max-width:1360px; margin:0 auto; padding:24px 16px 40px}
+.pageShell{position:relative; z-index:1; max-width:1360px; margin:0 auto; padding:24px 16px 40px}
 .glass{
-  background:linear-gradient(180deg, rgba(12,22,40,.42), rgba(8,18,32,.62));
+  background:linear-gradient(180deg, rgba(12,22,40,.26), rgba(8,18,32,.40));
   border:1px solid rgba(255,255,255,.10); box-shadow:var(--shadow); border-radius:26px; backdrop-filter:blur(18px)
 }
-.glass-soft{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.08); border-radius:22px; backdrop-filter:blur(14px)}
+.glass-soft{background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04)); border:1px solid rgba(255,255,255,.08); border-radius:22px; backdrop-filter:blur(14px)}
 .heroBanner{padding:28px; margin-bottom:18px}
 .hero-grid{display:grid; grid-template-columns:1.2fr .8fr; gap:18px; align-items:stretch}
 .eyebrow{font-size:12px; text-transform:uppercase; letter-spacing:.14em; color:#c3d2e5; font-weight:900}
@@ -146,7 +148,7 @@ select option{color:#111}
 .cards{display:grid; gap:12px; padding:16px}
 .topicRow{
   display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px; align-items:center; padding:18px; border-radius:20px;
-  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.09); box-shadow:0 10px 24px rgba(0,0,0,.16)
+  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05)); border:1px solid rgba(255,255,255,.09); box-shadow:0 10px 24px rgba(0,0,0,.16)
 }
 .topicMain{display:grid; gap:10px}
 .topicHeader{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
@@ -169,7 +171,7 @@ select option{color:#111}
 .replyTop{display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; font-size:13px}
 .replyUser{font-weight:900}
 .replyTime{color:var(--muted)}
-.admin-wrap{max-width:1280px; margin:0 auto; padding:24px 16px 40px}
+.admin-wrap{position:relative; z-index:1; max-width:1280px; margin:0 auto; padding:24px 16px 40px}
 .admin-grid{display:grid; grid-template-columns:1.5fr 1fr; gap:18px}
 .table-scroll{overflow:auto}
 .adminTable{width:100%; border-collapse:collapse}
@@ -182,7 +184,7 @@ hr{border:none; border-top:1px solid rgba(255,255,255,.10); margin:18px 0}
   .hero-grid,.content-grid,.admin-grid{grid-template-columns:1fr}
 }
 @media (max-width:780px){
-  .topbar{padding:12px}
+  .topbar{position:sticky; z-index:18; padding:12px}
   .right{justify-content:flex-start}
   .hero-side{grid-template-columns:1fr}
   .feedPanel .filters{grid-template-columns:1fr}
@@ -197,15 +199,14 @@ hr{border:none; border-top:1px solid rgba(255,255,255,.10); margin:18px 0}
   .modal{width:100%; border-radius:22px}
   .modal-scroll{max-height:94vh}
   .modal-b{overflow:auto}
-  .pageShell{padding:14px 12px 28px}
+  .pageShell{position:relative; z-index:1; padding:14px 12px 28px}
   .heroBanner{padding:20px}
   .heroBanner h1{font-size:40px}
   .login-copy{left:20px; right:20px; bottom:20px}
   .login-copy h1{font-size:42px}
 }
 
+.modal-b .field input,.modal-b .field textarea,.modal-b .field select{box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
 
-#loginOverlay{display:none;}
-body.auth-open #loginOverlay{display:flex !important;}
-.topbar,.pageShell,.admin-wrap{position:relative; z-index:1;}
-.market-bg-overlay{background:linear-gradient(180deg, rgba(5,10,18,.08), rgba(5,10,18,.28) 35%, rgba(5,10,18,.48) 100%);}
+.status.featured{background:rgba(251,191,36,.16);border-color:rgba(251,191,36,.34)}
+input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
