@@ -46,6 +46,13 @@ function initMarketplace(){
     appId: "1:1014346693296:web:fc76118d1a8db347945975"
   };
 
+  const ADMIN_EMAILS = [
+    "michael.h@regallakeland.com",
+    "janni.r@regallakeland.com",
+    "chrissy.h@regallakeland.com",
+    "amy.m@regallakeland.com"
+  ];
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -172,14 +179,23 @@ function initMarketplace(){
   }
 
   function isBanned(){ return !!profile?.banned; }
+  function isAdmin(email){ return ADMIN_EMAILS.includes(String(email||"").trim().toLowerCase()); }
+
+  function getBoardCountSource(list){
+    const st = $("st")?.value || "ACTIVE";
+    if (st === "ACTIVE") return list.filter(x => x.status !== "SOLD");
+    if (st === "SOLD") return list.filter(x => x.status === "SOLD");
+    return list.slice();
+  }
 
   function countByBoard(list){
-    const map = { ALL: list.length };
+    const base = getBoardCountSource(list);
+    const map = { ALL: base.length };
     for (const b of BOARD_DEFS) map[b.key] = 0;
-    for (const x of list){
+    for (const x of base){
       if (x.category && map[x.category] !== undefined) map[x.category]++;
     }
-    map.ALL = list.length;
+    map.ALL = base.length;
     return map;
   }
 
@@ -252,7 +268,8 @@ function initMarketplace(){
 
     const filtered = applyFilters(listings);
 
-    if($("countLine")) $("countLine").textContent = `${filtered.length} shown | ${listings.length} total`;
+    const countSource = getBoardCountSource(listings);
+    if($("countLine")) $("countLine").textContent = `${filtered.length} shown | ${countSource.length} total`;
     cards.innerHTML = "";
 
     if (filtered.length === 0){
@@ -522,7 +539,7 @@ function initMarketplace(){
   });
 
   $("q")?.addEventListener("input", render);
-  $("st")?.addEventListener("change", render);
+  $("st")?.addEventListener("change", ()=>{ renderBoards(); render(); });
   $("sort")?.addEventListener("change", render);
 
   onAuthStateChanged(auth, async (currentUser)=>{
@@ -531,6 +548,7 @@ function initMarketplace(){
     if (!user){
       profile = null;
       if ($("pillUser")) $("pillUser").textContent = "Signed out";
+      if ($("adminLink")) $("adminLink").style.display = "none";
       stopListingsListener();
       document.body.classList.remove("logged-in");
       document.body.classList.add("logged-out");
@@ -553,6 +571,7 @@ function initMarketplace(){
     await upsertPresence();
     await loadProfile();
     if ($("pillUser")) $("pillUser").textContent = `Signed in: ${displayName()}`;
+    if ($("adminLink")) $("adminLink").style.display = isAdmin(user.email) ? "inline-flex" : "none";
     startListingsListener();
 
     if (!profile?.name){
