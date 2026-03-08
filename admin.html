@@ -19,64 +19,44 @@
       <div class="logo"><span class="logo-dot"></span><span class="logo-text">Regal Honda</span></div>
       <div class="title">
         <div class="h1">Marketplace Admin</div>
-        <div class="h2">Moderation tools for posts, approvals, and user access</div>
+        <div class="h2">Moderation tools, sold status, and reactivation requests</div>
       </div>
     </div>
     <div class="right">
       <a class="btn ghost" href="index.html">Back to Marketplace</a>
-      <span class="pill" id="adminUser">Checking access...</span>
+      <span class="pill" id="adminUser">Checking access…</span>
     </div>
   </header>
 
   <main class="admin-wrap">
-    <section class="glass heroBanner">
-      <div class="hero-grid">
-        <div>
-          <div class="eyebrow">Admin Controls</div>
-          <h1>Moderation Center</h1>
-          <p class="hero-copy">Review sold items, approve reactivation requests, remove posts, and control employee access without touching Firebase manually.</p>
-        </div>
-        <div class="hero-side glass-soft">
-          <div class="hero-stat"><span id="adminListingCount">0</span><small>Listings</small></div>
-          <div class="hero-stat"><span id="adminRequestCount">0</span><small>Requests</small></div>
-          <div class="hero-stat"><span id="adminUserCount">0</span><small>Users</small></div>
-        </div>
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-title">Admin Dashboard</div>
+        <div class="meta">Mark sold keeps posts visible. Admin can mark items active again at any time.</div>
       </div>
-    </section>
-
-    <section class="glass adminTableWrap">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Listings</div>
-          <div class="section-sub">Sold items stay visible. Reactivation requests and status control happen here.</div>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table class="adminTable">
-          <thead>
-            <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Actions</th></tr>
-          </thead>
-          <tbody id="listingRows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <div style="height:18px"></div>
-
-    <section class="glass adminTableWrap">
-      <div class="section-head">
-        <div>
-          <div class="section-title">User Access</div>
-          <div class="section-sub">Block or restore employee access to the marketplace.</div>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table class="adminTable">
-          <thead>
-            <tr><th>User</th><th>Display Name</th><th>Access</th><th>Action</th></tr>
-          </thead>
-          <tbody id="userRows"></tbody>
-        </table>
+      <div class="panel-b admin-grid">
+        <section class="panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h"><div class="panel-title">Listings</div></div>
+          <div class="panel-b table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="listingRows"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h"><div class="panel-title">User Access</div></div>
+          <div class="panel-b table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>User</th><th>Display Name</th><th>Access</th><th>Action</th></tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </section>
   </main>
