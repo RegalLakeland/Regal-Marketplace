@@ -19,7 +19,7 @@
       <div class="logo"><span class="logo-dot"></span><span class="logo-text">Regal Honda</span></div>
       <div class="title">
         <div class="h1">Marketplace Admin</div>
-        <div class="h2">Moderation tools for posts, approvals, and user access</div>
+        <div class="h2">Moderation tools, sold status, reactivation requests, featured posts, and visibility controls</div>
       </div>
     </div>
     <div class="right">
@@ -29,116 +29,37 @@
   </header>
 
   <main class="admin-wrap">
-    <section class="glass heroBanner">
-      <div class="hero-grid">
-        <div>
-          <div class="eyebrow">Admin Controls</div>
-          <h1>Moderation Center</h1>
-          <p class="hero-copy">Review sold items, approve reactivation requests, remove posts, and control employee access without touching Firebase manually.</p>
-        </div>
-        <div class="hero-side glass-soft">
-          <div class="hero-stat"><span id="adminListingCount">0</span><small>Listings</small></div>
-          <div class="hero-stat"><span id="adminRequestCount">0</span><small>Requests</small></div>
-          <div class="hero-stat"><span id="adminUserCount">0</span><small>Users</small></div>
-        </div>
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-title">Admin Dashboard</div>
+        <div class="meta">Mark sold removes items from normal employee view. Admin can mark items active again, feature posts, hide posts, or approve/deny reactivation requests.</div>
       </div>
-    </section>
-
-    <section class="glass" style="overflow:hidden">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Listings</div>
-          <div class="section-sub">Sold items stay visible. Reactivation must be approved here.</div>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table class="adminTable">
-          <thead>
-            <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Actions</th></tr>
-          </thead>
-          <tbody id="listingRows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <div style="height:18px"></div>
-
-    <section class="glass" style="overflow:hidden">
-      <div class="section-head">
-        <div>
-          <div class="section-title">User Access</div>
-          <div class="section-sub">Block or restore employee access to the marketplace.</div>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table class="adminTable">
-          <thead>
-            <tr><th>User</th><th>Display Name</th><th>Access</th><th>Action</th></tr>
-          </thead>
-          <tbody id="userRows"></tbody>
-        </table>
+      <div class="panel-b admin-grid">
+        <section class="panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h"><div class="panel-title">Listings</div></div>
+          <div class="panel-b table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="listingRows"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h"><div class="panel-title">User Access</div></div>
+          <div class="panel-b table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>User</th><th>Display Name</th><th>Access</th><th>Action</th></tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </section>
   </main>
-
-
-  <div class="overlay" id="adminEditOverlay" style="display:none;">
-    <div class="modal wide modal-scroll">
-      <div class="modal-h sticky-head">
-        <strong>Edit Post</strong>
-        <button class="btn ghost" id="adminEditClose" type="button">Close</button>
-      </div>
-      <div class="modal-b">
-        <input id="adminEditId" type="hidden" />
-        <div class="grid2">
-          <div class="field">
-            <label>Board</label>
-            <select id="adminEditBoard">
-              <option value="FREE">Free Items</option>
-              <option value="BUYSELL">Buy / Sell</option>
-              <option value="GARAGE">Garage Sales</option>
-              <option value="EVENTS">Events</option>
-              <option value="WORK">Work News</option>
-              <option value="SERVICES">Local Services</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Status</label>
-            <select id="adminEditStatus">
-              <option value="ACTIVE">Active</option>
-              <option value="SOLD">Sold</option>
-            </select>
-          </div>
-        </div>
-        <div class="field">
-          <label>Title</label>
-          <input id="adminEditTitle" />
-        </div>
-        <div class="grid2">
-          <div class="field">
-            <label>Price</label>
-            <input id="adminEditPrice" inputmode="decimal" />
-          </div>
-          <div class="field">
-            <label>Location</label>
-            <input id="adminEditLocation" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Description</label>
-          <textarea id="adminEditDesc"></textarea>
-        </div>
-        <div class="field">
-          <label>Contact</label>
-          <input id="adminEditContact" />
-        </div>
-      </div>
-      <div class="modal-actions sticky-actions">
-        <button class="btn ghost" id="adminEditCancel" type="button">Cancel</button>
-        <button class="btn primary" id="adminEditSave" type="button">Save Changes</button>
-      </div>
-    </div>
-  </div>
 
   <script type="module" src="admin.js"></script>
 </body>
