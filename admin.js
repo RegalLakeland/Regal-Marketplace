@@ -1,7 +1,7 @@
 import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import { getFirestore, collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { getFirestore, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -11,17 +11,31 @@ const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;'
 const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
 
 function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
-function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').toLowerCase()); }
+function normalizeEmail(email){ return String(email||'').trim().toLowerCase(); }
+function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(normalizeEmail(email)); }
+const PROTECTED_CORE_ADMINS = new Set([
+  'michael.h@regallakeland.com',
+  'janni.r@regallakeland.com'
+]);
+function isProtectedCoreAdmin(email){ return PROTECTED_CORE_ADMINS.has(normalizeEmail(email)); }
+function isCoreAdminViewer(){ return isProtectedCoreAdmin(currentViewer?.email); }
 
 let authResolved = false;
-onAuthStateChanged(auth, (user) => {
+let currentViewer = null;
+let currentViewerProfile = null;
+onAuthStateChanged(auth, async (user) => {
   authResolved = true;
+  currentViewer = user || null;
   if (!user) {
     alert('Please log in first.');
     location.href = 'index.html';
     return;
   }
-  if (!isAdmin(user.email)) {
+
+  const profileSnap = await getDoc(doc(db, 'profiles', user.uid)).catch(() => null);
+  currentViewerProfile = profileSnap?.exists() ? { id: profileSnap.id, ...profileSnap.data() } : null;
+  const allowed = !!(isProtectedCoreAdmin(user.email) || currentViewerProfile?.isAdmin || isAdmin(user.email));
+  if (!allowed) {
     alert('Admin access only.');
     location.href = 'index.html';
     return;
@@ -35,7 +49,7 @@ function startListings(){
   const qRef = query(collection(db, 'listings'), orderBy('createdAtMs', 'desc'));
   onSnapshot(qRef, (snap) => {
     const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    adminRows = rows;
+    listingRowsData = rows;
     if ($('adminListingCount')) $('adminListingCount').textContent = String(rows.length);
     if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter(r => r.reactivationRequested).length);
     if (!$('listingRows')) return;
@@ -97,28 +111,67 @@ function startListings(){
   });
 }
 
+
 function startUsers(){
   onSnapshot(collection(db, 'profiles'), (snap) => {
     const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    adminRows = rows;
+    userRowsData = rows;
     if ($('adminUserCount')) $('adminUserCount').textContent = String(rows.length);
     if (!$('userRows')) return;
-    $('userRows').innerHTML = rows.map(user => `
+    $('userRows').innerHTML = rows.map(user => {
+      const protectedUser = isProtectedCoreAdmin(user.email);
+      const roles = [
+        user.isAdmin ? 'Admin' : '',
+        user.isModerator ? 'Moderator' : '',
+        user.manualVerified ? 'Email Approved' : '',
+        user.banned ? 'Blocked' : 'Active',
+        protectedUser ? 'Protected' : ''
+      ].filter(Boolean).join(' • ');
+
+      return `
       <tr>
         <td>${esc(user.email || '—')}</td>
         <td>${esc(user.displayName || '—')}</td>
-        <td>${user.banned ? 'Blocked' : 'Active'}</td>
-        <td><button class="btn ${user.banned ? 'ghost' : 'danger'}" data-ban="${esc(user.id)}" data-state="${user.banned ? '0' : '1'}" type="button">${user.banned ? 'Restore Access' : 'Block Access'}</button></td>
-      </tr>
-    `).join('');
-    document.querySelectorAll('[data-ban]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'profiles', btn.dataset.ban), { banned: btn.dataset.state === '1' });
+        <td>${esc(roles || 'Active')}</td>
+        <td>
+          <div class="rowBtns">
+            ${!user.isModerator ? `<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>` : ''}
+            ${user.isModerator && !protectedUser ? `<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>` : ''}
+            ${!user.isAdmin ? `<button class="btn" data-role="grantAdmin" data-id="${esc(user.id)}" type="button">Grant Admin</button>` : ''}
+            ${user.isAdmin && !protectedUser ? `<button class="btn ghost" data-role="removeAdmin" data-id="${esc(user.id)}" type="button">Remove Admin</button>` : ''}
+            ${isCoreAdminViewer() && !user.manualVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
+            ${isCoreAdminViewer() && user.manualVerified && !protectedUser ? `<button class="btn ghost" data-role="revokeEmail" data-id="${esc(user.id)}" type="button">Revoke Email Approval</button>` : ''}
+            ${!user.banned && !protectedUser ? `<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block Access</button>` : ''}
+            ${user.banned && !protectedUser ? `<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore Access</button>` : ''}
+            ${protectedUser ? `<span class="pill">Locked</span>` : ''}
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.querySelectorAll('[data-role]').forEach(btn => btn.onclick = async () => {
+      const user = userRowsData.find((x) => x.id === btn.dataset.id) || userRowsData.find((x) => x.id === btn.dataset.id);
+      if (!user) return;
+      if (isProtectedCoreAdmin(user.email) && ['removeMod','removeAdmin','banUser','revokeEmail'].includes(btn.dataset.role)) {
+        alert('This core admin account cannot be modified.');
+        return;
+      }
+      const ref = doc(db, 'profiles', user.id);
+      if (btn.dataset.role === 'grantMod') await updateDoc(ref, { isModerator: true });
+      if (btn.dataset.role === 'removeMod') await updateDoc(ref, { isModerator: false });
+      if (btn.dataset.role === 'grantAdmin') await updateDoc(ref, { isAdmin: true });
+      if (btn.dataset.role === 'removeAdmin') await updateDoc(ref, { isAdmin: false });
+      if (btn.dataset.role === 'approveEmail') await updateDoc(ref, { manualVerified: true });
+      if (btn.dataset.role === 'revokeEmail') await updateDoc(ref, { manualVerified: false });
+      if (btn.dataset.role === 'banUser') await updateDoc(ref, { banned: true });
+      if (btn.dataset.role === 'unbanUser') await updateDoc(ref, { banned: false });
     });
   });
 }
 
 
-let adminRows = [];
+let listingRowsData = [];
+let userRowsData = [];
 let adminEditingId = null;
 
 function ensureEditModal(){
@@ -153,7 +206,7 @@ function ensureEditModal(){
 
 function openEditModal(id){
   ensureEditModal();
-  const item = adminRows.find((x) => x.id === id);
+  const item = listingRowsData.find((x) => x.id === id);
   if (!item) return;
   adminEditingId = id;
   document.getElementById('adminEditBoard').value = item.board || item.category || 'BUYSELL';

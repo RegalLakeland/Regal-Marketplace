@@ -17,6 +17,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   orderBy,
@@ -214,12 +215,29 @@ function isAllowedEmail(email) {
   return String(email || '').trim().toLowerCase().endsWith('@regallakeland.com');
 }
 
+const PROTECTED_CORE_ADMINS = new Set([
+  'michael.h@regallakeland.com',
+  'janni.r@regallakeland.com'
+]);
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
 function isAdmin(email) {
-  return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(String(email || '').trim().toLowerCase());
+  return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(normalizeEmail(email));
+}
+
+function isProtectedCoreAdmin(email) {
+  return PROTECTED_CORE_ADMINS.has(normalizeEmail(email));
 }
 
 function isViewerAdmin() {
-  return !!currentProfile?.isAdmin || isAdmin(currentUser?.email);
+  return !!currentProfile?.isAdmin || isProtectedCoreAdmin(currentUser?.email);
+}
+
+function canModerate() {
+  return !!currentProfile && (!!currentProfile.isAdmin || !!currentProfile.isModerator || isProtectedCoreAdmin(currentUser?.email));
 }
 
 function isVisibleToViewer(item) {
@@ -249,7 +267,9 @@ async function ensureProfile(user) {
     email: user.email || '',
     displayName: (user.displayName || '').trim(),
     isAdmin: isAdmin(user.email),
+    isModerator: false,
     banned: false,
+    manualVerified: false,
     updatedAt: serverTimestamp()
   };
 
@@ -264,12 +284,20 @@ async function ensureProfile(user) {
     };
   } else {
     currentProfile = { id: snap.id, ...snap.data() };
-    if (currentProfile.isAdmin !== isAdmin(user.email)) {
-      await updateDoc(profileRef, {
-        isAdmin: isAdmin(user.email),
-        updatedAt: serverTimestamp()
-      });
-      currentProfile.isAdmin = isAdmin(user.email);
+    const updates = {};
+
+    if (typeof currentProfile.isModerator !== 'boolean') updates.isModerator = false;
+    if (typeof currentProfile.banned !== 'boolean') updates.banned = false;
+    if (typeof currentProfile.manualVerified !== 'boolean') updates.manualVerified = false;
+
+    if (isProtectedCoreAdmin(user.email) && currentProfile.isAdmin !== true) {
+      updates.isAdmin = true;
+    }
+
+    if (Object.keys(updates).length) {
+      updates.updatedAt = serverTimestamp();
+      await updateDoc(profileRef, updates);
+      currentProfile = { ...currentProfile, ...updates };
     }
   }
 }
@@ -284,7 +312,7 @@ function updateAuthUI() {
       : 'Not signed in';
   }
 
-  const showAdmin = loggedIn && (currentProfile.isAdmin || isAdmin(currentUser?.email));
+  const showAdmin = loggedIn && (!!currentProfile?.isAdmin || isProtectedCoreAdmin(currentUser?.email));
   if ($('adminLink')) $('adminLink').style.display = showAdmin ? 'inline-flex' : 'none';
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
@@ -529,7 +557,7 @@ function formatDate(ms) {
 }
 
 function canModify(item) {
-  return !!currentUser && !!currentProfile && (currentProfile.isAdmin || currentUser.uid === item.uid);
+  return !!currentUser && !!currentProfile && (canModerate() || currentUser.uid === item.uid);
 }
 
 function resetPostEditor() {
