@@ -541,7 +541,12 @@ function initMarketplace(){
 
     if (!user){
       profile = null;
+      document.body.classList.add("logged-out");
+      document.body.classList.remove("logged-in");
       if ($("pillUser")) $("pillUser").textContent = "Signed out";
+      if ($("adminLink")) $("adminLink").style.display = "none";
+      if ($("btnNew")) $("btnNew").style.display = "none";
+      if ($("btnLogout")) $("btnLogout").style.display = "none";
       stopListingsListener();
       show("loginOverlay");
       hide("nameOverlay");
@@ -557,9 +562,17 @@ function initMarketplace(){
     }
 
     hide("loginOverlay");
+    document.body.classList.add("logged-in");
+    document.body.classList.remove("logged-out");
     await upsertPresence();
     await loadProfile();
     if ($("pillUser")) $("pillUser").textContent = `Signed in: ${displayName()}`;
+    if ($("btnNew")) $("btnNew").style.display = "inline-flex";
+    if ($("btnLogout")) $("btnLogout").style.display = "inline-flex";
+    if ($("adminLink")) {
+      const isAdmin = !!(user?.email && ["michael.h@regallakeland.com","janni.r@regallakeland.com","chrissy.h@regallakeland.com","amy.m@regallakeland.com"].includes(String(user.email).toLowerCase()));
+      $("adminLink").style.display = isAdmin ? "inline-flex" : "none";
+    }
     if ($("st")) $("st").value = "ALL";
     startListingsListener();
 
@@ -586,6 +599,28 @@ function initMarketplace(){
     if (!id) return;
 
     if (action === "openThread") openThread(id);
+  });
+
+  const adminEmails = [
+    "michael.h@regallakeland.com",
+    "janni.r@regallakeland.com",
+    "chrissy.h@regallakeland.com",
+    "amy.m@regallakeland.com"
+  ];
+
+  function updateShellVisibility(){
+    const loggedIn = !!user;
+    document.body.classList.toggle("logged-in", loggedIn);
+    document.body.classList.toggle("logged-out", !loggedIn);
+    if ($("btnNew")) $("btnNew").style.display = loggedIn ? "inline-flex" : "none";
+    if ($("btnLogout")) $("btnLogout").style.display = loggedIn ? "inline-flex" : "none";
+    if ($("adminLink")) {
+      const isAdmin = !!(user?.email && adminEmails.includes(String(user.email).toLowerCase()));
+      $("adminLink").style.display = loggedIn && isAdmin ? "inline-flex" : "none";
+    }
+  }
+
+  updateShellVisibility();
 }
 
 if (document.readyState === "loading") {
