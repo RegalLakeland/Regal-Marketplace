@@ -392,22 +392,52 @@ function renderBoards() {
   const wrap = $("boards");
   if (!wrap) return;
 
+  const boardInfo = {
+    ALL: { desc: "Everything currently posted across the employee marketplace." },
+    FREE: { desc: "Free items, curb alerts, and giveaway pickups." },
+    BUYSELL: { desc: "Items for sale between employees." },
+    GARAGE: { desc: "Garage sales, moving sales, and weekend clear-outs." },
+    EVENTS: { desc: "Employee events, meetups, and local happenings." },
+    WORK: { desc: "Internal notices, updates, and workplace posts." },
+    SERVICES: { desc: "Side work, help wanted, and trusted local services." }
+  };
+
   const counts = { ALL: listings.length };
   Object.keys(boardLabels).forEach((key) => {
     if (key !== "ALL") counts[key] = 0;
   });
 
+  const latestByBoard = {};
   listings.forEach((item) => {
-    const boardKey = item.board || item.category;
+    const boardKey = item.board || item.category || "BUYSELL";
     counts[boardKey] = (counts[boardKey] || 0) + 1;
+    if (!latestByBoard[boardKey] || Number(item.createdAtMs || 0) > Number(latestByBoard[boardKey].createdAtMs || 0)) {
+      latestByBoard[boardKey] = item;
+    }
   });
 
-  wrap.innerHTML = Object.entries(boardLabels).map(([key, label]) => `
-    <button class="boardBtn ${activeBoard === key ? "active" : ""}" data-board="${key}" type="button">
-      <span>${esc(label)}</span>
-      <span class="pill">${counts[key] || 0}</span>
-    </button>
-  `).join("");
+  const latestAll = listings[0] || null;
+  wrap.innerHTML = Object.entries(boardLabels).map(([key, label]) => {
+    const latest = key === "ALL" ? latestAll : latestByBoard[key];
+    const latestTitle = latest?.title || "No posts yet";
+    const latestAuthor = latest?.authorName || latest?.displayName || latest?.authorEmail || latest?.userEmail || "—";
+    const latestTime = latest ? formatDate(latest.createdAtMs) : "";
+    return `
+      <button class="boardBtn forumBoard ${activeBoard === key ? "active" : ""}" data-board="${key}" type="button">
+        <div class="boardMain">
+          <div class="boardTitle">${esc(label)}</div>
+          <div class="boardDesc">${esc(boardInfo[key]?.desc || "")}</div>
+        </div>
+        <div class="boardStats">
+          <div class="boardCount pill">${counts[key] || 0}</div>
+          <div class="boardLatest">
+            <div class="latestTitle">${esc(latestTitle)}</div>
+            <div class="latestMeta">${esc(latestAuthor)}${latestTime ? ` | ${esc(latestTime)}` : ""}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  }).join("");
 
   wrap.querySelectorAll(".boardBtn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -416,6 +446,8 @@ function renderBoards() {
       if ($("feedTitle")) $("feedTitle").textContent = boardLabels[activeBoard] || "Marketplace";
       renderBoards();
       renderListings();
+      const feed = document.querySelector('.feed');
+      feed?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 
@@ -495,6 +527,7 @@ function renderListings() {
   }
 
   empty.style.display = "none";
+  wrap.classList.add('topicList');
   wrap.innerHTML = data.map((item) => {
     const boardKey = item.board || item.category || "BUYSELL";
     const title = item.title || "Untitled";
@@ -502,28 +535,31 @@ function renderListings() {
     const authorName = item.authorName || item.displayName || item.authorEmail || item.userEmail || "";
     const imageUrl = item.imageUrl || item.photo || "";
     return `
-      <article class="card ${item.status === "SOLD" ? "isSold" : ""}">
-        ${imageUrl ? `<img class="card-img" src="${esc(imageUrl)}" alt="${esc(title)}" />` : ""}
-        <div class="card-b">
-          <div class="card-top">
+      <article class="topicRow ${item.status === "SOLD" ? "isSold" : ""}">
+        <div class="topicThumbWrap">
+          ${imageUrl ? `<img class="topicThumb" src="${esc(imageUrl)}" alt="${esc(title)}" />` : `<div class="topicThumb placeholder">${esc((boardLabels[boardKey] || boardKey).slice(0,2))}</div>`}
+        </div>
+        <div class="topicBody">
+          <div class="topicTop">
             <div>
-              <div class="card-title">${esc(title)}</div>
-              <div class="meta">${esc(boardLabels[boardKey] || boardKey)} | ${esc(authorName)}</div>
+              <div class="topicTitle">${esc(title)}</div>
+              <div class="meta">${esc(boardLabels[boardKey] || boardKey)} | ${esc(authorName)} | ${esc(formatDate(item.createdAtMs))}</div>
             </div>
-            <div class="price">${esc(formatPrice(item.price))}</div>
+            <div class="topicSide">
+              <div class="price">${esc(formatPrice(item.price))}</div>
+              <span class="status ${item.status === "SOLD" ? "sold" : "active"}">${esc(item.status || "ACTIVE")}</span>
+            </div>
           </div>
-          <div class="desc">${esc(description)}</div>
-          <div class="meta card-meta">
+          <div class="topicExcerpt">${esc(description)}</div>
+          <div class="topicMetaRow meta">
             <span>${esc(item.location || "No location")}</span>
             <span>${esc(item.contact || "No contact")}</span>
-            <span>${esc(formatDate(item.createdAtMs))}</span>
-            <span class="status ${item.status === "SOLD" ? "sold" : "active"}">${esc(item.status || "ACTIVE")}</span>
           </div>
-          <div class="rowBtns">
-            <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
-            ${canModify(item) && item.status !== "SOLD" ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ""}
-            ${canModify(item) ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
-          </div>
+        </div>
+        <div class="topicActions">
+          <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
+          ${canModify(item) && item.status !== "SOLD" ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ""}
+          ${canModify(item) ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
         </div>
       </article>
     `;

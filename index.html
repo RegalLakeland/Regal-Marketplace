@@ -68,9 +68,7 @@
             </div>
 
             <div id="signupPane" style="display:none">
-              <div class="note">
-                Create an account using your work email. You must verify your email before you can use the marketplace.
-              </div>
+              <div class="note">Create an account using your work email. You must verify your email before you can use the marketplace.</div>
               <div style="height:10px"></div>
               <div class="field">
                 <label>Work Email</label>
@@ -101,9 +99,7 @@
 
   <div class="overlay" id="nameOverlay" style="display:none">
     <div class="modal">
-      <div class="modal-h">
-        <strong>Set Your Display Name</strong>
-      </div>
+      <div class="modal-h"><strong>Set Your Display Name</strong></div>
       <div class="modal-b">
         <div class="field">
           <label>First &amp; Last Name</label>
@@ -111,9 +107,7 @@
         </div>
         <div class="note">This name will show on posts and replies instead of your email.</div>
       </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSaveName" type="button">Save</button>
-      </div>
+      <div class="modal-actions"><button class="btn primary" id="btnSaveName" type="button">Save</button></div>
     </div>
   </div>
 
@@ -125,33 +119,44 @@
       </div>
       <div class="title">
         <div class="h1">Employee Marketplace</div>
-        <div class="h2">Free items | Buy/Sell | Garage Sales | Events | Work News</div>
+        <div class="h2">Forum boards for free items, buy/sell, garage sales, events, work news, and services.</div>
       </div>
     </div>
 
     <div class="right">
       <span class="pill" id="pillUser">Not signed in</span>
-      <button class="btn" id="btnNew" type="button">+ Post</button>
+      <span class="pill" id="boardPill">All</span>
       <a class="btn ghost" id="adminLink" href="admin.html" style="display:none">Admin</a>
+      <button class="btn primary" id="btnNew" type="button">+ Post</button>
       <button class="btn danger" id="btnLogout" type="button">Logout</button>
     </div>
   </header>
 
-  <main class="layout">
-    <aside class="panel boards">
+  <main class="layout forum-layout">
+    <section class="panel hero-panel">
+      <div class="hero-inner">
+        <div>
+          <div class="hero-kicker">Regal Employee Marketplace</div>
+          <h2 id="feedTitle">All Boards</h2>
+          <div class="meta hero-meta" id="countLine">0 shown | 0 total</div>
+          <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share updates, and keep activity organized by section.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel boards-panel">
       <div class="panel-h">
         <div class="panel-title">Boards</div>
-        <div class="pill" id="boardPill">All</div>
+        <div class="pill">Sections first, threads second</div>
       </div>
-      <div class="panel-b" id="boards"></div>
-    </aside>
+      <div class="panel-b board-list" id="boards"></div>
+    </section>
 
     <section class="panel feed">
       <div class="panel-h">
-        <div class="panel-title" id="feedTitle">Marketplace</div>
-        <div class="meta" id="countLine">0 shown | 0 total</div>
+        <div class="panel-title">Latest Listings</div>
+        <div class="meta">Open a board or search the newest activity</div>
       </div>
-
       <div class="panel-b">
         <div class="filters">
           <div class="field">
@@ -177,7 +182,7 @@
           </div>
         </div>
 
-        <div class="cards" id="cards"></div>
+        <div class="cards topicList" id="cards"></div>
         <div class="note" id="empty" style="display:none;margin-top:12px;">No listings match your filters.</div>
       </div>
     </section>
@@ -245,9 +250,7 @@
 
         <div class="note">Posts are visible to logged-in employees only. Admins can delete posts.</div>
       </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSavePost" type="button">Post</button>
-      </div>
+      <div class="modal-actions"><button class="btn primary" id="btnSavePost" type="button">Post</button></div>
     </div>
   </div>
 
@@ -260,18 +263,14 @@
       <div class="modal-b">
         <div id="threadMeta" class="meta" style="margin-bottom:10px;"></div>
         <div id="threadBody" class="threadBody"></div>
-
         <div class="note" style="margin:10px 0;">Replies (everyone can respond)</div>
         <div id="threadReplies" class="replies"></div>
-
         <div class="field" style="margin-top:10px;">
           <label>Write a reply</label>
           <textarea id="replyText" placeholder="Type your reply..."></textarea>
         </div>
       </div>
-      <div class="modal-actions">
-        <button class="btn primary" id="btnSendReply" type="button">Reply</button>
-      </div>
+      <div class="modal-actions"><button class="btn primary" id="btnSendReply" type="button">Reply</button></div>
     </div>
   </div>
 
