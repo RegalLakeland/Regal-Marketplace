@@ -10,17 +10,20 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const boardLabels = { ALL:'All Boards', FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
 let listingCache = [];
-let isAdminUser = false;
+let userCache = [];
+let adminReady = false;
 
 function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
-function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').toLowerCase()); }
+function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').trim().toLowerCase()); }
 
+ensureEditOverlay();
 bindAdminEditEvents();
 
 onAuthStateChanged(auth, (user) => {
-  isAdminUser = !!(user && isAdmin(user.email));
+  const allowed = !!(user && isAdmin(user.email));
   if ($('adminUser')) $('adminUser').textContent = user ? user.email : 'Not signed in';
-  if (!isAdminUser) return;
+  adminReady = allowed;
+  if (!allowed) return;
   startListings();
   startUsers();
 });
@@ -36,10 +39,10 @@ function startListings(){
     $('listingRows').innerHTML = rows.map(item => {
       const board = item.board || item.category || 'BUYSELL';
       const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
-      const requestPill = item.reactivationRequested ? `<div class="meta">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
+      const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
       return `
         <tr>
-          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="meta">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}</td>
+          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}</td>
           <td>${esc(boardLabels[board] || board)}</td>
           <td>${esc(item.status || 'ACTIVE')}</td>
           <td>${esc(poster)}</td>
@@ -56,7 +59,7 @@ function startListings(){
 
     document.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => openAdminEdit(btn.dataset.edit));
     document.querySelectorAll('[data-sold]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', updatedAt: Date.now() });
+      await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', updatedAt: Date.now(), reactivationRequested:false, reactivationRequestedAt:null });
     });
     document.querySelectorAll('[data-active]').forEach(btn => btn.onclick = async () => {
       await updateDoc(doc(db, 'listings', btn.dataset.active), { status:'ACTIVE', reactivationRequested:false, reactivationRequestedAt:null, updatedAt: Date.now() });
@@ -86,6 +89,7 @@ function startListings(){
 function startUsers(){
   onSnapshot(collection(db, 'profiles'), (snap) => {
     const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    userCache = rows;
     if ($('adminUserCount')) $('adminUserCount').textContent = String(rows.length);
     if (!$('userRows')) return;
     $('userRows').innerHTML = rows.map(user => `
@@ -102,13 +106,79 @@ function startUsers(){
   });
 }
 
+function ensureEditOverlay(){
+  if ($('adminEditOverlay')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+  <div class="overlay" id="adminEditOverlay" style="display:none;">
+    <div class="modal wide modal-scroll">
+      <div class="modal-h sticky-head">
+        <strong>Edit Post</strong>
+        <button class="btn ghost" id="adminEditClose" type="button">Close</button>
+      </div>
+      <div class="modal-b">
+        <input id="adminEditId" type="hidden" />
+        <div class="grid2">
+          <div class="field">
+            <label>Board</label>
+            <select id="adminEditBoard">
+              <option value="FREE">Free Items</option>
+              <option value="BUYSELL">Buy / Sell</option>
+              <option value="GARAGE">Garage Sales</option>
+              <option value="EVENTS">Events</option>
+              <option value="WORK">Work News</option>
+              <option value="SERVICES">Local Services</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="adminEditStatus">
+              <option value="ACTIVE">Active</option>
+              <option value="SOLD">Sold</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Title</label>
+          <input id="adminEditTitle" />
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label>Price</label>
+            <input id="adminEditPrice" inputmode="decimal" />
+          </div>
+          <div class="field">
+            <label>Location</label>
+            <input id="adminEditLocation" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea id="adminEditDesc"></textarea>
+        </div>
+        <div class="field">
+          <label>Contact</label>
+          <input id="adminEditContact" />
+        </div>
+      </div>
+      <div class="modal-actions sticky-actions">
+        <button class="btn ghost" id="adminEditCancel" type="button">Cancel</button>
+        <button class="btn primary" id="adminEditSave" type="button">Save Changes</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(wrap.firstElementChild);
+}
+
 function bindAdminEditEvents(){
-  $('adminEditClose')?.addEventListener('click', closeAdminEdit);
-  $('adminEditCancel')?.addEventListener('click', closeAdminEdit);
-  $('adminEditSave')?.addEventListener('click', saveAdminEdit);
+  document.body.addEventListener('click', (e) => {
+    if (e.target?.id === 'adminEditClose' || e.target?.id === 'adminEditCancel') closeAdminEdit();
+    if (e.target?.id === 'adminEditSave') saveAdminEdit();
+  });
 }
 
 function openAdminEdit(id){
+  if (!adminReady) return;
   const item = listingCache.find((x) => x.id === id);
   if (!item) return;
   if ($('adminEditId')) $('adminEditId').value = id;
