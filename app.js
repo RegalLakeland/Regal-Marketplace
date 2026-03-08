@@ -186,11 +186,14 @@ function showPane(which) {
 function show(id) {
   const el = $(id);
   if (el) el.style.display = "flex";
+  if (id !== "loginOverlay") document.body.classList.add("modal-open");
 }
 
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = "none";
+  const stillOpen = ["nameOverlay","postOverlay","threadOverlay"].some((overlayId) => $(overlayId)?.style.display !== "none");
+  if (!stillOpen) document.body.classList.remove("modal-open");
 }
 
 function isAllowedEmail(email) {
@@ -265,6 +268,7 @@ function updateAuthUI() {
   if ($("btnLogout")) $("btnLogout").style.display = loggedIn ? "inline-flex" : "none";
   if ($("btnNew")) $("btnNew").style.display = loggedIn ? "inline-flex" : "none";
   if ($("loginOverlay")) $("loginOverlay").style.display = loggedIn ? "none" : "flex";
+  if (!loggedIn) document.body.classList.remove("modal-open");
 }
 
 async function handleLogin() {
