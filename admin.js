@@ -8,7 +8,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-const boardLabels = { ALL:'All Boards', FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
+const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
 
 function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
 function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').toLowerCase()); }
@@ -28,22 +28,24 @@ function startListings(){
   const qRef = query(collection(db, 'listings'), orderBy('createdAtMs', 'desc'));
   onSnapshot(qRef, (snap) => {
     const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    if ($('adminListingCount')) $('adminListingCount').textContent = String(rows.length);
+    if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter(r => r.reactivationRequested).length);
     if (!$('listingRows')) return;
     $('listingRows').innerHTML = rows.map(item => {
       const board = item.board || item.category || 'BUYSELL';
       const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
-      const requestPill = item.reactivationRequested ? `<div class="meta">Reactivation requested</div>` : '';
+      const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
       return `
         <tr>
-          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="meta">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}</td>
+          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}</td>
           <td>${esc(boardLabels[board] || board)}</td>
           <td>${esc(item.status || 'ACTIVE')}</td>
           <td>${esc(poster)}</td>
           <td>
             <div class="rowBtns">
-              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : ``}
-              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Approve Active</button><button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny</button>` : ``}
-              ${item.status === 'SOLD' && !item.reactivationRequested ? `<span class="pill">Sold</span>` : ``}
+              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : ''}
+              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Approve Active</button><button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny</button>` : ''}
+              ${item.status === 'SOLD' && !item.reactivationRequested ? `<span class="pill">Sold</span>` : ''}
               <button class="btn danger" data-delete="${esc(item.id)}" type="button">Delete</button>
             </div>
           </td>
@@ -51,13 +53,14 @@ function startListings(){
     }).join('');
 
     document.querySelectorAll('[data-sold]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD' });
+      await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', reactivationRequested:false });
     });
     document.querySelectorAll('[data-approve]').forEach(btn => btn.onclick = async () => {
       await updateDoc(doc(db, 'listings', btn.dataset.approve), {
         status:'ACTIVE',
         reactivationRequested:false,
-        reactivationRequestedAt:null
+        reactivationRequestedAt:null,
+        reactivationDeniedAt:null
       });
     });
     document.querySelectorAll('[data-deny]').forEach(btn => btn.onclick = async () => {
@@ -77,6 +80,7 @@ function startListings(){
 function startUsers(){
   onSnapshot(collection(db, 'profiles'), (snap) => {
     const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    if ($('adminUserCount')) $('adminUserCount').textContent = String(rows.length);
     if (!$('userRows')) return;
     $('userRows').innerHTML = rows.map(user => `
       <tr>
