@@ -57,9 +57,15 @@ let listings = [];
 let activeBoard = 'ALL';
 let activeThread = null;
 let listingsUnsub = null;
+let profilesUnsub = null;
+let presenceTimer = null;
+let profiles = [];
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
+
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+const PRESENCE_HEARTBEAT_MS = 60 * 1000;
 
 window.addEventListener('error', (e) => {
   console.error('Marketplace JS error:', e.error || e.message || e);
@@ -128,6 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       updateAuthUI();
       startListingsListener();
+      startProfilesListener();
+      touchPresence();
+      if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
 
       if (!currentProfile?.displayName) {
         if ($('displayNameInput')) $('displayNameInput').value = user.displayName || '';
@@ -276,8 +285,18 @@ function stopListeners() {
     listingsUnsub();
     listingsUnsub = null;
   }
+  if (profilesUnsub) {
+    profilesUnsub();
+    profilesUnsub = null;
+  }
+  if (presenceTimer) {
+    clearInterval(presenceTimer);
+    presenceTimer = null;
+  }
   listings = [];
+  profiles = [];
   activeThread = null;
+  updateHeroPeopleStats();
   renderBoards();
   renderListings();
 }
@@ -296,6 +315,7 @@ async function ensureProfile(user) {
     manualVerified: false,
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
+    lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
 
@@ -317,6 +337,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.manualVerified !== 'boolean') updates.manualVerified = false;
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = true;
+    if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
       updates.emailVerified = true;
@@ -475,6 +496,45 @@ async function handleSaveName() {
   currentProfile.displayName = name;
   updateAuthUI();
   hide('nameOverlay');
+}
+
+
+async function touchPresence() {
+  if (!currentUser) return;
+  const stamp = Date.now();
+  try {
+    await updateDoc(doc(db, 'profiles', currentUser.uid), {
+      lastSeenAtMs: stamp,
+      updatedAt: serverTimestamp()
+    });
+    if (currentProfile) currentProfile.lastSeenAtMs = stamp;
+  } catch (err) {
+    console.warn('presence update failed', err);
+  }
+}
+
+function approvedProfiles() {
+  return profiles.filter((profile) => profile && profile.accessApproved !== false && profile.banned !== true);
+}
+
+function onlineProfiles() {
+  const cutoff = Date.now() - ONLINE_WINDOW_MS;
+  return approvedProfiles().filter((profile) => Number(profile.lastSeenAtMs || 0) >= cutoff);
+}
+
+function updateHeroPeopleStats() {
+  if ($('heroRegisteredCount')) $('heroRegisteredCount').textContent = String(approvedProfiles().length);
+  if ($('heroOnlineCount')) $('heroOnlineCount').textContent = String(onlineProfiles().length);
+}
+
+function startProfilesListener() {
+  if (profilesUnsub) return;
+  profilesUnsub = onSnapshot(collection(db, 'profiles'), (snap) => {
+    profiles = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    updateHeroPeopleStats();
+  }, (err) => {
+    console.error('Profiles error:', err);
+  });
 }
 
 function startListingsListener() {
@@ -655,6 +715,7 @@ function renderListings() {
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
   if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
   if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
+  updateHeroPeopleStats();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
 
   if (!data.length) {
