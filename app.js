@@ -1,5 +1,5 @@
-import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import {
   getFirestore,
   collection,
@@ -17,17 +17,18 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   orderBy,
   serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import {
   getStorage,
   ref,
   uploadBytes,
   getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -35,35 +36,35 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '')
-  .replaceAll('&', '&amp;')
-  .replaceAll('<', '&lt;')
-  .replaceAll('>', '&gt;');
+const esc = (s) => String(s ?? "")
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;");
 
-const BOARD_DEFS = [
-  { key: 'ALL', label: 'All Boards', desc: 'Everything in one place' },
-  { key: 'FREE', label: 'Free Items', desc: 'Giveaways and quick pickups' },
-  { key: 'BUYSELL', label: 'Buy / Sell', desc: 'Employee marketplace items' },
-  { key: 'GARAGE', label: 'Garage Sales', desc: 'Neighborhood and moving sales' },
-  { key: 'EVENTS', label: 'Events', desc: 'Meetups, cookouts, birthdays' },
-  { key: 'WORK', label: 'Work News', desc: 'Dealership updates and notices' },
-  { key: 'SERVICES', label: 'Local Services', desc: 'Side work and help needed' }
-];
+const boardLabels = {
+  ALL: "All Boards",
+  FREE: "Free Items",
+  BUYSELL: "Buy / Sell",
+  GARAGE: "Garage Sales",
+  EVENTS: "Events",
+  WORK: "Work News",
+  SERVICES: "Local Services"
+};
 
 let currentUser = null;
 let currentProfile = null;
 let listings = [];
-let activeBoard = 'ALL';
+let activeBoard = "ALL";
 let activeThread = null;
 let listingsUnsub = null;
-let lastUnverifiedEmail = '';
-let postingInFlight = false;
+let repliesUnsub = null;
+let lastUnverifiedEmail = "";
 
-window.addEventListener('error', (e) => {
-  console.error('Marketplace JS error:', e.error || e.message || e);
+window.addEventListener("error", (e) => {
+  console.error("Marketplace JS error:", e.error || e.message || e);
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   bindStaticEvents();
   renderBoards();
   renderListings();
@@ -80,138 +81,127 @@ document.addEventListener('DOMContentLoaded', () => {
 
       await user.reload().catch(() => {});
       if (!user.emailVerified) {
-        lastUnverifiedEmail = user.email || '';
-        if ($('verifyNote')) $('verifyNote').style.display = 'block';
-        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
+        lastUnverifiedEmail = user.email || "";
+        if ($("verifyNote")) $("verifyNote").style.display = "block";
+        if ($("btnResendVerify")) $("btnResendVerify").style.display = "inline-flex";
         await signOut(auth);
-        alert('Please verify your email before logging in.');
+        alert("Please verify your email before logging in.");
         return;
       }
 
       currentUser = user;
-      lastUnverifiedEmail = '';
-      if ($('verifyNote')) $('verifyNote').style.display = 'none';
-      if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+      lastUnverifiedEmail = "";
+
+      if ($("verifyNote")) $("verifyNote").style.display = "none";
+      if ($("btnResendVerify")) $("btnResendVerify").style.display = "none";
 
       await ensureProfile(user);
-      if (currentProfile?.banned) {
-        alert('Your marketplace access has been disabled. Contact an admin.');
-        await signOut(auth);
-        return;
-      }
-
       updateAuthUI();
       startListingsListener();
 
       if (!currentProfile?.displayName) {
-        if ($('displayNameInput')) $('displayNameInput').value = user.displayName || '';
-        show('nameOverlay');
+        if ($("displayNameInput")) $("displayNameInput").value = user.displayName || "";
+        show("nameOverlay");
       } else {
-        hide('nameOverlay');
+        hide("nameOverlay");
       }
     } catch (err) {
       console.error(err);
-      alert(err?.message || 'Authentication error.');
+      alert(err?.message || "Authentication error.");
     }
   });
 });
 
 function bindStaticEvents() {
-  $('tabLogin')?.addEventListener('click', () => showPane('login'));
-  $('tabSignup')?.addEventListener('click', () => showPane('signup'));
+  $("tabLogin")?.addEventListener("click", () => showPane("login"));
+  $("tabSignup")?.addEventListener("click", () => showPane("signup"));
 
-  $('btnLogin')?.addEventListener('click', handleLogin);
-  $('btnSignup')?.addEventListener('click', handleSignup);
-  $('btnResendVerify')?.addEventListener('click', handleResendVerification);
-  $('btnSaveName')?.addEventListener('click', handleSaveName);
-  $('btnLogout')?.addEventListener('click', async () => {
+  $("btnLogin")?.addEventListener("click", handleLogin);
+  $("btnSignup")?.addEventListener("click", handleSignup);
+  $("btnResendVerify")?.addEventListener("click", handleResendVerification);
+  $("btnSaveName")?.addEventListener("click", handleSaveName);
+  $("btnLogout")?.addEventListener("click", async () => {
     await signOut(auth);
   });
 
-  const openPost = () => {
+  $("btnNew")?.addEventListener("click", () => {
     if (!currentUser) {
-      alert('Please log in first.');
+      alert("Please log in first.");
       return;
     }
-    show('postOverlay');
-  };
-  $('btnNew')?.addEventListener('click', openPost);
-  $('heroPostBtn')?.addEventListener('click', openPost);
-  $('heroFreeBtn')?.addEventListener('click', () => {
-    activeBoard = 'FREE';
-    renderBoards();
-    renderListings();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    show("postOverlay");
   });
 
-  $('btnSavePost')?.addEventListener('click', handleSavePost);
-  $('btnSendReply')?.addEventListener('click', handleSendReply);
+  $("btnSavePost")?.addEventListener("click", handleSavePost);
+  $("btnSendReply")?.addEventListener("click", handleSendReply);
 
-  document.querySelectorAll('[data-close]').forEach((btn) => {
-    btn.addEventListener('click', () => hide(btn.dataset.close));
+  document.querySelectorAll("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => hide(btn.dataset.close));
   });
 
-  $('q')?.addEventListener('input', renderListings);
-  $('st')?.addEventListener('change', renderListings);
-  $('sort')?.addEventListener('change', renderListings);
+  $("q")?.addEventListener("input", renderListings);
+  $("st")?.addEventListener("change", renderListings);
+  $("sort")?.addEventListener("change", renderListings);
 
-  document.body.addEventListener('click', async (e) => {
-    const actionEl = e.target.closest('[data-action]');
+  document.body.addEventListener("click", async (e) => {
+    const actionEl = e.target.closest("[data-action]");
     if (!actionEl) return;
 
     const action = actionEl.dataset.action;
     const id = actionEl.dataset.id;
     if (!id) return;
 
-    if (action === 'openThread') {
+    if (action === "openThread") {
       await openThread(id);
-    } else if (action === 'markSold') {
+    } else if (action === "deletePost") {
+      await handleDeletePost(id);
+    } else if (action === "markSold") {
       await handleMarkSold(id);
-    } else if (action === 'requestActive') {
-      await handleRequestActive(id);
+    } else if (action === "requestReactivation") {
+      await handleRequestReactivation(id);
     }
   });
 }
 
 function showPane(which) {
-  const loginPane = $('loginPane');
-  const signupPane = $('signupPane');
-  const tabLogin = $('tabLogin');
-  const tabSignup = $('tabSignup');
+  const loginPane = $("loginPane");
+  const signupPane = $("signupPane");
+  const tabLogin = $("tabLogin");
+  const tabSignup = $("tabSignup");
   if (!loginPane || !signupPane || !tabLogin || !tabSignup) return;
 
-  if (which === 'login') {
-    loginPane.style.display = 'block';
-    signupPane.style.display = 'none';
-    tabLogin.classList.add('active');
-    tabSignup.classList.remove('active');
+  if (which === "login") {
+    loginPane.style.display = "block";
+    signupPane.style.display = "none";
+    tabLogin.classList.add("active");
+    tabSignup.classList.remove("active");
   } else {
-    loginPane.style.display = 'none';
-    signupPane.style.display = 'block';
-    tabSignup.classList.add('active');
-    tabLogin.classList.remove('active');
+    loginPane.style.display = "none";
+    signupPane.style.display = "block";
+    tabSignup.classList.add("active");
+    tabLogin.classList.remove("active");
   }
 }
 
 function show(id) {
   const el = $(id);
-  if (el) el.style.display = 'flex';
-  if (id !== 'loginOverlay') document.body.classList.add('modal-open');
+  if (el) el.style.display = "flex";
+  if (id !== "loginOverlay") document.body.classList.add("modal-open");
 }
 
 function hide(id) {
   const el = $(id);
-  if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
-  if (!stillOpen) document.body.classList.remove('modal-open');
+  if (el) el.style.display = "none";
+  const stillOpen = ["nameOverlay","postOverlay","threadOverlay"].some((overlayId) => $(overlayId)?.style.display !== "none");
+  if (!stillOpen) document.body.classList.remove("modal-open");
 }
 
 function isAllowedEmail(email) {
-  return String(email || '').trim().toLowerCase().endsWith('@regallakeland.com');
+  return String(email || "").trim().toLowerCase().endsWith("@regallakeland.com");
 }
 
 function isAdmin(email) {
-  return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(String(email || '').trim().toLowerCase());
+  return ADMIN_EMAILS.includes(String(email || "").trim().toLowerCase());
 }
 
 function stopListeners() {
@@ -219,33 +209,37 @@ function stopListeners() {
     listingsUnsub();
     listingsUnsub = null;
   }
+  if (repliesUnsub) {
+    repliesUnsub();
+    repliesUnsub = null;
+  }
   listings = [];
   activeThread = null;
-  renderBoards();
   renderListings();
 }
 
 async function ensureProfile(user) {
-  const profileRef = doc(db, 'profiles', user.uid);
+  const profileRef = doc(db, "profiles", user.uid);
   const snap = await getDoc(profileRef);
 
   const baseProfile = {
     uid: user.uid,
-    email: user.email || '',
-    displayName: (user.displayName || '').trim(),
+    email: user.email || "",
+    displayName: (user.displayName || "").trim(),
     isAdmin: isAdmin(user.email),
-    banned: false,
     updatedAt: serverTimestamp()
   };
 
   if (!snap.exists()) {
     await setDoc(profileRef, {
       ...baseProfile,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      banned: false
     });
     currentProfile = {
       ...baseProfile,
-      createdAt: Date.now()
+      createdAt: new Date(),
+      banned: false
     };
   } else {
     currentProfile = { id: snap.id, ...snap.data() };
@@ -261,30 +255,32 @@ async function ensureProfile(user) {
 
 function updateAuthUI() {
   const loggedIn = !!currentUser && !!currentProfile;
-  document.body.classList.toggle('auth-open', !loggedIn);
 
-  if ($('pillUser')) {
-    $('pillUser').textContent = loggedIn
-      ? (currentProfile.displayName || currentUser.email)
-      : 'Not signed in';
+  document.body.classList.toggle("auth-open", !loggedIn);
+
+  if ($("pillUser")) {
+    $("pillUser").textContent = loggedIn
+      ? `${currentProfile.displayName || currentUser.email}`
+      : "Not signed in";
   }
 
-  if ($('adminLink')) $('adminLink').style.display = loggedIn && (currentProfile.isAdmin || isAdmin(currentUser?.email)) ? 'inline-flex' : 'none';
-  if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
-  if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
-  if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
+  if ($("adminLink")) $("adminLink").style.display = loggedIn && currentProfile.isAdmin ? "inline-flex" : "none";
+  if ($("btnLogout")) $("btnLogout").style.display = loggedIn ? "inline-flex" : "none";
+  if ($("btnNew")) $("btnNew").style.display = loggedIn ? "inline-flex" : "none";
+  if ($("loginOverlay")) $("loginOverlay").style.display = loggedIn ? "none" : "flex";
+  if (!loggedIn) document.body.classList.remove("modal-open");
 }
 
 async function handleLogin() {
-  const email = $('loginEmail')?.value.trim().toLowerCase();
-  const password = $('loginPassword')?.value || '';
+  const email = $("loginEmail")?.value.trim().toLowerCase();
+  const password = $("loginPassword")?.value || "";
 
   if (!email || !password) {
-    alert('Enter email and password.');
+    alert("Enter email and password.");
     return;
   }
   if (!isAllowedEmail(email)) {
-    alert('Use your @regallakeland.com email.');
+    alert("Use your @regallakeland.com email.");
     return;
   }
 
@@ -292,35 +288,35 @@ async function handleLogin() {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
+    alert(`${err?.code || "login_error"} | ${err?.message || "Login failed."}`);
   }
 }
 
 async function handleSignup() {
-  const email = $('signupEmail')?.value.trim().toLowerCase();
-  const password = $('signupPassword')?.value || '';
-  const password2 = $('signupPassword2')?.value || '';
-  const msg = $('signupMsg');
+  const email = $("signupEmail")?.value.trim().toLowerCase();
+  const password = $("signupPassword")?.value || "";
+  const password2 = $("signupPassword2")?.value || "";
+  const msg = $("signupMsg");
 
   if (msg) {
-    msg.style.display = 'none';
-    msg.textContent = '';
+    msg.style.display = "none";
+    msg.textContent = "";
   }
 
   if (!email || !password || !password2) {
-    alert('Complete all signup fields.');
+    alert("Complete all signup fields.");
     return;
   }
   if (!isAllowedEmail(email)) {
-    alert('Use your @regallakeland.com email.');
+    alert("Use your @regallakeland.com email.");
     return;
   }
   if (password.length < 6) {
-    alert('Password must be at least 6 characters.');
+    alert("Password must be at least 6 characters.");
     return;
   }
   if (password !== password2) {
-    alert('Passwords do not match.');
+    alert("Passwords do not match.");
     return;
   }
 
@@ -330,66 +326,66 @@ async function handleSignup() {
     await signOut(auth);
 
     if (msg) {
-      msg.textContent = 'Account created. Check your email and click the verification link, then log in.';
-      msg.style.display = 'block';
+      msg.textContent = "Account created. Check your email and click the verification link, then log in.";
+      msg.style.display = "block";
     }
 
-    if ($('loginEmail')) $('loginEmail').value = email;
-    if ($('loginPassword')) $('loginPassword').value = '';
+    if ($("loginEmail")) $("loginEmail").value = email;
+    if ($("loginPassword")) $("loginPassword").value = "";
 
     lastUnverifiedEmail = email;
-    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
+    if ($("btnResendVerify")) $("btnResendVerify").style.display = "inline-flex";
 
-    showPane('login');
-    alert('Account created. Verification email sent.');
+    showPane("login");
+    alert("Account created. Verification email sent.");
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
+    alert(`${err?.code || "signup_error"} | ${err?.message || "Signup failed."}`);
   }
 }
 
 async function handleResendVerification() {
-  const email = (lastUnverifiedEmail || $('loginEmail')?.value || '').trim().toLowerCase();
+  const email = (lastUnverifiedEmail || $("loginEmail")?.value || "").trim().toLowerCase();
   if (!email) {
-    alert('Enter your email first.');
+    alert("Enter your email first.");
     return;
   }
   try {
     await sendPasswordResetEmail(auth, email);
-    alert('Check your email. If your account exists, a message was sent.');
+    alert("Check your email. If your account exists, a message was sent. After verifying, come back and log in.");
   } catch (err) {
     console.error(err);
-    alert(err?.message || 'Unable to send email right now.');
+    alert(err?.message || "Unable to send email right now.");
   }
 }
 
 async function handleSaveName() {
-  const name = $('displayNameInput')?.value.trim();
+  const name = $("displayNameInput")?.value.trim();
   if (!currentUser) {
-    alert('Please log in again.');
+    alert("Please log in again.");
     return;
   }
   if (!name) {
-    alert('Enter your name.');
+    alert("Enter your name.");
     return;
   }
 
-  await updateDoc(doc(db, 'profiles', currentUser.uid), {
+  await updateDoc(doc(db, "profiles", currentUser.uid), {
     displayName: name,
     updatedAt: serverTimestamp()
   });
 
   currentProfile.displayName = name;
   updateAuthUI();
-  hide('nameOverlay');
+  hide("nameOverlay");
 }
 
 function startListingsListener() {
   if (listingsUnsub) return;
 
-  const qRef = query(collection(db, 'listings'), orderBy('createdAtMs', 'desc'));
+  const qRef = query(collection(db, "listings"), orderBy("createdAtMs", "desc"));
   listingsUnsub = onSnapshot(qRef, (snap) => {
-    listings = snap.docs.map((d) => normalizeListing({ id: d.id, ...d.data() }));
+    listings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderBoards();
     renderListings();
   }, (err) => {
@@ -398,96 +394,96 @@ function startListingsListener() {
   });
 }
 
-function normalizeListing(item) {
-  const board = item.board || item.category || 'BUYSELL';
-  return {
-    ...item,
-    board,
-    authorEmail: item.authorEmail || item.userEmail || '',
-    authorName: item.authorName || item.displayName || item.userEmail || '',
-    description: item.description || item.desc || '',
-    imageUrl: item.imageUrl || item.photo || '',
-    status: String(item.status || 'ACTIVE').toUpperCase(),
-    reactivationRequested: !!item.reactivationRequested,
-    replies: Array.isArray(item.replies) ? item.replies : []
-  };
-}
-
-function getStatusScopedListings() {
-  const st = ($('st')?.value || 'ACTIVE').toUpperCase();
-  if (st === 'ALL') return listings.slice();
-  return listings.filter((item) => String(item.status || 'ACTIVE').toUpperCase() === st);
-}
-
-function boardCounts() {
-  const scoped = getStatusScopedListings();
-  const counts = { ALL: scoped.length };
-  BOARD_DEFS.forEach((b) => { if (b.key !== 'ALL') counts[b.key] = 0; });
-  scoped.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
-  return counts;
-}
-
-function latestForBoard(boardKey) {
-  const scoped = getStatusScopedListings();
-  const list = scoped.filter((item) => boardKey === 'ALL' || item.board === boardKey);
-  return list[0] || null;
-}
-
 function renderBoards() {
-  const wrap = $('boards');
+  const wrap = $("boards");
   if (!wrap) return;
 
-  const counts = boardCounts();
-  wrap.innerHTML = BOARD_DEFS.map((board) => {
-    const last = latestForBoard(board.key);
+  const boardInfo = {
+    ALL: { desc: "Everything currently posted across the employee marketplace." },
+    FREE: { desc: "Free items, curb alerts, and giveaway pickups." },
+    BUYSELL: { desc: "Items for sale between employees." },
+    GARAGE: { desc: "Garage sales, moving sales, and weekend clear-outs." },
+    EVENTS: { desc: "Employee events, meetups, and local happenings." },
+    WORK: { desc: "Internal notices, updates, and workplace posts." },
+    SERVICES: { desc: "Side work, help wanted, and trusted local services." }
+  };
+
+  const counts = { ALL: listings.length };
+  Object.keys(boardLabels).forEach((key) => {
+    if (key !== "ALL") counts[key] = 0;
+  });
+
+  const latestByBoard = {};
+  listings.forEach((item) => {
+    const boardKey = item.board || item.category || "BUYSELL";
+    counts[boardKey] = (counts[boardKey] || 0) + 1;
+    if (!latestByBoard[boardKey] || Number(item.createdAtMs || 0) > Number(latestByBoard[boardKey].createdAtMs || 0)) {
+      latestByBoard[boardKey] = item;
+    }
+  });
+
+  const latestAll = listings[0] || null;
+  wrap.innerHTML = Object.entries(boardLabels).map(([key, label]) => {
+    const latest = key === "ALL" ? latestAll : latestByBoard[key];
+    const latestTitle = latest?.title || "No posts yet";
+    const latestAuthor = latest?.authorName || latest?.displayName || latest?.authorEmail || latest?.userEmail || "—";
+    const latestTime = latest ? formatDate(latest.createdAtMs) : "";
     return `
-      <button class="boardBtn ${activeBoard === board.key ? 'active' : ''}" data-board="${board.key}" type="button">
-        <div>
-          <div class="board-label">${esc(board.label)}</div>
-          <div class="board-desc">${esc(board.desc)}</div>
+      <button class="boardBtn forumBoard ${activeBoard === key ? "active" : ""}" data-board="${key}" type="button">
+        <div class="boardMain">
+          <div class="boardTitle">${esc(label)}</div>
+          <div class="boardDesc">${esc(boardInfo[key]?.desc || "")}</div>
         </div>
-        <div class="board-meta">
-          <div class="board-count">${counts[board.key] || 0}</div>
-          <div class="board-last">${last ? esc(last.title || 'Latest post') : 'No posts yet'}</div>
+        <div class="boardStats">
+          <div class="boardCount pill">${counts[key] || 0}</div>
+          <div class="boardLatest">
+            <div class="latestTitle">${esc(latestTitle)}</div>
+            <div class="latestMeta">${esc(latestAuthor)}${latestTime ? ` | ${esc(latestTime)}` : ""}</div>
+          </div>
         </div>
       </button>
     `;
-  }).join('');
+  }).join("");
 
-  wrap.querySelectorAll('.boardBtn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+  wrap.querySelectorAll(".boardBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
       activeBoard = btn.dataset.board;
+      if ($("boardPill")) $("boardPill").textContent = boardLabels[activeBoard] || "All";
+      if ($("feedTitle")) $("feedTitle").textContent = boardLabels[activeBoard] || "Marketplace";
       renderBoards();
       renderListings();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const feed = document.querySelector('.feed');
+      feed?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 
-  if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('heroBoardCount')) $('heroBoardCount').textContent = String(BOARD_DEFS.length - 1);
+  if ($("boardPill")) $("boardPill").textContent = boardLabels[activeBoard] || "All";
 }
 
 function filteredListings() {
-  const q = $('q')?.value.trim().toLowerCase() || '';
-  const st = ($('st')?.value || 'ACTIVE').toUpperCase();
-  const sort = $('sort')?.value || 'NEW';
+  const q = $("q")?.value.trim().toLowerCase() || "";
+  const st = $("st")?.value || "ALL";
+  const sort = $("sort")?.value || "NEW";
 
-  let data = listings.filter((item) => activeBoard === 'ALL' || item.board === activeBoard);
+  let data = listings.filter((item) => {
+    const boardKey = item.board || item.category;
+    return activeBoard === "ALL" || boardKey === activeBoard;
+  });
 
-  if (st !== 'ALL') {
-    data = data.filter((item) => String(item.status || 'ACTIVE').toUpperCase() === st);
+  if (st !== "ALL") {
+    data = data.filter((item) => (item.status || "ACTIVE") === st);
   }
 
   if (q) {
     data = data.filter((item) => {
       const hay = [
         item.title,
-        item.description,
+        item.description || item.desc,
         item.location,
         item.contact,
-        item.authorName,
-        item.authorEmail
-      ].join(' ').toLowerCase();
+        item.authorName || item.displayName,
+        item.authorEmail || item.userEmail
+      ].join(" ").toLowerCase();
       return hay.includes(q);
     });
   }
@@ -495,9 +491,9 @@ function filteredListings() {
   data.sort((a, b) => {
     const ap = Number(a.price || 0);
     const bp = Number(b.price || 0);
-    if (sort === 'OLD') return Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0);
-    if (sort === 'PRICE_ASC') return ap - bp;
-    if (sort === 'PRICE_DESC') return bp - ap;
+    if (sort === "OLD") return Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0);
+    if (sort === "PRICE_ASC") return ap - bp;
+    if (sort === "PRICE_DESC") return bp - ap;
     return Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0);
   });
 
@@ -506,12 +502,13 @@ function filteredListings() {
 
 function formatPrice(v) {
   const n = Number(v || 0);
-  if (!n) return 'Free';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+  if (!n) return "Free";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
 function formatDate(ms) {
-  try { return new Date(Number(ms || Date.now())).toLocaleString(); } catch { return '—'; }
+  const d = new Date(Number(ms || Date.now()));
+  return d.toLocaleString();
 }
 
 function canModify(item) {
@@ -519,153 +516,148 @@ function canModify(item) {
 }
 
 function renderListings() {
-  const wrap = $('cards');
-  const empty = $('empty');
+  const wrap = $("cards");
+  const empty = $("empty");
   if (!wrap || !empty) return;
 
   const data = filteredListings();
-  const scoped = getStatusScopedListings().filter((item) => activeBoard === 'ALL' || item.board === activeBoard);
-  const latest = data[0] || scoped[0] || getStatusScopedListings()[0] || null;
 
-  if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
-  if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${scoped.length} total`;
-  if ($('heroListingCount')) $('heroListingCount').textContent = String(getStatusScopedListings().length);
-  if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
+  if ($("countLine")) {
+    $("countLine").textContent = `${data.length} shown | ${listings.length} total`;
+  }
 
   if (!data.length) {
-    wrap.innerHTML = '';
-    empty.style.display = 'block';
+    wrap.innerHTML = "";
+    empty.style.display = "block";
     return;
   }
 
-  empty.style.display = 'none';
+  empty.style.display = "none";
+  wrap.classList.add('topicList');
   wrap.innerHTML = data.map((item) => {
-    const normalizedStatus = String(item.status || 'ACTIVE').toUpperCase();
-    const statusClass = normalizedStatus === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
-    const statusText = item.reactivationRequested ? 'Reactivation Requested' : normalizedStatus;
-    const showRequestActive = normalizedStatus === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
-    const requestPending = normalizedStatus === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
+    const boardKey = item.board || item.category || "BUYSELL";
+    const title = item.title || "Untitled";
+    const description = item.description || item.desc || "";
+    const authorName = item.authorName || item.displayName || item.authorEmail || item.userEmail || "";
+    const imageUrl = item.imageUrl || item.photo || "";
     return `
-      <article class="topicRow">
-        <div class="topicMain">
-          <div class="topicHeader">
-            <div class="topicTitle">${esc(item.title || 'Untitled')}</div>
-            <span class="status ${statusClass}">${esc(statusText)}</span>
+      <article class="topicRow ${item.status === "SOLD" ? "isSold" : ""}">
+        <div class="topicThumbWrap">
+          ${imageUrl ? `<img class="topicThumb" src="${esc(imageUrl)}" alt="${esc(title)}" />` : `<div class="topicThumb placeholder">${esc((boardLabels[boardKey] || boardKey).slice(0,2))}</div>`}
+        </div>
+        <div class="topicBody">
+          <div class="topicTop">
+            <div>
+              <div class="topicTitle">${esc(title)}</div>
+              <div class="meta">${esc(boardLabels[boardKey] || boardKey)} | ${esc(authorName)} | ${esc(formatDate(item.createdAtMs))}</div>
+            </div>
+            <div class="topicSide">
+              <div class="price">${esc(formatPrice(item.price))}</div>
+              <span class="status ${item.status === "SOLD" ? "sold" : "active"}">${esc(item.status || "ACTIVE")}</span>
+            </div>
           </div>
-          <div class="topicMeta">
-            <span>${esc(BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board)}</span>
-            <span>${esc(item.authorName || item.authorEmail || '')}</span>
-            <span>${esc(formatDate(item.createdAtMs))}</span>
-          </div>
-          <div class="topicDesc">${esc(item.description || '').slice(0, 220)}${(item.description || '').length > 220 ? '…' : ''}</div>
-          <div class="rowBtns">
-            <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
-            ${canModify(item) && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ''}
-            ${showRequestActive ? `<button class="btn ghost" data-action="requestActive" data-id="${esc(item.id)}" type="button">Request Active</button>` : ''}
-            ${requestPending ? `<span class="pill">Awaiting admin review</span>` : ''}
+          <div class="topicExcerpt">${esc(description)}</div>
+          <div class="topicMetaRow meta">
+            <span>${esc(item.location || "No location")}</span>
+            <span>${esc(item.contact || "No contact")}</span>
           </div>
         </div>
-        <div class="topicSide">
-          <div class="topicSideTop">
-            <div class="price">${esc(formatPrice(item.price))}</div>
-            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
-          </div>
-          <div class="topicMeta topicMetaRight">
-            <span>${esc(item.location || 'No location')}</span>
-            <span>${esc(item.contact || 'No contact')}</span>
-          </div>
+        <div class="topicActions">
+          <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
+          ${canModify(item) && item.status !== "SOLD" ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ""}
+          ${canModify(item) && item.status === "SOLD" && !item.reactivationRequested ? `<button class="btn ghost" data-action="requestReactivation" data-id="${esc(item.id)}" type="button">Request Active</button>` : ""}
+          ${canModify(item) && item.status === "SOLD" && item.reactivationRequested ? `<span class="pill request-pill">Active request pending</span>` : ""}
+          ${canModify(item) ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : ""}
         </div>
       </article>
     `;
-  }).join('');
+  }).join("");
 }
 
-async async function handleSavePost() {
+async function handleSavePost() {
   if (!currentUser || !currentProfile) {
-    alert('Please log in first.');
+    alert("Please log in first.");
     return;
   }
 
-  const title = $('fTitle')?.value.trim();
-  const description = $('fDesc')?.value.trim();
-  const board = $('fBoard')?.value || 'BUYSELL';
-  const status = $('fStatus')?.value || 'ACTIVE';
-  const location = $('fLocation')?.value.trim() || '';
-  const contact = $('fContact')?.value.trim() || '';
-  const priceRaw = $('fPrice')?.value.trim() || '';
-  const file = $('fPhoto')?.files?.[0] || null;
+  const title = $("fTitle")?.value.trim();
+  const description = $("fDesc")?.value.trim();
+  const board = $("fBoard")?.value || "BUYSELL";
+  const status = $("fStatus")?.value || "ACTIVE";
+  const location = $("fLocation")?.value.trim() || "";
+  const contact = $("fContact")?.value.trim() || "";
+  const priceRaw = $("fPrice")?.value.trim() || "";
+  const file = $("fPhoto")?.files?.[0] || null;
 
   if (!title) {
-    alert('Enter a title.');
+    alert("Enter a title.");
     return;
   }
   if (!description) {
-    alert('Enter a description.');
+    alert("Enter a description.");
     return;
   }
 
-  if (postingInFlight) return;
-  postingInFlight = true;
-  const postBtn = $('btnSavePost');
-  const originalBtnText = postBtn?.textContent || 'Post Listing';
-  if (postBtn) {
-    postBtn.disabled = true;
-    postBtn.textContent = 'Posting…';
-  }
-
-  let imageUrl = '';
+  let imageUrl = "";
   try {
     if (file) {
-      const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
       await uploadBytes(storageRef, file);
       imageUrl = await getDownloadURL(storageRef);
     }
 
-    await addDoc(collection(db, 'listings'), {
+    await addDoc(collection(db, "listings"), {
       uid: currentUser.uid,
-      userEmail: currentUser.email || '',
-      displayName: currentProfile.displayName || currentUser.email || '',
-      category: board,
+      authorEmail: currentUser.email || "",
+      authorName: currentProfile.displayName || currentUser.email || "",
+      displayName: currentProfile.displayName || currentUser.email || "",
+      userEmail: currentUser.email || "",
       board,
+      category: board,
       status,
       title,
-      desc: description,
       description,
+      desc: description,
       location,
       contact,
       price: Number(priceRaw || 0),
-      photo: imageUrl,
       imageUrl,
-      replies: [],
-      reactivationRequested: false,
+      photo: imageUrl,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
     });
 
     clearPostForm();
-    hide('postOverlay');
+    hide("postOverlay");
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || 'post_error'} — ${err?.message || 'Unable to create post.'}`);
-  } finally {
-    postingInFlight = false;
-    if (postBtn) {
-      postBtn.disabled = false;
-      postBtn.textContent = originalBtnText;
-    }
+    alert(`${err?.code || "post_error"} | ${err?.message || "Unable to create post."}`);
   }
 }
 
 function clearPostForm() {
-  ['fTitle', 'fDesc', 'fLocation', 'fContact', 'fPrice'].forEach((id) => {
-    if ($(id)) $(id).value = '';
+  ["fTitle", "fDesc", "fLocation", "fContact", "fPrice"].forEach((id) => {
+    if ($(id)) $(id).value = "";
   });
-  if ($('fBoard')) $('fBoard').value = 'FREE';
-  if ($('fStatus')) $('fStatus').value = 'ACTIVE';
-  if ($('fPhoto')) $('fPhoto').value = '';
+  if ($("fBoard")) $("fBoard").value = "FREE";
+  if ($("fStatus")) $("fStatus").value = "ACTIVE";
+  if ($("fPhoto")) $("fPhoto").value = "";
+}
+
+async function handleDeletePost(id) {
+  const item = listings.find((x) => x.id === id);
+  if (!item || !canModify(item)) return;
+  if (!confirm(`Delete "${item.title}"?`)) return;
+
+  try {
+    await deleteDoc(doc(db, "listings", id));
+    if (activeThread?.id === id) hide("threadOverlay");
+  } catch (err) {
+    console.error(err);
+    alert(err?.message || "Unable to delete post.");
+  }
 }
 
 async function handleMarkSold(id) {
@@ -673,29 +665,32 @@ async function handleMarkSold(id) {
   if (!item || !canModify(item)) return;
 
   try {
-    await updateDoc(doc(db, 'listings', id), {
-      status: 'SOLD',
+    await updateDoc(doc(db, "listings", id), {
+      status: "SOLD",
       reactivationRequested: false,
+      reactivationRequestedAt: null,
       updatedAt: serverTimestamp()
     });
   } catch (err) {
     console.error(err);
-    alert(err?.message || 'Unable to update post.');
+    alert(err?.message || "Unable to update post.");
   }
 }
 
-async function handleRequestActive(id) {
+async function handleRequestReactivation(id) {
   const item = listings.find((x) => x.id === id);
-  if (!item || !currentUser || currentUser.uid !== item.uid) return;
+  if (!item || !canModify(item) || item.status !== "SOLD") return;
+
   try {
-    await updateDoc(doc(db, 'listings', id), {
+    await updateDoc(doc(db, "listings", id), {
       reactivationRequested: true,
       reactivationRequestedAt: Date.now(),
       updatedAt: serverTimestamp()
     });
+    alert("Reactivation request sent to admin.");
   } catch (err) {
     console.error(err);
-    alert(err?.message || 'Unable to request reactivation.');
+    alert(err?.message || "Unable to request reactivation.");
   }
 }
 
@@ -704,78 +699,86 @@ async function openThread(id) {
   if (!item) return;
 
   activeThread = item;
-  if ($('threadTitle')) $('threadTitle').textContent = item.title || 'Thread';
-  if ($('threadMeta')) {
-    $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${item.authorName || item.authorEmail || ''} | ${formatDate(item.createdAtMs)}`;
+  const boardKey = item.board || item.category || "BUYSELL";
+  const imageUrl = item.imageUrl || item.photo || "";
+  const description = item.description || item.desc || "";
+  const authorName = item.authorName || item.displayName || item.authorEmail || item.userEmail || "";
+
+  if ($("threadTitle")) $("threadTitle").textContent = item.title || "Thread";
+  if ($("threadMeta")) {
+    $("threadMeta").textContent = `${boardLabels[boardKey] || boardKey} | ${authorName} | ${formatDate(item.createdAtMs)}`;
   }
 
-  if ($('threadBody')) {
-    $('threadBody').innerHTML = `
-      <div class="thread-body-grid">
-        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
-        <div>${esc(item.description || '')}</div>
-        <div class="topicMeta">
-          <span>${esc(item.location || 'No location')}</span>
-          <span>${esc(item.contact || 'No contact')}</span>
-          <span>${esc(formatPrice(item.price))}</span>
-        </div>
-      </div>
+  if ($("threadBody")) {
+    $("threadBody").innerHTML = `
+      ${imageUrl ? `<img class="thread-img" src="${esc(imageUrl)}" alt="${esc(item.title)}" />` : ""}
+      <div class="threadText">${esc(description)}</div>
+      <div class="meta" style="margin-top:10px;">Location: ${esc(item.location || "-")} | Contact: ${esc(item.contact || "-")} | Price: ${esc(formatPrice(item.price))}</div>
+      ${item.reactivationRequested ? `<div class="note" style="margin-top:12px;">Reactivation requested and waiting on admin review.</div>` : ""}
     `;
   }
 
-  renderReplies(item.replies || []);
-  if ($('replyText')) $('replyText').value = '';
-  show('threadOverlay');
+  if ($("threadReplies")) $("threadReplies").innerHTML = `<div class="note">Loading replies...</div>`;
+  if ($("replyText")) $("replyText").value = "";
+
+  show("threadOverlay");
+
+  if (repliesUnsub) repliesUnsub();
+  const qRef = query(collection(db, "listings", id, "replies"), orderBy("createdAtMs", "asc"));
+  repliesUnsub = onSnapshot(qRef, (snap) => {
+    const replies = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderReplies(replies);
+  }, (err) => {
+    console.error(err);
+    if ($("threadReplies")) $("threadReplies").innerHTML = `<div class="note">Unable to load replies.</div>`;
+  });
 }
 
 function renderReplies(replies) {
-  const wrap = $('threadReplies');
+  const wrap = $("threadReplies");
   if (!wrap) return;
+
   if (!replies.length) {
-    wrap.innerHTML = '<div class="note">No replies yet. Be the first to respond.</div>';
+    wrap.innerHTML = `<div class="note">No replies yet.</div>`;
     return;
   }
+
   wrap.innerHTML = replies.map((r) => `
-    <div class="replyItem">
-      <div class="replyTop">
-        <div class="replyUser">${esc(r.displayName || r.userEmail || 'Unknown')}</div>
-        <div class="replyTime">${esc(formatDate(r.createdAtMs || r.createdAt))}</div>
+    <div class="reply">
+      <div class="reply-top">
+        <strong>${esc(r.authorName || r.authorEmail || "Unknown")}</strong>
+        <span class="meta">${esc(formatDate(r.createdAtMs))}</span>
       </div>
-      <div>${esc(r.text || '')}</div>
+      <div>${esc(r.text || "")}</div>
     </div>
-  `).join('');
+  `).join("");
 }
 
 async function handleSendReply() {
   if (!currentUser || !currentProfile || !activeThread) {
-    alert('Open a thread first.');
+    alert("Open a thread first.");
     return;
   }
 
-  const text = $('replyText')?.value.trim();
+  const text = $("replyText")?.value.trim();
   if (!text) {
-    alert('Write a reply first.');
+    alert("Write a reply first.");
     return;
   }
-
-  const listingRef = doc(db, 'listings', activeThread.id);
-  const snap = await getDoc(listingRef);
-  if (!snap.exists()) return;
-  const data = snap.data();
-  const replies = Array.isArray(data.replies) ? data.replies.slice() : [];
-  replies.push({
-    uid: currentUser.uid,
-    userEmail: currentUser.email || '',
-    displayName: currentProfile.displayName || currentUser.email || '',
-    text,
-    createdAtMs: Date.now()
-  });
 
   try {
-    await updateDoc(listingRef, { replies, updatedAt: serverTimestamp() });
-    if ($('replyText')) $('replyText').value = '';
+    await addDoc(collection(db, "listings", activeThread.id, "replies"), {
+      uid: currentUser.uid,
+      authorEmail: currentUser.email || "",
+      authorName: currentProfile.displayName || currentUser.email || "",
+      text,
+      createdAt: serverTimestamp(),
+      createdAtMs: Date.now()
+    });
+
+    if ($("replyText")) $("replyText").value = "";
   } catch (err) {
     console.error(err);
-    alert(err?.message || 'Unable to send reply.');
+    alert(err?.message || "Unable to send reply.");
   }
 }
