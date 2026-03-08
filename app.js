@@ -46,13 +46,6 @@ function initMarketplace(){
     appId: "1:1014346693296:web:fc76118d1a8db347945975"
   };
 
-  const ADMIN_EMAILS = [
-    "michael.h@regallakeland.com",
-    "janni.r@regallakeland.com",
-    "chrissy.h@regallakeland.com",
-    "amy.m@regallakeland.com"
-  ];
-
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -105,6 +98,7 @@ function initMarketplace(){
 
 
   let listingsUnsub = null;
+  let isPosting = false;
 
   function startListingsListener(){
     if (listingsUnsub) return;
@@ -179,23 +173,14 @@ function initMarketplace(){
   }
 
   function isBanned(){ return !!profile?.banned; }
-  function isAdmin(email){ return ADMIN_EMAILS.includes(String(email||"").trim().toLowerCase()); }
-
-  function getBoardCountSource(list){
-    const st = $("st")?.value || "ACTIVE";
-    if (st === "ACTIVE") return list.filter(x => x.status !== "SOLD");
-    if (st === "SOLD") return list.filter(x => x.status === "SOLD");
-    return list.slice();
-  }
 
   function countByBoard(list){
-    const base = getBoardCountSource(list);
-    const map = { ALL: base.length };
+    const map = { ALL: list.length };
     for (const b of BOARD_DEFS) map[b.key] = 0;
-    for (const x of base){
+    for (const x of list){
       if (x.category && map[x.category] !== undefined) map[x.category]++;
     }
-    map.ALL = base.length;
+    map.ALL = list.length;
     return map;
   }
 
@@ -239,7 +224,7 @@ function initMarketplace(){
 
   function applyFilters(list){
     const q = ($("q")?.value || "").trim().toLowerCase();
-    const st = $("st")?.value;
+    const st = $("st")?.value || "ALL";
     const sort = $("sort")?.value;
 
     let out = list.slice();
@@ -268,8 +253,7 @@ function initMarketplace(){
 
     const filtered = applyFilters(listings);
 
-    const countSource = getBoardCountSource(listings);
-    if($("countLine")) $("countLine").textContent = `${filtered.length} shown | ${countSource.length} total`;
+    if($("countLine")) $("countLine").textContent = `${filtered.length} shown • ${listings.length} total`;
     cards.innerHTML = "";
 
     if (filtered.length === 0){
@@ -306,8 +290,6 @@ function initMarketplace(){
           <span class="tag">${x.contact ? `Contact: ${esc(x.contact)}` : "No contact listed"}</span>
           <span class="tag">By: ${esc(x.displayName || x.userEmail || "—")}</span>
           <button class="btn mini" data-action="openThread">Open Thread</button>
-          ${user && x.userEmail===user.email && x.status !== "SOLD" ? `<button class="btn mini" data-action="markSold">Mark Sold</button>` : ``}
-          ${user && x.userEmail===user.email && x.status === "SOLD" && !x.reactivationRequested ? `<button class="btn mini" data-action="requestActive">Request Active</button>` : ``}
         </div>
       `;
 
@@ -321,19 +303,12 @@ function initMarketplace(){
 
     openThreadId = id;
     if($("threadTitle")) $("threadTitle").textContent = item.title || "Thread";
-    if($("threadMeta")) $("threadMeta").textContent = `${catLabel(item.category)} | Posted by ${item.displayName || item.userEmail || "—"} • ${prettyTime(item.createdAt)}`;
-    const ownerControls = user && item.userEmail===user.email ? `
-      <div class="rowBtns">
-        ${item.status !== "SOLD" ? `<button class="btn" data-action="threadMarkSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ``}
-        ${item.status === "SOLD" && !item.reactivationRequested ? `<button class="btn" data-action="threadRequestActive" data-id="${esc(item.id)}" type="button">Request Active</button>` : ``}
-        ${item.status === "SOLD" && item.reactivationRequested ? `<span class="pill">Reactivation requested</span>` : ``}
-      </div>` : ``;
+    if($("threadMeta")) $("threadMeta").textContent = `${catLabel(item.category)} • Posted by ${item.displayName || item.userEmail || "—"} • ${prettyTime(item.createdAt)}`;
     if($("threadBody")) $("threadBody").innerHTML = `
       <div style="display:grid;gap:10px">
         ${item.photo ? `<img src="${item.photo}" style="width:100%;max-height:360px;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.10)">` : ""}
         <div>${esc(item.desc || "")}</div>
-        <div class="meta">${item.location ? `Location: ${esc(item.location)} | ` : ""}${item.contact ? `Contact: ${esc(item.contact)}` : ""}</div>
-        ${ownerControls}
+        <div class="meta">${item.location ? `Location: ${esc(item.location)} • ` : ""}${item.contact ? `Contact: ${esc(item.contact)}` : ""}</div>
       </div>
     `;
 
@@ -372,6 +347,8 @@ function initMarketplace(){
   }
 
   async function createPost(){
+    if (isPosting) return;
+
     const title = $("fTitle")?.value.trim();
     if (!title) return alert("Enter a title.");
 
@@ -385,37 +362,54 @@ function initMarketplace(){
 
     let photoUrl = "";
     const file = $("fPhoto")?.files?.[0];
-    if (file){
-      if (!file.type.startsWith("image/")) return alert("Select an image file.");
-      photoUrl = await uploadImageToStorage(file);
+    const saveBtn = $("btnSavePost");
+
+    try {
+      isPosting = true;
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.dataset.originalText = saveBtn.textContent || 'Post Listing';
+        saveBtn.textContent = 'Posting...';
+      }
+
+      if (file){
+        if (!file.type.startsWith("image/")) return alert("Select an image file.");
+        photoUrl = await uploadImageToStorage(file);
+      }
+
+      await addDoc(collection(db, "listings"), {
+        uid: user.uid,
+        userEmail: user.email,
+        displayName: displayName(),
+        category: $("fBoard").value,
+        status: $("fStatus").value,
+        title,
+        price,
+        location: $("fLocation").value.trim(),
+        desc: $("fDesc").value.trim(),
+        contact: $("fContact").value.trim(),
+        photo: photoUrl,
+        replies: [],
+        createdAtMs: Date.now(),
+      });
+
+      if($("fTitle")) $("fTitle").value = "";
+      if($("fPrice")) $("fPrice").value = "";
+      if($("fLocation")) $("fLocation").value = "";
+      if($("fDesc")) $("fDesc").value = "";
+      if($("fContact")) $("fContact").value = "";
+      if($("fPhoto")) $("fPhoto").value = "";
+      if($("fStatus")) $("fStatus").value = "ACTIVE";
+      if($("fBoard")) $("fBoard").value = "FREE";
+
+      hide("postOverlay");
+    } finally {
+      isPosting = false;
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = saveBtn.dataset.originalText || 'Post Listing';
+      }
     }
-
-    await addDoc(collection(db, "listings"), {
-      uid: user.uid,
-      userEmail: user.email,
-      displayName: displayName(),
-      category: $("fBoard").value,
-      status: $("fStatus").value,
-      title,
-      price,
-      location: $("fLocation").value.trim(),
-      desc: $("fDesc").value.trim(),
-      contact: $("fContact").value.trim(),
-      photo: photoUrl,
-      replies: [],
-      createdAtMs: Date.now(),
-    });
-
-    if($("fTitle")) $("fTitle").value = "";
-    if($("fPrice")) $("fPrice").value = "";
-    if($("fLocation")) $("fLocation").value = "";
-    if($("fDesc")) $("fDesc").value = "";
-    if($("fContact")) $("fContact").value = "";
-    if($("fPhoto")) $("fPhoto").value = "";
-    if($("fStatus")) $("fStatus").value = "ACTIVE";
-    if($("fBoard")) $("fBoard").value = "FREE";
-
-    hide("postOverlay");
   }
 
   async function sendReply(){
@@ -539,7 +533,7 @@ function initMarketplace(){
   });
 
   $("q")?.addEventListener("input", render);
-  $("st")?.addEventListener("change", ()=>{ renderBoards(); render(); });
+  $("st")?.addEventListener("change", render);
   $("sort")?.addEventListener("change", render);
 
   onAuthStateChanged(auth, async (currentUser)=>{
@@ -548,10 +542,7 @@ function initMarketplace(){
     if (!user){
       profile = null;
       if ($("pillUser")) $("pillUser").textContent = "Signed out";
-      if ($("adminLink")) $("adminLink").style.display = "none";
       stopListingsListener();
-      document.body.classList.remove("logged-in");
-      document.body.classList.add("logged-out");
       show("loginOverlay");
       hide("nameOverlay");
       return;
@@ -565,13 +556,11 @@ function initMarketplace(){
       return;
     }
 
-    document.body.classList.remove("logged-out");
-    document.body.classList.add("logged-in");
     hide("loginOverlay");
     await upsertPresence();
     await loadProfile();
     if ($("pillUser")) $("pillUser").textContent = `Signed in: ${displayName()}`;
-    if ($("adminLink")) $("adminLink").style.display = isAdmin(user.email) ? "inline-flex" : "none";
+    if ($("st")) $("st").value = "ALL";
     startListingsListener();
 
     if (!profile?.name){
@@ -592,13 +581,11 @@ function initMarketplace(){
     if (!actionBtn) return;
 
     const action = actionBtn.dataset.action;
-    const id = actionBtn.dataset.id || actionBtn.closest(".card")?.dataset?.id;
+    const card = actionBtn.closest(".card");
+    const id = card?.dataset?.id;
     if (!id) return;
 
     if (action === "openThread") openThread(id);
-    if (action === "markSold" || action === "threadMarkSold") updateDoc(doc(db, "listings", id), { status:"SOLD" });
-    if (action === "requestActive" || action === "threadRequestActive") updateDoc(doc(db, "listings", id), { reactivationRequested:true, reactivationRequestedAt: Date.now() });
-  });
 }
 
 if (document.readyState === "loading") {

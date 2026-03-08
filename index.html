@@ -7,9 +7,9 @@
   <title>Regal Honda Employee Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="logged-out">
+<body>
 
-  <!-- Background slideshow -->
+  <!-- Background slideshow (uses /Images/regal1.jpg etc) -->
   <div class="bg-slideshow" aria-hidden="true">
     <div class="bg bg1"></div>
     <div class="bg bg2"></div>
@@ -85,6 +85,25 @@
       </div>
     </div>
   </div>
+      </div>
+      <div class="modal-b">
+        <div class="field">
+          <label>Email</label>
+          <input id="loginEmail" type="email" placeholder="name@regallakeland.com" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div class="note">
+          Tip: If you don’t have an account yet, ask an admin to create you in Firebase → Authentication → Users.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnLogin">Login</button>
+      </div>
+    </div>
+  </div>
 
 
   <!-- NAME SETUP (first login) -->
@@ -122,7 +141,7 @@
     <div class="right">
       <span class="pill" id="pillUser">Not signed in</span>
       <button class="btn" id="btnNew">+ Post</button>
-      <a class="btn ghost" id="adminLink" href="admin.html" style="display:none">Admin</a>
+      <a class="btn ghost" id="adminLink" href="adminregal/" style="display:none">Admin</a>
       <button class="btn danger" id="btnLogout">Logout</button>
     </div>
   </header>
@@ -139,7 +158,7 @@
     <section class="panel feed">
       <div class="panel-h">
         <div class="panel-title" id="feedTitle">Marketplace</div>
-        <div class="meta" id="countLine">0 shown | 0 total</div>
+        <div class="meta" id="countLine">0 shown • 0 total</div>
       </div>
 
       <div class="panel-b">
@@ -152,7 +171,7 @@
             <label>Status</label>
             <select id="st">
               <option value="ACTIVE">Active</option>
-              <option value="ALL">All</option>
+              <option value="ALL" selected>All</option>
               <option value="SOLD">Sold</option>
             </select>
           </div>
