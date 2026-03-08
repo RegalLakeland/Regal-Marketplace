@@ -150,11 +150,7 @@ function bindStaticEvents() {
   $('btnSendReply')?.addEventListener('click', handleSendReply);
 
   document.querySelectorAll('[data-close]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const target = btn.dataset.close;
-      if (target === 'postOverlay') resetPostEditor();
-      hide(target);
-    });
+    btn.addEventListener('click', () => { const target = btn.dataset.close; if (target === 'postOverlay') resetPostEditor(); hide(target); });
   });
 
   $('q')?.addEventListener('input', renderListings);
@@ -536,12 +532,11 @@ function canModify(item) {
   return !!currentUser && !!currentProfile && (currentProfile.isAdmin || currentUser.uid === item.uid);
 }
 
-
 function resetPostEditor() {
   editingPostId = null;
   const titleEl = $('postOverlay')?.querySelector('.modal-h strong');
   if (titleEl) titleEl.textContent = 'Create Post';
-  if ($('btnSavePost')) $('btnSavePost').textContent = 'Post';
+  if ($('btnSavePost')) $('btnSavePost').textContent = 'Post Listing';
   if ($('fBoard')) $('fBoard').value = 'FREE';
   if ($('fStatus')) $('fStatus').value = 'ACTIVE';
   if ($('fTitle')) $('fTitle').value = '';
@@ -700,24 +695,13 @@ async function handleSavePost() {
         uid: currentUser.uid,
         userEmail: currentUser.email || '',
         displayName: currentProfile.displayName || currentUser.email || '',
-        category: board,
-        board,
-        status,
-        title,
-        desc: description,
-        description,
-        location,
-        contact,
-        price: Number(priceRaw || 0),
-        photo: imageUrl,
-        imageUrl,
+        ...payload,
         replies: [],
         featured: false,
         hidden: false,
         reactivationRequested: false,
         createdAt: serverTimestamp(),
-        createdAtMs: Date.now(),
-        updatedAt: serverTimestamp()
+        createdAtMs: Date.now()
       });
     }
 
