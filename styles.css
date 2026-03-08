@@ -213,3 +213,20 @@ hr{border:none; border-top:1px solid rgba(255,255,255,.10); margin:18px 0}
 input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 
 .modal-scroll .modal-b{overflow-y:auto}
+
+
+.admin-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.adminSearch,.adminFilter{background:rgba(7,16,30,.66);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.adminSearch{min-width:240px;flex:1 1 260px}
+.admin-summary{display:flex;gap:8px;align-items:center;margin-left:auto}
+.role-pills{display:flex;gap:6px;flex-wrap:wrap}
+.role-pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08)}
+.role-admin{background:rgba(59,130,246,.16)}
+.role-mod{background:rgba(168,85,247,.16)}
+.role-ok{background:rgba(34,197,94,.16)}
+.role-pending{background:rgba(245,158,11,.16)}
+.role-ban{background:rgba(239,68,68,.18)}
+.role-warn{background:rgba(251,191,36,.16)}
+.user-main{font-weight:700}
+.compact-rowBtns .btn{padding:8px 10px;font-size:12px}
+@media (max-width:900px){.admin-summary{margin-left:0;width:100%}.adminSearch{width:100%}}

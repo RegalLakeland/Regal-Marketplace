@@ -47,8 +47,24 @@
           </div>
         </section>
         <section class="panel" style="background:rgba(8,16,30,.52)">
-          <div class="panel-h"><div class="panel-title">User Access</div></div>
-          <div class="panel-b table-scroll">
+          <div class="panel-h"><div><div class="panel-title">User Access</div><div class="meta">Search users, filter by role/status, approve pending access, and clean up duplicate profile rows.</div></div></div>
+          <div class="panel-b">
+            <div class="admin-tools">
+              <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
+              <select id="userFilter" class="adminFilter">
+                <option value="ALL">All Users</option>
+                <option value="PENDING">Pending Access</option>
+                <option value="ADMIN">Admins</option>
+                <option value="MODERATOR">Moderators</option>
+                <option value="BANNED">Blocked</option>
+                <option value="DUPLICATES">Duplicates</option>
+              </select>
+              <div class="admin-summary">
+                <span class="pill" id="adminUserCount">0</span>
+                <span class="pill" id="adminPendingCount">0 pending</span>
+              </div>
+            </div>
+            <div class="table-scroll">
             <table class="adminTable">
               <thead>
                 <tr><th>User</th><th>Display Name</th><th>Roles / Access</th><th>Actions</th></tr>

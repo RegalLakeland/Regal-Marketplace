@@ -81,26 +81,50 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       await user.reload().catch(() => {});
-      if (!user.emailVerified) {
-        lastUnverifiedEmail = user.email || '';
-        if ($('verifyNote')) $('verifyNote').style.display = 'block';
+      currentUser = user;
+      lastUnverifiedEmail = user.email || '';
+      await ensureProfile(user);
+
+      if (currentProfile?.banned) {
+        alert('Your marketplace access has been disabled. Contact an admin.');
+        await signOut(auth);
+        return;
+      }
+
+      if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
+        if ($('verifyNote')) {
+          $('verifyNote').textContent = 'Your account is waiting for admin approval. Please check back later.';
+          $('verifyNote').style.display = 'block';
+        }
+        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+        await signOut(auth);
+        alert('Your account is waiting for admin approval.');
+        return;
+      }
+
+      if (user.emailVerified && currentProfile && currentProfile.emailVerified !== true) {
+        await updateDoc(doc(db, 'profiles', user.uid), {
+          emailVerified: true,
+          emailVerifiedAt: Date.now(),
+          updatedAt: serverTimestamp()
+        }).catch(() => {});
+        currentProfile.emailVerified = true;
+      }
+
+      if (!user.emailVerified && !currentProfile?.manualVerified) {
+        if ($('verifyNote')) {
+          $('verifyNote').textContent = 'Your email is not verified yet. Check your inbox, click the verification link, then come back and log in.';
+          $('verifyNote').style.display = 'block';
+        }
         if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
         await signOut(auth);
         alert('Please verify your email before logging in.');
         return;
       }
 
-      currentUser = user;
       lastUnverifiedEmail = '';
       if ($('verifyNote')) $('verifyNote').style.display = 'none';
       if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
-      await ensureProfile(user);
-      if (currentProfile?.banned) {
-        alert('Your marketplace access has been disabled. Contact an admin.');
-        await signOut(auth);
-        return;
-      }
 
       updateAuthUI();
       startListingsListener();
@@ -270,6 +294,8 @@ async function ensureProfile(user) {
     isModerator: false,
     banned: false,
     manualVerified: false,
+    emailVerified: !!user.emailVerified,
+    accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     updatedAt: serverTimestamp()
   };
 
@@ -289,9 +315,19 @@ async function ensureProfile(user) {
     if (typeof currentProfile.isModerator !== 'boolean') updates.isModerator = false;
     if (typeof currentProfile.banned !== 'boolean') updates.banned = false;
     if (typeof currentProfile.manualVerified !== 'boolean') updates.manualVerified = false;
+    if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
+    if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = true;
+
+    if (user.emailVerified && currentProfile.emailVerified !== true) {
+      updates.emailVerified = true;
+      updates.emailVerifiedAt = Date.now();
+    }
 
     if (isProtectedCoreAdmin(user.email) && currentProfile.isAdmin !== true) {
       updates.isAdmin = true;
+    }
+    if (isProtectedCoreAdmin(user.email) && currentProfile.accessApproved !== true) {
+      updates.accessApproved = true;
     }
 
     if (Object.keys(updates).length) {
@@ -370,11 +406,24 @@ async function handleSignup() {
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await setDoc(doc(db, 'profiles', cred.user.uid), {
+      uid: cred.user.uid,
+      email,
+      displayName: '',
+      isAdmin: isAdmin(email),
+      isModerator: false,
+      banned: false,
+      manualVerified: false,
+      emailVerified: false,
+      accessApproved: isProtectedCoreAdmin(email) || isAdmin(email),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
     await sendEmailVerification(cred.user);
     await signOut(auth);
 
     if (msg) {
-      msg.textContent = 'Account created. Check your email and click the verification link, then log in.';
+      msg.textContent = 'Account created. An admin will need to approve access. If email verification is giving you trouble, an admin can manually approve it.';
       msg.style.display = 'block';
     }
 
@@ -385,7 +434,7 @@ async function handleSignup() {
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
 
     showPane('login');
-    alert('Account created. Verification email sent.');
+    alert('Account created. Waiting for admin approval.');
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);

@@ -23,6 +23,11 @@ function isCoreAdminViewer(){ return isProtectedCoreAdmin(currentViewer?.email);
 let authResolved = false;
 let currentViewer = null;
 let currentViewerProfile = null;
+let listingRowsData = [];
+let userRowsData = [];
+let adminEditingId = null;
+let userSearchTerm = '';
+let userFilterValue = 'ALL';
 onAuthStateChanged(auth, async (user) => {
   authResolved = true;
   currentViewer = user || null;
@@ -41,6 +46,8 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   if ($('adminUser')) $('adminUser').textContent = user.email;
+  $('userSearch')?.addEventListener('input', (e) => { userSearchTerm = String(e.target.value || '').trim().toLowerCase(); renderUserRows(); });
+  $('userFilter')?.addEventListener('change', (e) => { userFilterValue = String(e.target.value || 'ALL'); renderUserRows(); });
   startListings();
   startUsers();
 });
@@ -112,67 +119,140 @@ function startListings(){
 }
 
 
-function startUsers(){
-  onSnapshot(collection(db, 'profiles'), (snap) => {
-    const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    userRowsData = rows;
-    if ($('adminUserCount')) $('adminUserCount').textContent = String(rows.length);
-    if (!$('userRows')) return;
-    $('userRows').innerHTML = rows.map(user => {
-      const protectedUser = isProtectedCoreAdmin(user.email);
-      const roles = [
-        user.isAdmin ? 'Admin' : '',
-        user.isModerator ? 'Moderator' : '',
-        user.manualVerified ? 'Email Approved' : '',
-        user.banned ? 'Blocked' : 'Active',
-        protectedUser ? 'Protected' : ''
-      ].filter(Boolean).join(' • ');
+function duplicateMeta(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const email = normalizeEmail(row.email);
+    if (!email) continue;
+    if (!groups.has(email)) groups.set(email, []);
+    groups.get(email).push(row);
+  }
+  const meta = new Map();
+  for (const [email, items] of groups.entries()) {
+    items.sort((a, b) => {
+      const av = Number(a.createdAtMs || a.emailVerifiedAt || 0);
+      const bv = Number(b.createdAtMs || b.emailVerifiedAt || 0);
+      return av - bv;
+    });
+    const primaryId = items[0]?.id;
+    for (const item of items) {
+      meta.set(item.id, {
+        count: items.length,
+        isDuplicate: items.length > 1,
+        isPrimary: item.id === primaryId
+      });
+    }
+  }
+  return meta;
+}
 
-      return `
+function userPending(user) {
+  return !user.accessApproved || (!user.emailVerified && !user.manualVerified);
+}
+
+function applyUserFilters(rows) {
+  const dmeta = duplicateMeta(rows);
+  let filtered = rows.slice();
+  if (userSearchTerm) {
+    filtered = filtered.filter((user) => {
+      const hay = [user.email, user.displayName].join(' ').toLowerCase();
+      return hay.includes(userSearchTerm);
+    });
+  }
+  if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
+  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
+  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
+  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
+  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
+  filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName).localeCompare(normalizeEmail(b.displayName)));
+  return { filtered, dmeta };
+}
+
+function renderUserRows() {
+  if (!$('userRows')) return;
+  const { filtered, dmeta } = applyUserFilters(userRowsData);
+  if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
+  if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
+
+  $('userRows').innerHTML = filtered.map(user => {
+    const protectedUser = isProtectedCoreAdmin(user.email);
+    const dup = dmeta.get(user.id) || { isDuplicate:false, isPrimary:true, count:1 };
+    const roleBits = [];
+    if (protectedUser || user.isAdmin) roleBits.push('<span class="role-pill role-admin">Admin</span>');
+    if (user.isModerator) roleBits.push('<span class="role-pill role-mod">Moderator</span>');
+    if (user.accessApproved) roleBits.push('<span class="role-pill role-ok">Access Approved</span>');
+    else roleBits.push('<span class="role-pill role-pending">Pending Access</span>');
+    if (user.emailVerified || user.manualVerified) roleBits.push(`<span class="role-pill role-ok">${user.manualVerified && !user.emailVerified ? 'Manual Email Approved' : 'Email Verified'}</span>`);
+    else roleBits.push('<span class="role-pill role-pending">Email Pending</span>');
+    if (user.banned) roleBits.push('<span class="role-pill role-ban">Blocked</span>');
+    if (protectedUser) roleBits.push('<span class="role-pill">Protected</span>');
+    if (dup.isDuplicate) roleBits.push(`<span class="role-pill role-warn">Duplicate x${dup.count}</span>`);
+
+    return `
       <tr>
-        <td>${esc(user.email || '—')}</td>
-        <td>${esc(user.displayName || '—')}</td>
-        <td>${esc(roles || 'Active')}</td>
         <td>
-          <div class="rowBtns">
+          <div class="user-main">${esc(user.email || '—')}</div>
+          <div class="note">UID: ${esc(user.uid || user.id)}</div>
+        </td>
+        <td>
+          <div class="user-main">${esc(user.displayName || '—')}</div>
+          <div class="note">${esc(fmtDate(user.createdAtMs || user.emailVerifiedAt || Date.now()))}</div>
+        </td>
+        <td><div class="role-pills">${roleBits.join(' ')}</div></td>
+        <td>
+          <div class="rowBtns compact-rowBtns">
             ${!user.isModerator ? `<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>` : ''}
             ${user.isModerator && !protectedUser ? `<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>` : ''}
             ${!user.isAdmin ? `<button class="btn" data-role="grantAdmin" data-id="${esc(user.id)}" type="button">Grant Admin</button>` : ''}
             ${user.isAdmin && !protectedUser ? `<button class="btn ghost" data-role="removeAdmin" data-id="${esc(user.id)}" type="button">Remove Admin</button>` : ''}
-            ${isCoreAdminViewer() && !user.manualVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
-            ${isCoreAdminViewer() && user.manualVerified && !protectedUser ? `<button class="btn ghost" data-role="revokeEmail" data-id="${esc(user.id)}" type="button">Revoke Email Approval</button>` : ''}
-            ${!user.banned && !protectedUser ? `<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block Access</button>` : ''}
-            ${user.banned && !protectedUser ? `<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore Access</button>` : ''}
+            ${!user.accessApproved ? `<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve Access</button>` : ''}
+            ${user.accessApproved && !protectedUser ? `<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Deny Access</button>` : ''}
+            ${isCoreAdminViewer() && !user.manualVerified && !user.emailVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
+            ${isCoreAdminViewer() && user.manualVerified && !protectedUser ? `<button class="btn ghost" data-role="revokeEmail" data-id="${esc(user.id)}" type="button">Revoke Email</button>` : ''}
+            ${!user.banned && !protectedUser ? `<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>` : ''}
+            ${user.banned && !protectedUser ? `<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>` : ''}
+            ${dup.isDuplicate && !dup.isPrimary && !protectedUser ? `<button class="btn danger" data-role="deleteDuplicate" data-id="${esc(user.id)}" type="button">Delete Duplicate</button>` : ''}
             ${protectedUser ? `<span class="pill">Locked</span>` : ''}
           </div>
         </td>
       </tr>`;
-    }).join('');
+  }).join('');
 
-    document.querySelectorAll('[data-role]').forEach(btn => btn.onclick = async () => {
-      const user = userRowsData.find((x) => x.id === btn.dataset.id) || userRowsData.find((x) => x.id === btn.dataset.id);
-      if (!user) return;
-      if (isProtectedCoreAdmin(user.email) && ['removeMod','removeAdmin','banUser','revokeEmail'].includes(btn.dataset.role)) {
-        alert('This core admin account cannot be modified.');
-        return;
-      }
-      const ref = doc(db, 'profiles', user.id);
-      if (btn.dataset.role === 'grantMod') await updateDoc(ref, { isModerator: true });
-      if (btn.dataset.role === 'removeMod') await updateDoc(ref, { isModerator: false });
-      if (btn.dataset.role === 'grantAdmin') await updateDoc(ref, { isAdmin: true });
-      if (btn.dataset.role === 'removeAdmin') await updateDoc(ref, { isAdmin: false });
-      if (btn.dataset.role === 'approveEmail') await updateDoc(ref, { manualVerified: true });
-      if (btn.dataset.role === 'revokeEmail') await updateDoc(ref, { manualVerified: false });
-      if (btn.dataset.role === 'banUser') await updateDoc(ref, { banned: true });
-      if (btn.dataset.role === 'unbanUser') await updateDoc(ref, { banned: false });
-    });
+  document.querySelectorAll('[data-role]').forEach(btn => btn.onclick = async () => {
+    const user = userRowsData.find((x) => x.id === btn.dataset.id);
+    if (!user) return;
+    const role = btn.dataset.role;
+    if (isProtectedCoreAdmin(user.email) && ['removeMod','removeAdmin','banUser','revokeEmail','denyAccess','deleteDuplicate'].includes(role)) {
+      alert('This core admin account cannot be modified.');
+      return;
+    }
+    const ref = doc(db, 'profiles', user.id);
+    if (role === 'grantMod') await updateDoc(ref, { isModerator: true, updatedAt: Date.now() });
+    if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
+    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, accessApproved: true, updatedAt: Date.now() });
+    if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
+    if (role === 'approveAccess') await updateDoc(ref, { accessApproved: true, updatedAt: Date.now() });
+    if (role === 'denyAccess') await updateDoc(ref, { accessApproved: false, updatedAt: Date.now() });
+    if (role === 'approveEmail') await updateDoc(ref, { manualVerified: true, updatedAt: Date.now() });
+    if (role === 'revokeEmail') await updateDoc(ref, { manualVerified: false, updatedAt: Date.now() });
+    if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
+    if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
+    if (role === 'deleteDuplicate') {
+      if (!confirm(`Delete duplicate profile for ${user.email}? This only removes the extra profile row.`)) return;
+      await deleteDoc(ref);
+    }
+  });
+}
+
+function startUsers(){
+  onSnapshot(collection(db, 'profiles'), (snap) => {
+    const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    userRowsData = rows;
+    renderUserRows();
   });
 }
 
 
-let listingRowsData = [];
-let userRowsData = [];
-let adminEditingId = null;
 
 function ensureEditModal(){
   if (document.getElementById('adminEditOverlay')) return;
