@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,111 +7,125 @@
   <title>Regal Honda Employee Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="auth-open">
-  <div class="site-bg" aria-hidden="true">
-    <div class="market-bg market-bg1"></div>
-    <div class="market-bg market-bg2"></div>
-    <div class="market-bg market-bg3"></div>
-    <div class="market-bg-overlay"></div>
+<body>
+
+  <!-- Background slideshow (uses /Images/regal1.jpg etc) -->
+  <div class="bg-slideshow" aria-hidden="true">
+    <div class="bg bg1"></div>
+    <div class="bg bg2"></div>
+    <div class="bg bg3"></div>
+    <div class="bg-overlay"></div>
   </div>
 
-  <div class="overlay login-overlay" id="loginOverlay">
-    <div class="login-shell">
-      <section class="login-promo" aria-hidden="true">
-        <div class="login-hero-image"></div>
-        <div class="login-hero-shade"></div>
-        <div class="login-copy">
-          <div class="promo-kicker">Regal Honda Lakeland</div>
-          <h1>Employee Marketplace</h1>
-          <p>Buy, sell, share free items, post events, and keep useful finds inside the team.</p>
-          <div class="promo-pills">
-            <span>Private</span>
-            <span>Employees only</span>
-            <span>Fast pickup</span>
+  <!-- LOGIN / SIGNUP -->
+  <div class="overlay" id="loginOverlay">
+    <div class="modal">
+      <div class="modal-h">
+        <div class="brandmark">
+          <div class="brand-badge">Regal</div>
+          <div>
+            <div class="brand-title">Employee Marketplace</div>
+            <div class="brand-sub">Private • Work friends only</div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section class="login-card-wrap">
-        <div class="modal login-card">
-          <div class="modal-h">
-            <div class="brandmark">
-              <div class="brand-badge">RH</div>
-              <div>
-                <div class="brand-title">Marketplace Access</div>
-                <div class="brand-sub">Use your Regal Lakeland work email</div>
-              </div>
-            </div>
+      <div class="modal-b">
+        <div class="authTabs">
+          <button class="tabBtn active" id="tabLogin" type="button">Login</button>
+          <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
+        </div>
+
+        <div id="loginPane">
+          <div class="field">
+            <label>Email</label>
+            <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
           </div>
-
-          <div class="modal-b">
-            <div class="authTabs">
-              <button class="tabBtn active" id="tabLogin" type="button">Login</button>
-              <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
-            </div>
-
-            <div id="loginPane">
-              <div class="field">
-                <label>Email</label>
-                <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
-              </div>
-              <div class="field">
-                <label>Password</label>
-                <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
-              </div>
-              <div class="note" id="verifyNote" style="display:none">
-                Your email is not verified yet. Check your inbox, click the verification link, then come back and log in.
-              </div>
-              <div class="rowBtns stack-mobile">
-                <button class="btn primary" id="btnLogin" type="button">Login</button>
-                <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Resend Verification Email</button>
-              </div>
-            </div>
-
-            <div id="signupPane" style="display:none">
-              <div class="note">Create an account using your work email. You must verify your email before you can use the marketplace.</div>
-              <div class="spacer-10"></div>
-              <div class="field">
-                <label>Work Email</label>
-                <input id="signupEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
-              </div>
-              <div class="field">
-                <label>Password</label>
-                <input id="signupPassword" type="password" placeholder="Create a password" autocomplete="new-password" />
-              </div>
-              <div class="field">
-                <label>Confirm Password</label>
-                <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
-              </div>
-              <div class="note" id="signupMsg" style="display:none"></div>
-              <div class="modal-actions compact-actions">
-                <button class="btn primary" id="btnSignup" type="button">Create Account</button>
-              </div>
-            </div>
+          <div class="field">
+            <label>Password</label>
+            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
           </div>
-
-          <div class="modal-actions">
-            <div class="note tight-note">Allowed domain: <b>@regallakeland.com</b></div>
+          <div class="note" id="verifyNote" style="display:none">
+            Your email is not verified yet. Check your inbox and click the verification link, then come back and log in.
+          </div>
+          <div class="rowBtns">
+            <button class="btn primary" id="btnLogin">Login</button>
+            <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Resend Verification Email</button>
           </div>
         </div>
-      </section>
+
+        <div id="signupPane" style="display:none">
+          <div class="note">
+            Create an account using your work email. You must verify your email before you can post or view listings.
+          </div>
+          <div style="height:10px"></div>
+          <div class="field">
+            <label>Work Email</label>
+            <input id="signupEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input id="signupPassword" type="password" placeholder="Create a password" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label>Confirm Password</label>
+            <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
+          </div>
+          <div class="note" id="signupMsg" style="display:none"></div>
+          <div class="modal-actions" style="padding:0; border:0; justify-content:flex-start">
+            <button class="btn primary" id="btnSignup" type="button">Create Account</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <div class="note" style="margin:0">
+          Allowed domain: <b>@regallakeland.com</b>
+        </div>
+      </div>
+    </div>
+  </div>
+      </div>
+      <div class="modal-b">
+        <div class="field">
+          <label>Email</label>
+          <input id="loginEmail" type="email" placeholder="name@regallakeland.com" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div class="note">
+          Tip: If you don’t have an account yet, ask an admin to create you in Firebase → Authentication → Users.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnLogin">Login</button>
+      </div>
     </div>
   </div>
 
+
+  <!-- NAME SETUP (first login) -->
   <div class="overlay" id="nameOverlay" style="display:none">
     <div class="modal">
-      <div class="modal-h"><strong>Set Your Display Name</strong></div>
+      <div class="modal-h">
+        <strong>Set Your Display Name</strong>
+      </div>
       <div class="modal-b">
         <div class="field">
-          <label>First &amp; Last Name</label>
+          <label>First & Last Name</label>
           <input id="displayNameInput" placeholder="e.g. Michael Hall" autocomplete="name" />
         </div>
         <div class="note">This name will show on posts and replies instead of your email.</div>
       </div>
-      <div class="modal-actions"><button class="btn primary" id="btnSaveName" type="button">Save</button></div>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnSaveName">Save</button>
+      </div>
     </div>
   </div>
 
+  <!-- APP -->
   <header class="topbar">
     <div class="left">
       <div class="logo">
@@ -119,64 +134,49 @@
       </div>
       <div class="title">
         <div class="h1">Employee Marketplace</div>
-        <div class="h2">Forum boards for free items, buy and sell, garage sales, events, work news, and services.</div>
+        <div class="h2">Free items • Buy/Sell • Garage Sales • Events • Work News</div>
       </div>
     </div>
 
     <div class="right">
       <span class="pill" id="pillUser">Not signed in</span>
-      <span class="pill" id="boardPill">All</span>
-      <a class="btn ghost" id="adminLink" href="admin.html" style="display:none">Admin</a>
-      <button class="btn primary" id="btnNew" type="button">+ Post</button>
-      <button class="btn danger" id="btnLogout" type="button">Logout</button>
+      <button class="btn" id="btnNew">+ Post</button>
+      <a class="btn ghost" id="adminLink" href="adminregal/" style="display:none">Admin</a>
+      <button class="btn danger" id="btnLogout">Logout</button>
     </div>
   </header>
 
-  <main class="pageShell forum-layout">
-    <section class="glass heroBanner">
-      <div class="hero-grid">
-        <div>
-          <div class="eyebrow">Regal Employee Marketplace</div>
-          <h1 id="feedTitle">All Boards</h1>
-          <div class="subline" id="countLine">0 shown | 0 total</div>
-          <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share events, and keep useful finds inside the dealership community.</p>
-          <div class="rowBtns hero-actions">
-            <button class="btn primary" id="heroPostBtn" type="button">Post Item</button>
-            <button class="btn ghost" id="heroFreeBtn" type="button">Browse Free Items</button>
-          </div>
-        </div>
-        <div class="hero-side glass-soft">
-          <div class="hero-stat"><span id="heroBoardCount">6</span><small>Boards</small></div>
-          <div class="hero-stat"><span id="heroListingCount">0</span><small>Listings</small></div>
-          <div class="hero-stat"><span id="heroRecentLabel">Latest</span><small id="heroRecentText">Waiting for new posts</small></div>
-        </div>
+  <main class="layout">
+    <aside class="panel boards">
+      <div class="panel-h">
+        <div class="panel-title">Boards</div>
+        <div class="pill" id="boardPill">All</div>
       </div>
-    </section>
+      <div class="panel-b" id="boards"></div>
+    </aside>
 
-    <section class="content-grid">
-      <aside class="glass boardPanel">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Boards</div>
-            <div class="section-sub">Choose a section to browse or post</div>
-          </div>
-        </div>
-        <div class="boards forumBoards" id="boards"></div>
-      </aside>
+    <section class="panel feed">
+      <div class="panel-h">
+        <div class="panel-title" id="feedTitle">Marketplace</div>
+        <div class="meta" id="countLine">0 shown • 0 total</div>
+      </div>
 
-      <section class="glass feedPanel">
-        <div class="section-head filters-head">
-          <div>
-            <div class="section-title">Listings</div>
-            <div class="section-sub">Recent activity inside the selected board</div>
-          </div>
-          <div class="filters compact-filters">
+      <div class="panel-b">
+        <div class="filters">
+          <div class="field">
+            <label>Search</label>
             <input id="q" placeholder="Search title, description, location, contact…" />
+          </div>
+          <div class="field">
+            <label>Status</label>
             <select id="st">
-              <option value="ALL">All</option>
               <option value="ACTIVE">Active</option>
+              <option value="ALL">All</option>
               <option value="SOLD">Sold</option>
             </select>
+          </div>
+          <div class="field">
+            <label>Sort</label>
             <select id="sort">
               <option value="NEW">Newest</option>
               <option value="OLD">Oldest</option>
@@ -186,17 +186,18 @@
           </div>
         </div>
 
-        <div class="cards topicList" id="cards"></div>
-        <div class="note emptyState" id="empty" style="display:none">No listings match your filters.</div>
-      </section>
+        <div class="cards" id="cards"></div>
+        <div class="note" id="empty" style="display:none;margin-top:12px;">No listings match your filters.</div>
+      </div>
     </section>
   </main>
 
+  <!-- CREATE POST MODAL -->
   <div class="overlay" id="postOverlay" style="display:none">
-    <div class="modal wide modal-scroll">
-      <div class="modal-h sticky-head">
-        <strong>Create Post</strong>
-        <button class="btn ghost" data-close="postOverlay" type="button">Close</button>
+    <div class="modal wide">
+      <div class="modal-h">
+        <strong id="postOverlayTitle">Create Post</strong>
+        <button class="btn ghost" data-close="postOverlay">Close</button>
       </div>
       <div class="modal-b">
         <div class="grid2">
@@ -247,42 +248,40 @@
             <input id="fContact" placeholder="Text/call/email or where to find you at work" />
           </div>
           <div class="field">
-            <label>Photo (optional)</label>
-            <input id="fPhoto" type="file" accept="image/*" />
+            <label>Photos (optional, up to 10)</label>
+            <input id="fPhoto" type="file" accept="image/*" multiple />
           </div>
         </div>
 
-        <div class="note">Posts are visible to logged-in employees only. Sold posts stay visible and can be reactivated by admin approval.</div>
+        <div class="note" id="postImageNote">Upload up to 10 images. If you edit a post and select more images, they will be added to the existing gallery.</div>
       </div>
-      <div class="modal-actions sticky-actions">
-        <button class="btn primary" id="btnSavePost" type="button">Post Listing</button>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnSavePost">Post</button>
       </div>
     </div>
   </div>
 
-  <div class="overlay" id="threadOverlay" style="display:none;">
-    <div class="modal wide modal-scroll">
-      <div class="modal-h sticky-head">
+  <!-- THREAD MODAL -->
+  <div class="overlay" id="threadOverlay" style="display:none">
+    <div class="modal wide">
+      <div class="modal-h">
         <strong id="threadTitle">Thread</strong>
-        <button class="btn ghost" data-close="threadOverlay" type="button">Close</button>
+        <button class="btn ghost" data-close="threadOverlay">Close</button>
       </div>
-
       <div class="modal-b">
-        <div id="threadMeta" class="meta"></div>
-        <div id="threadBody"></div>
+        <div id="threadMeta" class="meta" style="margin-bottom:10px;"></div>
+        <div id="threadBody" class="threadBody"></div>
 
-        <hr />
+        <div class="note" style="margin:10px 0;">Replies (everyone can respond)</div>
+        <div id="threadReplies" class="replies"></div>
 
-        <div id="threadReplies"></div>
-
-        <div class="field thread-reply-box">
-          <label>Reply</label>
-          <textarea id="replyText" rows="4" placeholder="Write a reply"></textarea>
+        <div class="field" style="margin-top:10px;">
+          <label>Write a reply</label>
+          <textarea id="replyText" placeholder="Type your reply…"></textarea>
         </div>
-
-        <div class="rowBtns sticky-actions thread-actions">
-          <button id="btnSendReply" class="btn primary" type="button">Send Reply</button>
-        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnSendReply">Reply</button>
       </div>
     </div>
   </div>
