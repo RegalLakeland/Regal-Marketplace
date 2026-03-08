@@ -13,8 +13,18 @@ const boardLabels = { ALL:'All Boards', FREE:'Free Items', BUYSELL:'Buy / Sell',
 function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
 function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').toLowerCase()); }
 
+let adminReady = false;
+
 onAuthStateChanged(auth, (user) => {
-  if (!user || !isAdmin(user.email)) {
+  adminReady = true;
+  if (!user) {
+    if ($('adminUser')) $('adminUser').textContent = 'Sign in required';
+    if ($('listingRows')) $('listingRows').innerHTML = '<tr><td colspan="5">Sign in to use admin tools.</td></tr>';
+    if ($('userRows')) $('userRows').innerHTML = '<tr><td colspan="4">Sign in to view users.</td></tr>';
+    return;
+  }
+  if (!isAdmin(user.email)) {
+    if ($('adminUser')) $('adminUser').textContent = user.email;
     alert('Admin access only.');
     location.href = 'index.html';
     return;
@@ -42,8 +52,8 @@ function startListings(){
           <td>
             <div class="rowBtns">
               ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : ``}
-              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Approve Active</button><button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny</button>` : ``}
-              ${item.status === 'SOLD' && !item.reactivationRequested ? `<button class="btn" data-active="${esc(item.id)}" type="button">Mark Active</button>` : ``}
+              ${item.status === 'SOLD' ? `<button class="btn primary" data-active="${esc(item.id)}" type="button">Mark Active</button>` : ``}
+              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny</button>` : item.status === 'SOLD' ? `<span class="pill">Sold</span>` : ``}
               <button class="btn danger" data-delete="${esc(item.id)}" type="button">Delete</button>
             </div>
           </td>
@@ -66,9 +76,6 @@ function startListings(){
         reactivationRequestedAt:null,
         reactivationDeniedAt: Date.now()
       });
-    });
-    document.querySelectorAll('[data-active]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.active), { status:'ACTIVE', reactivationRequested:false, reactivationRequestedAt:null });
     });
     document.querySelectorAll('[data-delete]').forEach(btn => btn.onclick = async () => {
       if (!confirm('Delete this post permanently?')) return;
