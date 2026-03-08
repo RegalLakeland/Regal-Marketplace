@@ -36,7 +36,7 @@ import {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch(() => {});
+setPersistence(auth, browserLocalPersistence).catch((e)=>console.warn("Auth persistence warning:", e));
 const db = getFirestore(app);
 const storage = getStorage(app);
 
@@ -82,8 +82,6 @@ document.addEventListener("DOMContentLoaded", () => {
         currentUser = null;
         currentProfile = null;
         stopListeners();
-        sessionStorage.removeItem("market_user_email");
-        sessionStorage.removeItem("market_is_admin");
         updateAuthUI();
         return;
       }
@@ -105,8 +103,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if ($("btnResendVerify")) $("btnResendVerify").style.display = "none";
 
       await ensureProfile(user);
-      sessionStorage.setItem("market_user_email", user.email || "");
-      sessionStorage.setItem("market_is_admin", currentProfile?.isAdmin ? "1" : "0");
       updateAuthUI();
       startListingsListener();
 
@@ -132,8 +128,6 @@ function bindStaticEvents() {
   $("btnResendVerify")?.addEventListener("click", handleResendVerification);
   $("btnSaveName")?.addEventListener("click", handleSaveName);
   $("btnLogout")?.addEventListener("click", async () => {
-    sessionStorage.removeItem("market_user_email");
-    sessionStorage.removeItem("market_is_admin");
     await signOut(auth);
   });
 
@@ -287,7 +281,7 @@ function updateAuthUI() {
       : "Not signed in";
   }
 
-  if ($("adminLink")) $("adminLink").style.display = loggedIn && currentProfile.isAdmin ? "inline-flex" : "none";
+  if ($("adminLink")) { $("adminLink").style.display = loggedIn && currentProfile.isAdmin ? "inline-flex" : "none"; $("adminLink").setAttribute("href","admin.html"); }
   if ($("btnLogout")) $("btnLogout").style.display = loggedIn ? "inline-flex" : "none";
   if ($("btnNew")) $("btnNew").style.display = loggedIn ? "inline-flex" : "none";
   if ($("loginOverlay")) $("loginOverlay").style.display = loggedIn ? "none" : "flex";

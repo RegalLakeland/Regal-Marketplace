@@ -5,7 +5,7 @@ import { getFirestore, collection, deleteDoc, doc, onSnapshot, orderBy, query, u
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch(() => {});
+setPersistence(auth, browserLocalPersistence).catch((e)=>console.warn("Auth persistence warning:", e));
 const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
@@ -13,8 +13,6 @@ const boardLabels = { ALL:'All Boards', FREE:'Free Items', BUYSELL:'Buy / Sell',
 let listingCache = [];
 let userCache = [];
 let adminReady = false;
-let listingsStarted = false;
-let usersStarted = false;
 
 function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
 function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(String(email||'').trim().toLowerCase()); }
@@ -22,27 +20,16 @@ function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(St
 ensureEditOverlay();
 bindAdminEditEvents();
 
-const hintedEmail = sessionStorage.getItem('market_user_email') || '';
-const hintedAdmin = sessionStorage.getItem('market_is_admin') === '1';
-if ($('adminUser')) $('adminUser').textContent = hintedEmail || 'Checking access…';
-if (hintedAdmin && hintedEmail) {
-  adminReady = true;
-  startListings();
-  startUsers();
-}
-
 onAuthStateChanged(auth, (user) => {
   const allowed = !!(user && isAdmin(user.email));
-  if ($('adminUser')) $('adminUser').textContent = user ? user.email : (hintedEmail || 'Not signed in');
-  adminReady = allowed || hintedAdmin;
-  if (!adminReady) return;
+  if ($('adminUser')) $('adminUser').textContent = user ? user.email : 'Not signed in';
+  adminReady = allowed;
+  if (!allowed) return;
   startListings();
   startUsers();
 });
 
 function startListings(){
-  if (listingsStarted) return;
-  listingsStarted = true;
   const qRef = query(collection(db, 'listings'), orderBy('createdAtMs', 'desc'));
   onSnapshot(qRef, (snap) => {
     const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
@@ -101,8 +88,6 @@ function startListings(){
 }
 
 function startUsers(){
-  if (usersStarted) return;
-  usersStarted = true;
   onSnapshot(collection(db, 'profiles'), (snap) => {
     const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     userCache = rows;
