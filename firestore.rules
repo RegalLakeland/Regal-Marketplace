@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -7,35 +6,96 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function emailOk() {
-      return signedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email_verified == true
+    function hasEmail() {
+      return signedIn() && request.auth.token.email != null;
+    }
+
+    function employeeEmail() {
+      return hasEmail()
         && request.auth.token.email.matches('.*@regallakeland\\.com$');
     }
 
-    // Listings (marketplace posts)
-    match /listings/{id} {
-      allow read: if emailOk();
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid));
+    }
 
-      // Create: verified employee only; must stamp their own uid/email
-      allow create: if emailOk()
+    function requesterProfile() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    function emailApproved() {
+      return signedIn()
+        && (
+          request.auth.token.email_verified == true
+          || (hasProfile() && requesterProfile().manualVerified == true)
+        );
+    }
+
+    function accessApproved() {
+      return hasProfile()
+        && requesterProfile().accessApproved == true
+        && requesterProfile().banned != true;
+    }
+
+    function isCoreAdmin() {
+      return hasEmail()
+        && (
+          request.auth.token.email == 'michael.h@regallakeland.com'
+          || request.auth.token.email == 'janni.r@regallakeland.com'
+        );
+    }
+
+    function isAdminUser() {
+      return signedIn()
+        && hasProfile()
+        && (isCoreAdmin() || requesterProfile().isAdmin == true);
+    }
+
+    function marketplaceMember() {
+      return signedIn()
+        && employeeEmail()
+        && hasProfile()
+        && emailApproved()
+        && accessApproved();
+    }
+
+    function ownProfile(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function protectedTarget() {
+      return resource.data.email == 'michael.h@regallakeland.com'
+        || resource.data.email == 'janni.r@regallakeland.com';
+    }
+
+    match /listings/{id} {
+      allow read: if marketplaceMember();
+
+      allow create: if marketplaceMember()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.userEmail == request.auth.token.email;
 
-      // Update: owner can edit their post; admins could be added here later via custom claims
-      allow update: if emailOk() && request.resource.data.uid == request.auth.uid;
+      allow update: if marketplaceMember()
+        && (resource.data.uid == request.auth.uid || isAdminUser());
 
-      // Delete: owner can delete their own post (admin deletion handled in admin UI by signing in as admin; still needs rules)
-      allow delete: if emailOk() && resource.data.uid == request.auth.uid;
+      allow delete: if marketplaceMember()
+        && (resource.data.uid == request.auth.uid || isAdminUser());
     }
 
-    // Profiles (names, bans, presence)
     match /profiles/{uid} {
-      allow read: if emailOk();
-      // User can write their own profile (name/lastSeen). Banned flag should be admin-only (requires backend/custom claims)
-      allow create, update: if emailOk() && request.auth.uid == uid;
-      allow delete: if false;
+      allow read: if (signedIn() && ownProfile(uid) && employeeEmail())
+        || marketplaceMember()
+        || isAdminUser();
+
+      allow create: if signedIn() && ownProfile(uid) && employeeEmail();
+
+      allow update: if signedIn()
+        && employeeEmail()
+        && (ownProfile(uid) || isAdminUser());
+
+      allow delete: if isAdminUser()
+        && (!protectedTarget() || request.auth.uid == uid);
     }
   }
 }

@@ -230,3 +230,15 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 .user-main{font-weight:700}
 .compact-rowBtns .btn{padding:8px 10px;font-size:12px}
 @media (max-width:900px){.admin-summary{margin-left:0;width:100%}.adminSearch{width:100%}}
+
+.user-id{word-break:break-all}
+.user-status-stack{display:grid;gap:8px;min-width:220px}
+.user-status-line{display:grid;grid-template-columns:72px 1fr;gap:10px;align-items:start}
+.user-status-key{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:900}
+.user-status-value,.user-status-meta{display:inline-flex;align-items:center;justify-content:flex-start;min-height:28px;font-size:13px;font-weight:800}
+.user-status-value{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.08);width:max-content;max-width:100%}
+.user-status-value.ok{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.32)}
+.user-status-value.pending{background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.32)}
+.user-status-value.bad{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.32)}
+.user-status-meta{color:#e3ebf5;line-height:1.45}
+@media (max-width:780px){.user-status-line{grid-template-columns:1fr}}

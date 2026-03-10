@@ -375,6 +375,7 @@ async function ensureProfile(user) {
     manualVerified: false,
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
+    accessManuallyDenied: false,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -397,6 +398,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.manualVerified !== 'boolean') updates.manualVerified = false;
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = true;
+    if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -497,6 +499,7 @@ async function handleSignup() {
       manualVerified: false,
       emailVerified: false,
       accessApproved: isProtectedCoreAdmin(email) || isAdmin(email),
+      accessManuallyDenied: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
