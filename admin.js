@@ -6,6 +6,26 @@ import { getFirestore, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+const AUTH_FUNCTION_REGION = 'us-central1';
+function verificationFunctionUrl() {
+  return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/resendVerificationEmail`;
+}
+async function callAdminVerificationResend(email) {
+  if (!currentViewer) throw new Error('You must be signed in.');
+  const token = await currentViewer.getIdToken(true);
+  const res = await fetch(verificationFunctionUrl(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ email })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `Resend failed (${res.status})`);
+  return data;
+}
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
@@ -207,7 +227,7 @@ function renderUserRows() {
             ${user.isAdmin && !protectedUser ? `<button class="btn ghost" data-role="removeAdmin" data-id="${esc(user.id)}" type="button">Remove Admin</button>` : ''}
             ${!user.accessApproved ? `<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve Access</button>` : ''}
             ${user.accessApproved && !protectedUser ? `<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Deny Access</button>` : ''}
-            ${isCoreAdminViewer() && !user.manualVerified && !user.emailVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
+            ${isCoreAdminViewer() && !user.emailVerified ? `<button class="btn ghost" data-role="resendVerify" data-id="${esc(user.id)}" type="button">Resend Verify Email</button>` : ''}${isCoreAdminViewer() && !user.manualVerified && !user.emailVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
             ${isCoreAdminViewer() && user.manualVerified && !protectedUser ? `<button class="btn ghost" data-role="revokeEmail" data-id="${esc(user.id)}" type="button">Revoke Email</button>` : ''}
             ${!user.banned && !protectedUser ? `<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>` : ''}
             ${user.banned && !protectedUser ? `<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>` : ''}
@@ -233,6 +253,16 @@ function renderUserRows() {
     if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
     if (role === 'approveAccess') await updateDoc(ref, { accessApproved: true, updatedAt: Date.now() });
     if (role === 'denyAccess') await updateDoc(ref, { accessApproved: false, updatedAt: Date.now() });
+    if (role === 'resendVerify') {
+      try {
+        await callAdminVerificationResend(user.email);
+        await updateDoc(ref, { verificationEmailSentAt: Date.now(), verificationEmailSentBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+        alert(`Verification email sent to ${user.email}.`);
+      } catch (err) {
+        console.error(err);
+        alert(err?.message || 'Unable to send verification email.');
+      }
+    }
     if (role === 'approveEmail') await updateDoc(ref, { manualVerified: true, updatedAt: Date.now() });
     if (role === 'revokeEmail') await updateDoc(ref, { manualVerified: false, updatedAt: Date.now() });
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });

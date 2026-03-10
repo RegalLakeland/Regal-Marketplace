@@ -35,6 +35,30 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+const AUTH_FUNCTION_REGION = 'us-central1';
+let authUtilityMode = '';
+
+function verificationFunctionUrl() {
+  return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/resendVerificationEmail`;
+}
+
+async function callVerificationEmailFunction(user, email) {
+  const token = await user.getIdToken(true);
+  const res = await fetch(verificationFunctionUrl(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ email })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `Verification email request failed (${res.status})`);
+  }
+  return data;
+}
+
 const $ = (id) => document.getElementById(id);
 
 function getVerifyActionCodeSettings() {
@@ -105,6 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       await user.reload().catch(() => {});
       currentUser = user;
+      if (authUtilityMode === 'signupVerification' || authUtilityMode === 'resendVerification') {
+        return;
+      }
       lastUnverifiedEmail = user.email || '';
       await ensureProfile(user);
 
@@ -459,8 +486,9 @@ async function handleSignup() {
     }, { merge: true });
     applyAuthLanguage();
     let verifySent = false;
+    authUtilityMode = 'signupVerification';
     try {
-      await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
+      await callVerificationEmailFunction(cred.user, email);
       verifySent = true;
       await updateDoc(doc(db, 'profiles', cred.user.uid), {
         verificationEmailSentAt: Date.now(),
@@ -470,6 +498,8 @@ async function handleSignup() {
       console.error('Verification email send failed:', verifyErr);
     }
     await signOut(auth);
+    authUtilityMode = '';
+
 
     if (msg) {
       msg.textContent = verifySent
@@ -492,6 +522,7 @@ async function handleSignup() {
   }
 }
 
+
 async function handleResendVerification() {
   const email = (lastUnverifiedEmail || $('loginEmail')?.value || '').trim().toLowerCase();
   const password = $('loginPassword')?.value || '';
@@ -505,8 +536,9 @@ async function handleResendVerification() {
   }
   try {
     applyAuthLanguage();
+    authUtilityMode = 'resendVerification';
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
+    await callVerificationEmailFunction(cred.user, email);
     try {
       await updateDoc(doc(db, 'profiles', cred.user.uid), {
         verificationEmailSentAt: Date.now(),
@@ -514,12 +546,16 @@ async function handleResendVerification() {
       });
     } catch (_) {}
     await signOut(auth);
+    authUtilityMode = '';
     alert('Verification email sent. Check your inbox and junk folder.');
   } catch (err) {
     console.error(err);
+    try { await signOut(auth); } catch (_) {}
+    authUtilityMode = '';
     alert(err?.message || 'Unable to resend verification email right now.');
   }
 }
+
 
 async function handleSaveName() {
   const name = $('displayNameInput')?.value.trim();
