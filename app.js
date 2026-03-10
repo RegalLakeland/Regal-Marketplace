@@ -108,6 +108,22 @@ let editingPostId = null;
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
 
+
+function getClosedLabel(item) {
+  const board = String(item?.board || item?.category || '').toUpperCase();
+  if (board === 'EVENTS') return 'Ended';
+  if (board === 'SERVICES' || board === 'WORK') return 'Completed';
+  return 'Sold';
+}
+
+function getMarkClosedLabel(item) {
+  const board = String(item?.board || item?.category || '').toUpperCase();
+  if (board === 'EVENTS') return 'Mark Ended';
+  if (board === 'SERVICES' || board === 'WORK') return 'Mark Completed';
+  return 'Mark Sold';
+}
+
+
 window.addEventListener('error', (e) => {
   console.error('Marketplace JS error:', e.error || e.message || e);
 });
@@ -807,7 +823,7 @@ function renderListings() {
   empty.style.display = 'none';
   wrap.innerHTML = data.map((item) => {
     const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
-    const statusText = item.reactivationRequested ? 'Reactivation Requested' : (item.status || 'ACTIVE');
+    const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
     const showRequestActive = isViewerAdmin() && item.status === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
     const requestPending = item.status === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
     const featuredPill = item.featured ? `<span class="status featured">Featured</span>` : '';
@@ -827,7 +843,7 @@ function renderListings() {
           <div class="rowBtns">
             <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
             ${canModify(item) ? `<button class="btn ghost" data-action="editPost" data-id="${esc(item.id)}" type="button">Edit</button>` : ''}
-            ${canModify(item) && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">Mark Sold</button>` : ''}
+            ${canModify(item) && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : ''}
             ${showRequestActive ? `<button class="btn ghost" data-action="requestActive" data-id="${esc(item.id)}" type="button">Request Active</button>` : ''}
             ${requestPending ? `<span class="pill">Awaiting admin review</span>` : ''}
           </div>

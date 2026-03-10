@@ -37,6 +37,22 @@ const PROTECTED_CORE_ADMINS = new Set([
   'michael.h@regallakeland.com',
   'janni.r@regallakeland.com'
 ]);
+
+
+function getClosedLabel(item) {
+  const board = String(item?.board || item?.category || '').toUpperCase();
+  if (board === 'EVENTS') return 'Ended';
+  if (board === 'SERVICES' || board === 'WORK') return 'Completed';
+  return 'Sold';
+}
+
+function getMarkClosedLabel(item) {
+  const board = String(item?.board || item?.category || '').toUpperCase();
+  if (board === 'EVENTS') return 'Mark Ended';
+  if (board === 'SERVICES' || board === 'WORK') return 'Mark Completed';
+  return 'Mark Sold';
+}
+
 function isProtectedCoreAdmin(email){ return PROTECTED_CORE_ADMINS.has(normalizeEmail(email)); }
 function isCoreAdminViewer(){ return isProtectedCoreAdmin(currentViewer?.email); }
 
@@ -90,11 +106,11 @@ function startListings(){
         <tr>
           <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}${hiddenPill}${featuredPill}</td>
           <td>${esc(boardLabels[board] || board)}</td>
-          <td>${esc(item.status || 'ACTIVE')}</td>
+          <td>${esc(item.status === 'SOLD' ? getClosedLabel(item) : (item.status || 'ACTIVE'))}</td>
           <td>${esc(poster)}</td>
           <td>
             <div class="rowBtns">
-              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">Mark Sold</button>` : ''}
+              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : ''}
               ${item.status === 'SOLD' ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Mark Active</button>` : ''}
               ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny Request</button>` : ''}
               <button class="btn ghost" data-feature="${esc(item.id)}" data-on="${item.featured ? '1' : '0'}" type="button">${item.featured ? 'Unfeature' : 'Feature'}</button>
@@ -297,7 +313,7 @@ function ensureEditModal(){
       <div class="modal-b">
         <div class="grid2">
           <div class="field"><label>Board</label><select id="adminEditBoard"><option value="FREE">Free Items</option><option value="BUYSELL">Buy / Sell</option><option value="GARAGE">Garage Sales</option><option value="EVENTS">Events</option><option value="WORK">Work News</option><option value="SERVICES">Local Services</option></select></div>
-          <div class="field"><label>Status</label><select id="adminEditStatus"><option value="ACTIVE">Active</option><option value="SOLD">Sold</option></select></div>
+          <div class="field"><label>Status</label><select id="adminEditStatus"><option value="ACTIVE">Active</option><option value="SOLD">Closed</option></select></div>
         </div>
         <div class="field"><label>Title</label><input id="adminEditTitle" /></div>
         <div class="grid2"><div class="field"><label>Price</label><input id="adminEditPrice" inputmode="decimal" /></div><div class="field"><label>Location</label><input id="adminEditLocation" /></div></div>
