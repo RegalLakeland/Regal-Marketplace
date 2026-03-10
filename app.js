@@ -444,7 +444,7 @@ async function handleSignup() {
     await signOut(auth);
 
     if (msg) {
-      msg.textContent = 'Account created. An admin will need to approve access. If email verification is giving you trouble, an admin can manually approve it.';
+      msg.textContent = 'Account created. A verification email was sent to your inbox, and an admin must also approve access. If you cannot find the email, an admin can manually approve it.';
       msg.style.display = 'block';
     }
 
@@ -455,7 +455,7 @@ async function handleSignup() {
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
 
     showPane('login');
-    alert('Account created. Waiting for admin approval.');
+    alert('Account created. Verification email sent. Your account also needs admin approval before you can sign in.');
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
@@ -464,16 +464,23 @@ async function handleSignup() {
 
 async function handleResendVerification() {
   const email = (lastUnverifiedEmail || $('loginEmail')?.value || '').trim().toLowerCase();
+  const password = $('loginPassword')?.value || '';
   if (!email) {
     alert('Enter your email first.');
     return;
   }
+  if (!password) {
+    alert('Enter your password, then tap Resend Verification Email.');
+    return;
+  }
   try {
-    await sendPasswordResetEmail(auth, email);
-    alert('Check your email. If your account exists, a message was sent.');
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    await sendEmailVerification(cred.user);
+    await signOut(auth);
+    alert('Verification email sent. Check your inbox and junk folder.');
   } catch (err) {
     console.error(err);
-    alert(err?.message || 'Unable to send email right now.');
+    alert(err?.message || 'Unable to resend verification email right now.');
   }
 }
 
