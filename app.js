@@ -36,6 +36,23 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 const $ = (id) => document.getElementById(id);
+
+function getVerifyActionCodeSettings() {
+  const url = `${window.location.origin}${window.location.pathname}`;
+  return {
+    url,
+    handleCodeInApp: false
+  };
+}
+
+function applyAuthLanguage() {
+  try {
+    if (navigator?.language) {
+      auth.languageCode = navigator.language;
+    }
+  } catch (_) {}
+}
+
 const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -440,11 +457,24 @@ async function handleSignup() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
-    await sendEmailVerification(cred.user);
+    applyAuthLanguage();
+    let verifySent = false;
+    try {
+      await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
+      verifySent = true;
+      await updateDoc(doc(db, 'profiles', cred.user.uid), {
+        verificationEmailSentAt: Date.now(),
+        updatedAt: serverTimestamp()
+      });
+    } catch (verifyErr) {
+      console.error('Verification email send failed:', verifyErr);
+    }
     await signOut(auth);
 
     if (msg) {
-      msg.textContent = 'Account created. A verification email was sent to your inbox, and an admin must also approve access. If you cannot find the email, an admin can manually approve it.';
+      msg.textContent = verifySent
+        ? 'Account created. A verification email was sent to your inbox, and an admin must also approve access. If you cannot find the email, use Resend Verification Email on the login tab, and an admin can manually approve it if needed.'
+        : 'Account created, but the verification email could not be sent automatically. Use Resend Verification Email on the login tab, and an admin can manually approve it if needed.';
       msg.style.display = 'block';
     }
 
@@ -455,7 +485,7 @@ async function handleSignup() {
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
 
     showPane('login');
-    alert('Account created. Verification email sent. Your account also needs admin approval before you can sign in.');
+    alert(verifySent ? 'Account created. Verification email sent. Your account also needs admin approval before you can sign in.' : 'Account created. Verification email was not confirmed as sent. Use Resend Verification Email on the login tab, and your account still needs admin approval before you can sign in.');
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
@@ -474,8 +504,15 @@ async function handleResendVerification() {
     return;
   }
   try {
+    applyAuthLanguage();
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(cred.user);
+    await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
+    try {
+      await updateDoc(doc(db, 'profiles', cred.user.uid), {
+        verificationEmailSentAt: Date.now(),
+        updatedAt: serverTimestamp()
+      });
+    } catch (_) {}
     await signOut(auth);
     alert('Verification email sent. Check your inbox and junk folder.');
   } catch (err) {
