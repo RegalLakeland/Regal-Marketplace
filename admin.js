@@ -23,8 +23,16 @@ async function callAdminVerificationResend(email) {
     body: JSON.stringify({ email })
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Resend failed (${res.status})`);
+  if (!res.ok) throw new Error(data?.error || `Verification link request failed (${res.status})`);
   return data;
+}
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
@@ -243,7 +251,7 @@ function renderUserRows() {
             ${user.isAdmin && !protectedUser ? `<button class="btn ghost" data-role="removeAdmin" data-id="${esc(user.id)}" type="button">Remove Admin</button>` : ''}
             ${!user.accessApproved ? `<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve Access</button>` : ''}
             ${user.accessApproved && !protectedUser ? `<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Deny Access</button>` : ''}
-            ${isCoreAdminViewer() && !user.emailVerified ? `<button class="btn ghost" data-role="resendVerify" data-id="${esc(user.id)}" type="button">Resend Verify Email</button>` : ''}${isCoreAdminViewer() && !user.manualVerified && !user.emailVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
+            ${isCoreAdminViewer() && !user.emailVerified ? `<button class="btn ghost" data-role="resendVerify" data-id="${esc(user.id)}" type="button">Get Verify Link</button>` : ''}${isCoreAdminViewer() && !user.manualVerified && !user.emailVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
             ${isCoreAdminViewer() && user.manualVerified && !protectedUser ? `<button class="btn ghost" data-role="revokeEmail" data-id="${esc(user.id)}" type="button">Revoke Email</button>` : ''}
             ${!user.banned && !protectedUser ? `<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>` : ''}
             ${user.banned && !protectedUser ? `<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>` : ''}
@@ -271,9 +279,16 @@ function renderUserRows() {
     if (role === 'denyAccess') await updateDoc(ref, { accessApproved: false, updatedAt: Date.now() });
     if (role === 'resendVerify') {
       try {
-        await callAdminVerificationResend(user.email);
-        await updateDoc(ref, { verificationEmailSentAt: Date.now(), verificationEmailSentBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
-        alert(`Verification email sent to ${user.email}.`);
+        const result = await callAdminVerificationResend(user.email);
+        await updateDoc(ref, { verificationLinkGeneratedAt: Date.now(), verificationLinkGeneratedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+        const link = result?.verificationLink || '';
+        if (!link) throw new Error('No verification link was returned.');
+        const copied = await copyText(link);
+        if (copied) {
+          alert(`Verification link copied for ${user.email}. You can now paste it into a text or email.`);
+        } else {
+          prompt(`Copy this verification link for ${user.email}:`, link);
+        }
       } catch (err) {
         console.error(err);
         alert(err?.message || 'Unable to send verification email.');
