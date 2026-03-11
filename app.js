@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error(err);
     alert(`auth_error — ${err?.message || err}`);
   }
+  });
 });
 
 function bindStaticEvents() {
