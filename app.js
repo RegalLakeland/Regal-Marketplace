@@ -157,24 +157,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
-        if ($('verifyNote')) {
-          $('verifyNote').textContent = 'Your account is waiting for admin approval. Please check back later.';
-          $('verifyNote').style.display = 'block';
+      if (user.emailVerified || currentProfile?.manualVerified) {
+        const authUpdates = {};
+        if (user.emailVerified && currentProfile && currentProfile.emailVerified !== true) {
+          authUpdates.emailVerified = true;
+          authUpdates.emailVerifiedAt = Date.now();
         }
-        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-        await signOut(auth);
-        alert('Your account is waiting for admin approval.');
-        return;
-      }
-
-      if (user.emailVerified && currentProfile && currentProfile.emailVerified !== true) {
-        await updateDoc(doc(db, 'profiles', user.uid), {
-          emailVerified: true,
-          emailVerifiedAt: Date.now(),
-          updatedAt: serverTimestamp()
-        }).catch(() => {});
-        currentProfile.emailVerified = true;
+        if (!currentProfile?.accessManuallyDenied && currentProfile?.accessApproved !== true) {
+          authUpdates.accessApproved = true;
+        }
+        if (Object.keys(authUpdates).length) {
+          authUpdates.updatedAt = serverTimestamp();
+          await updateDoc(doc(db, 'profiles', user.uid), authUpdates).catch(() => {});
+          currentProfile = { ...currentProfile, ...authUpdates };
+        }
       }
 
       if (!user.emailVerified && !currentProfile?.manualVerified) {
@@ -185,6 +181,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
         await signOut(auth);
         alert('Please verify your email before logging in.');
+        return;
+      }
+
+      if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
+        if ($('verifyNote')) {
+          $('verifyNote').textContent = 'Your account is waiting for admin approval. Please check back later.';
+          $('verifyNote').style.display = 'block';
+        }
+        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+        await signOut(auth);
+        alert('Your account is waiting for admin approval.');
         return;
       }
 
@@ -405,6 +412,9 @@ async function ensureProfile(user) {
       updates.emailVerified = true;
       updates.emailVerifiedAt = Date.now();
     }
+    if ((user.emailVerified || currentProfile.manualVerified === true) && currentProfile.accessApproved !== true && currentProfile.accessManuallyDenied !== true) {
+      updates.accessApproved = true;
+    }
 
     if (isProtectedCoreAdmin(user.email) && currentProfile.isAdmin !== true) {
       updates.isAdmin = true;
@@ -507,7 +517,7 @@ async function handleSignup() {
     let verifySent = false;
     authUtilityMode = 'signupVerification';
     try {
-      await callVerificationEmailFunction(cred.user, email);
+      await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
       verifySent = true;
       await updateDoc(doc(db, 'profiles', cred.user.uid), {
         verificationEmailSentAt: Date.now(),
@@ -522,8 +532,8 @@ async function handleSignup() {
 
     if (msg) {
       msg.textContent = verifySent
-        ? 'Account created. A verification email was sent to your inbox, and an admin must also approve access. If you cannot find the email, use Resend Verification Email on the login tab, and an admin can manually approve it if needed.'
-        : 'Account created, but the verification email could not be sent automatically. Use Resend Verification Email on the login tab, and an admin can manually approve it if needed.';
+        ? 'Account created. A verification email was sent to your inbox. Click the verification link in your email, then come back and sign in. If you cannot find the email, use Resend Verification Email on the login tab.'
+        : 'Account created, but the verification email could not be sent automatically. Use Resend Verification Email on the login tab.';
       msg.style.display = 'block';
     }
 
@@ -534,7 +544,7 @@ async function handleSignup() {
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
 
     showPane('login');
-    alert(verifySent ? 'Account created. Verification email sent. Your account also needs admin approval before you can sign in.' : 'Account created. Verification email was not confirmed as sent. Use Resend Verification Email on the login tab, and your account still needs admin approval before you can sign in.');
+    alert(verifySent ? 'Account created. Verification email sent. Verify your email, then sign back in.' : 'Account created. Verification email was not confirmed as sent. Use Resend Verification Email on the login tab.');
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
@@ -557,7 +567,7 @@ async function handleResendVerification() {
     applyAuthLanguage();
     authUtilityMode = 'resendVerification';
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    await callVerificationEmailFunction(cred.user, email);
+    await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
     try {
       await updateDoc(doc(db, 'profiles', cred.user.uid), {
         verificationEmailSentAt: Date.now(),
