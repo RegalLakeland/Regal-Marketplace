@@ -219,6 +219,7 @@ function bindStaticEvents() {
   $('tabSignup')?.addEventListener('click', () => showPane('signup'));
 
   $('btnLogin')?.addEventListener('click', handleLogin);
+  $('btnForgotPassword')?.addEventListener('click', handleForgotPassword);
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
@@ -468,6 +469,30 @@ async function handleLogin() {
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
+  }
+}
+
+
+async function handleForgotPassword() {
+  const email = $('loginEmail')?.value.trim().toLowerCase();
+
+  if (!email) {
+    alert('Enter your work email first, then click Forgot Password.');
+    $('loginEmail')?.focus();
+    return;
+  }
+  if (!isAllowedEmail(email)) {
+    alert('Use your @regallakeland.com email.');
+    return;
+  }
+
+  try {
+    applyAuthLanguage();
+    await sendPasswordResetEmail(auth, email);
+    alert('Password reset email sent. Check your inbox.');
+  } catch (err) {
+    console.error(err);
+    alert(`${err?.code || 'reset_error'} — ${err?.message || 'Could not send password reset email.'}`);
   }
 }
 
