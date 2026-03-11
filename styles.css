@@ -279,7 +279,8 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 }
 
 
-#forgotPasswordOverlay .modal{width:min(100%,520px)}
-#forgotPasswordMsg{margin-top:6px}
-#forgotPasswordMsg[data-state="error"]{color:#fecaca}
-#forgotPasswordMsg[data-state="success"]{color:#bbf7d0}
+.auth-assist-note{margin-top:12px;color:#d7e3f6;line-height:1.5}
+#forcePasswordOverlay .modal{width:min(100%,520px)}
+#forcePasswordMsg{margin-top:6px}
+#forcePasswordMsg[data-state="error"]{color:#fecaca}
+#forcePasswordMsg[data-state="success"]{color:#bbf7d0}
