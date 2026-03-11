@@ -100,6 +100,28 @@
     </div>
   </div>
 
+  <div class="overlay" id="forgotPasswordOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Reset Password</strong>
+        <button class="btn ghost" data-close="forgotPasswordOverlay" type="button">Close</button>
+      </div>
+      <div class="modal-b">
+        <div class="note">Enter your Regal Lakeland work email and we’ll send password reset instructions.</div>
+        <div class="spacer-10"></div>
+        <div class="field">
+          <label>Work Email</label>
+          <input id="forgotEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
+        </div>
+        <div class="note" id="forgotPasswordMsg" style="display:none"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close="forgotPasswordOverlay" type="button">Cancel</button>
+        <button class="btn primary" id="btnSendPasswordReset" type="button">Send Reset Email</button>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay" id="nameOverlay" style="display:none">
     <div class="modal">
       <div class="modal-h"><strong>Set Your Display Name</strong></div>

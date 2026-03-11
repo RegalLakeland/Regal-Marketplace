@@ -277,3 +277,9 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
   .eventCounters{grid-template-columns:1fr}
   .eventSpotlight-art{max-height:220px}
 }
+
+
+#forgotPasswordOverlay .modal{width:min(100%,520px)}
+#forgotPasswordMsg{margin-top:6px}
+#forgotPasswordMsg[data-state="error"]{color:#fecaca}
+#forgotPasswordMsg[data-state="success"]{color:#bbf7d0}

@@ -219,7 +219,8 @@ function bindStaticEvents() {
   $('tabSignup')?.addEventListener('click', () => showPane('signup'));
 
   $('btnLogin')?.addEventListener('click', handleLogin);
-  $('btnForgotPassword')?.addEventListener('click', handleForgotPassword);
+  $('btnForgotPassword')?.addEventListener('click', openForgotPasswordModal);
+  $('btnSendPasswordReset')?.addEventListener('click', handleForgotPassword);
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
@@ -465,7 +466,27 @@ async function handleLogin() {
   }
 
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
+    const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
+    const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
+    const banned = profileData?.banned === true;
+
+    if (banned) {
+      await signOut(auth).catch(() => {});
+      alert('Your marketplace access has been disabled. Contact an admin.');
+      return;
+    }
+
+    if (!approved) {
+      await signOut(auth).catch(() => {});
+      if ($('verifyNote')) {
+        $('verifyNote').textContent = 'Your account exists but is still waiting for manual admin approval.';
+        $('verifyNote').style.display = 'block';
+      }
+      alert('Your account is still waiting for manual admin approval.');
+      return;
+    }
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
@@ -473,26 +494,69 @@ async function handleLogin() {
 }
 
 
+function openForgotPasswordModal() {
+  const loginEmail = $('loginEmail')?.value.trim().toLowerCase() || '';
+  const forgotEmail = $('forgotEmail');
+  const msg = $('forgotPasswordMsg');
+  if (forgotEmail) forgotEmail.value = loginEmail;
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.dataset.state = '';
+  }
+  show('forgotPasswordOverlay');
+  setTimeout(() => forgotEmail?.focus(), 20);
+}
+
 async function handleForgotPassword() {
-  const email = $('loginEmail')?.value.trim().toLowerCase();
+  const email = $('forgotEmail')?.value.trim().toLowerCase();
+  const msg = $('forgotPasswordMsg');
+
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.dataset.state = '';
+  }
 
   if (!email) {
-    alert('Enter your work email first, then click Forgot Password.');
-    $('loginEmail')?.focus();
+    if (msg) {
+      msg.textContent = 'Enter your Regal Lakeland work email.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    $('forgotEmail')?.focus();
     return;
   }
   if (!isAllowedEmail(email)) {
-    alert('Use your @regallakeland.com email.');
+    if (msg) {
+      msg.textContent = 'Use your @regallakeland.com email.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    $('forgotEmail')?.focus();
     return;
   }
 
   try {
     applyAuthLanguage();
-    await sendPasswordResetEmail(auth, email);
-    alert('Password reset email sent. Check your inbox.');
+    await sendPasswordResetEmail(auth, email, {
+      url: `${window.location.origin}${window.location.pathname}`,
+      handleCodeInApp: false
+    });
+    if ($('loginEmail')) $('loginEmail').value = email;
+    if (msg) {
+      msg.textContent = 'Password reset email request sent. Check your inbox and spam folder.';
+      msg.dataset.state = 'success';
+      msg.style.display = 'block';
+    }
+    alert(`Password reset email requested for ${email}. Check inbox and spam.`);
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || 'reset_error'} — ${err?.message || 'Could not send password reset email.'}`);
+    if (msg) {
+      msg.textContent = `${err?.code || 'reset_error'} — ${err?.message || 'Could not send password reset email.'}`;
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
   }
 }
 
@@ -550,7 +614,10 @@ async function handleSignup() {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    await signOut(auth);
+    await signOut(auth).catch(() => {});
+    currentUser = null;
+    currentProfile = null;
+    updateAuthUI();
 
     if (msg) {
       msg.textContent = elevated

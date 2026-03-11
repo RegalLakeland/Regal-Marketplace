@@ -99,13 +99,16 @@ service cloud.firestore {
         && (!protectedTarget() || request.auth.uid == uid);
     }
     match /eventResponses/{id} {
-      allow read: if marketplaceMember() || isAdminUser();
+      allow read: if (signedIn() && employeeEmail() && hasProfile() && requesterProfile().banned != true)
+        || isAdminUser();
 
-      allow create, update: if marketplaceMember()
+      allow create, update: if ((signedIn() && employeeEmail() && hasProfile() && requesterProfile().banned != true)
+        || isAdminUser())
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.userEmail == request.auth.token.email;
 
-      allow delete: if (marketplaceMember() && resource.data.uid == request.auth.uid)
+      allow delete: if ((signedIn() && employeeEmail() && hasProfile() && requesterProfile().banned != true)
+        && resource.data.uid == request.auth.uid)
         || isAdminUser();
     }
   }
