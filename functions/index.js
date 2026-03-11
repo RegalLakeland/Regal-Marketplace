@@ -47,6 +47,33 @@ function parseTargetEmail(userRecord, fallbackEmail) {
   return String(userRecord?.email || fallbackEmail || '').trim().toLowerCase();
 }
 
+async function requireAdminUser(req, res) {
+  const authHeader = req.get('Authorization') || '';
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+
+  if (!match) {
+    res.status(401).json({ error: 'Missing authorization token' });
+    return null;
+  }
+
+  const decoded = await admin.auth().verifyIdToken(match[1]);
+  const requesterEmail = String(decoded.email || '').trim().toLowerCase();
+  const requesterUid = String(decoded.uid || '').trim();
+
+  if (CORE_ADMINS.has(requesterEmail)) {
+    return { decoded, requesterEmail, requesterUid };
+  }
+
+  const profileSnap = await admin.firestore().collection('profiles').doc(requesterUid).get();
+  const profile = profileSnap.exists ? profileSnap.data() : null;
+  if (!profile || profile.isAdmin !== true || profile.banned === true) {
+    res.status(403).json({ error: 'Only marketplace admins can use this action.' });
+    return null;
+  }
+
+  return { decoded, requesterEmail, requesterUid, profile };
+}
+
 exports.resendVerificationEmail = functions.region('us-central1').https.onRequest(async (req, res) => {
   applyCors(res);
 
@@ -150,5 +177,65 @@ exports.deleteMarketplaceAccount = functions.region('us-central1').https.onReque
   } catch (error) {
     console.error('deleteMarketplaceAccount failed', error);
     return res.status(500).json({ error: error.message || 'Failed to delete account.' });
+  }
+});
+
+exports.setMarketplaceTemporaryPassword = functions.region('us-central1').https.onRequest(async (req, res) => {
+  applyCors(res);
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const authInfo = await requireAdminUser(req, res);
+    if (!authInfo) return;
+
+    const targetUid = String(req.body?.uid || '').trim();
+    const fallbackEmail = String(req.body?.email || '').trim().toLowerCase();
+    const temporaryPassword = String(req.body?.temporaryPassword || '');
+
+    if (!targetUid) {
+      return res.status(400).json({ error: 'Target uid is required.' });
+    }
+
+    if (temporaryPassword.length < 8) {
+      return res.status(400).json({ error: 'Temporary password must be at least 8 characters.' });
+    }
+
+    const userRecord = await admin.auth().getUser(targetUid);
+    const targetEmail = parseTargetEmail(userRecord, fallbackEmail);
+    const targetIsProtected = CORE_ADMINS.has(targetEmail);
+    const selfReset = authInfo.requesterUid === targetUid;
+
+    if (targetIsProtected && !selfReset) {
+      return res.status(403).json({ error: 'Protected core admin accounts can only reset their own password.' });
+    }
+
+    await admin.auth().updateUser(targetUid, { password: temporaryPassword });
+
+    await admin.firestore().collection('profiles').doc(targetUid).set({
+      mustChangePassword: true,
+      tempPasswordSetAtMs: Date.now(),
+      tempPasswordSetBy: authInfo.requesterEmail,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    return res.status(200).json({
+      ok: true,
+      uid: targetUid,
+      email: targetEmail,
+      selfReset,
+      message: selfReset
+        ? 'Your temporary password was saved. You will be forced to change it after login.'
+        : `Temporary password saved for ${targetEmail || targetUid}.`
+    });
+  } catch (error) {
+    console.error('setMarketplaceTemporaryPassword failed', error);
+    return res.status(500).json({ error: error.message || 'Failed to set temporary password.' });
   }
 });
