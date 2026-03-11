@@ -355,7 +355,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -585,6 +585,7 @@ function showPasswordGate() {
 function hidePasswordGate() {
   const gate = $('passwordGateOverlay');
   if (gate) gate.style.display = 'none';
+  document.body.classList.remove('modal-open');
 }
 
 async function handleForcePasswordChange() {
