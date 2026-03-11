@@ -623,30 +623,57 @@ function currentUserEventResponse() {
   return featuredEventResponses().find((item) => item.uid === currentUser.uid) || null;
 }
 
+function canUseEventRsvp() {
+  return !!(currentUser
+    && currentProfile
+    && currentProfile.banned !== true
+    && /@regallakeland\.com$/i.test(String(currentUser.email || '')));
+}
+
 function renderEventSpotlight() {
   if (!$('featuredEventCard')) return;
   const counts = featuredEventCounts();
   const mine = currentUserEventResponse();
+  const canRsvp = canUseEventRsvp();
   if ($('eventImage')) $('eventImage').src = FEATURED_EVENT.imageUrl;
   if ($('eventAttendCount')) $('eventAttendCount').textContent = String(counts.ATTENDING || 0);
   if ($('eventMaybeCount')) $('eventMaybeCount').textContent = String(counts.MAYBE || 0);
   if ($('eventCantCount')) $('eventCantCount').textContent = String(counts.CANT || 0);
-  if ($('eventStatusText')) $('eventStatusText').textContent = mine ? `Your current response: ${RSVP_LABELS[mine.status] || mine.status}` : 'Choose your response below.';
+  if ($('eventStatusText')) {
+    if (mine) {
+      $('eventStatusText').textContent = `Your current response: ${RSVP_LABELS[mine.status] || mine.status}`;
+    } else if (!currentUser) {
+      $('eventStatusText').textContent = 'Log in with your Regal Lakeland email to RSVP.';
+    } else if (!canRsvp) {
+      $('eventStatusText').textContent = 'Your account can see the event, but RSVP is not ready until your employee profile finishes loading.';
+    } else {
+      $('eventStatusText').textContent = 'Choose your response below.';
+    }
+  }
   ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
     const btn = document.querySelector(`[data-rsvp="${status}"]`);
     if (!btn) return;
     btn.classList.toggle('active-rsvp', mine?.status === status);
+    btn.disabled = !canRsvp;
+    btn.title = canRsvp ? '' : 'Log in with your Regal Lakeland account to RSVP';
   });
 }
 
 async function handleEventRsvp(status) {
-  if (!currentUser || !currentProfile) {
-    alert('Please log in first.');
+  if (!currentUser) {
+    alert('Please log in first to RSVP.');
+    return;
+  }
+  if (!currentProfile) {
+    await ensureProfile(currentUser);
+  }
+  if (!canUseEventRsvp()) {
+    alert('Your account is not ready to RSVP yet. Please refresh and try again.');
     return;
   }
   try {
     const responseRef = doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`);
-    await setDoc(responseRef, {
+    const payload = {
       eventId: FEATURED_EVENT.id,
       eventTitle: FEATURED_EVENT.title,
       uid: currentUser.uid,
@@ -655,9 +682,20 @@ async function handleEventRsvp(status) {
       status,
       updatedAt: serverTimestamp(),
       updatedAtMs: Date.now()
-    }, { merge: true });
+    };
+    await setDoc(responseRef, payload, { merge: true });
+    const existingIndex = eventResponses.findIndex((item) => item.id === `${FEATURED_EVENT.id}__${currentUser.uid}`);
+    const optimistic = { id: `${FEATURED_EVENT.id}__${currentUser.uid}`, ...payload };
+    if (existingIndex >= 0) {
+      eventResponses[existingIndex] = { ...eventResponses[existingIndex], ...optimistic };
+    } else {
+      eventResponses.unshift(optimistic);
+    }
+    renderEventSpotlight();
+    if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
   } catch (err) {
     console.error(err);
+    if ($('eventStatusText')) $('eventStatusText').textContent = err?.message || 'Unable to save your RSVP right now.';
     alert(err?.message || 'Unable to save your RSVP right now.');
   }
 }
