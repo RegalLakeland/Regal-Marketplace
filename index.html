@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Regal Honda Employee Marketplace</title>
+  <title>Regal Lakeland Private Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="auth-open">
@@ -21,10 +21,11 @@
         <div class="login-hero-shade"></div>
         <div class="login-copy">
           <div class="promo-kicker">Regal Honda Lakeland</div>
-          <h1>Employee Marketplace</h1>
-          <p>Buy, sell, share free items, post events, and keep useful finds inside the team.</p>
+          <h1>Private Marketplace</h1>
+          <p>Buy, sell, share free items, post events, and keep useful finds inside the dealership community.</p>
           <div class="promo-pills">
             <span>Private Marketplace</span>
+            <span>Approved Members</span>
           </div>
         </div>
       </section>
@@ -35,8 +36,8 @@
             <div class="brandmark">
               <div class="brand-badge">RH</div>
               <div>
-                <div class="brand-title">Marketplace Access</div>
-                <div class="brand-sub">Use your Regal Lakeland work email</div>
+                <div class="brand-title">Private Marketplace Access</div>
+                <div class="brand-sub">Use your Regal Lakeland work email to request access</div>
               </div>
             </div>
           </div>
@@ -56,22 +57,18 @@
                 <label>Password</label>
                 <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
               </div>
-              <div class="note" id="verifyNote" style="display:none">
-                New accounts are approved manually by admin after review.
-              </div>
+              <div class="note" id="verifyNote" style="display:none"></div>
               <div class="rowBtns stack-mobile">
                 <button class="btn primary" id="btnLogin" type="button">Login</button>
-                <button class="btn ghost" id="btnForgotPassword" type="button">Forgot Password</button>
-                <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Approval Help</button>
               </div>
             </div>
 
             <div id="signupPane" style="display:none">
-              <div class="note">Create an account using your Regal Lakeland work email. New accounts stay pending until admin manually approves them.</div>
+              <div class="note">Create an account using your work email. Access is activated after manual admin approval.</div>
               <div class="spacer-10"></div>
               <div class="field">
                 <label>Full Name</label>
-                <input id="signupName" type="text" placeholder="First Last" autocomplete="name" />
+                <input id="signupFullName" type="text" placeholder="First and last name" autocomplete="name" />
               </div>
               <div class="field">
                 <label>Work Email</label>
@@ -93,32 +90,10 @@
           </div>
 
           <div class="modal-actions">
-            <div class="note tight-note">Allowed domain: <b>@regallakeland.com</b></div>
+            <div class="note tight-note">Allowed domain: <b>@regallakeland.com</b> · New accounts require manual approval.</div>
           </div>
         </div>
       </section>
-    </div>
-  </div>
-
-  <div class="overlay" id="forgotPasswordOverlay" style="display:none">
-    <div class="modal">
-      <div class="modal-h">
-        <strong>Reset Password</strong>
-        <button class="btn ghost" data-close="forgotPasswordOverlay" type="button">Close</button>
-      </div>
-      <div class="modal-b">
-        <div class="note">Enter your Regal Lakeland work email and we’ll send password reset instructions.</div>
-        <div class="spacer-10"></div>
-        <div class="field">
-          <label>Work Email</label>
-          <input id="forgotEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
-        </div>
-        <div class="note" id="forgotPasswordMsg" style="display:none"></div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn ghost" data-close="forgotPasswordOverlay" type="button">Cancel</button>
-        <button class="btn primary" id="btnSendPasswordReset" type="button">Send Reset Email</button>
-      </div>
     </div>
   </div>
 
@@ -133,6 +108,27 @@
         <div class="note">This name will show on posts and replies instead of your email.</div>
       </div>
       <div class="modal-actions"><button class="btn primary" id="btnSaveName" type="button">Save</button></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="passwordGateOverlay" style="display:none">
+    <div class="modal password-gate-modal">
+      <div class="modal-h"><strong>Set Your New Password</strong></div>
+      <div class="modal-b">
+        <div class="note">You signed in with a temporary password. Set a new password now before continuing.</div>
+        <div class="field">
+          <label>New Password</label>
+          <input id="newPasswordInput" type="password" placeholder="Create a new password" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label>Confirm New Password</label>
+          <input id="confirmNewPasswordInput" type="password" placeholder="Re-enter new password" autocomplete="new-password" />
+        </div>
+        <div class="note" id="passwordGateMsg" style="display:none"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnCompletePasswordReset" type="button">Save New Password</button>
+      </div>
     </div>
   </div>
 
@@ -177,32 +173,6 @@
           <div class="hero-stat"><span id="heroOnlineCount">0</span><small>Online Now</small></div>
           <div class="hero-stat"><span id="heroRecentLabel">Latest</span><small id="heroRecentText">Waiting for new posts</small></div>
         </div>
-      </div>
-    </section>
-
-    <section class="glass eventSpotlight" id="featuredEventCard">
-      <div class="eventSpotlight-copy">
-        <div class="eventSpotlight-kicker">Upcoming Regal Event</div>
-        <h2>Save the Date — Regal 50th Anniversary Party</h2>
-        <p class="eventSpotlight-text">Dinner, drinks, live entertainment, and a chance for the team to celebrate together. Let us know if you are planning to attend so leadership can track turnout.</p>
-        <div class="eventSpotlight-meta">
-          <span class="eventMetaPill">May 15th • 6:30 PM</span>
-          <span class="eventMetaPill">Haus 820 • Lakeland</span>
-        </div>
-        <div class="eventCounters">
-          <div class="eventCounter"><strong id="eventAttendCount">0</strong><span>Attending</span></div>
-          <div class="eventCounter"><strong id="eventMaybeCount">0</strong><span>Maybe</span></div>
-          <div class="eventCounter"><strong id="eventCantCount">0</strong><span>Can’t Attend</span></div>
-        </div>
-        <div class="rowBtns eventActions">
-          <button class="btn primary eventBtn" id="btnEventAttend" data-rsvp="ATTENDING" type="button">I’m Attending</button>
-          <button class="btn ghost eventBtn" id="btnEventMaybe" data-rsvp="MAYBE" type="button">Maybe</button>
-          <button class="btn ghost eventBtn" id="btnEventCant" data-rsvp="CANT" type="button">Can’t Attend</button>
-        </div>
-        <div class="note eventStatusNote" id="eventStatusText">Choose your response below.</div>
-      </div>
-      <div class="eventSpotlight-artWrap">
-        <img id="eventImage" class="eventSpotlight-art" src="Images/background5.jpg" alt="Regal Lakeland 50th anniversary event flyer" />
       </div>
     </section>
 
@@ -305,7 +275,7 @@
           </div>
         </div>
 
-        <div class="note">Posts are visible to approved members only. Sold posts stay visible and can be reactivated by admin approval.</div>
+        <div class="note">Posts are visible to logged-in employees only. Sold posts stay visible and can be reactivated by admin approval.</div>
       </div>
       <div class="modal-actions sticky-actions">
         <button class="btn primary" id="btnSavePost" type="button">Post Listing</button>
