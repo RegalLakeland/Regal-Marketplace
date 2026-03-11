@@ -23,7 +23,7 @@ body{
   overflow-x:hidden;
   position:relative;
 }
-body.auth-open{overflow:hidden}
+body.auth-open{overflow-y:auto}
 body.modal-open{overflow:hidden}
 input,textarea,select,button{font:inherit}
 a{color:inherit}

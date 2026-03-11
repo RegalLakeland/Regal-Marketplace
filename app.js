@@ -144,6 +144,7 @@ window.addEventListener('error', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  removeLegacyForgotPasswordUI();
   bindStaticEvents();
   renderBoards();
   renderListings();
@@ -217,6 +218,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   });
 });
+
+
+function removeLegacyForgotPasswordUI() {
+  ['btnForgotPassword', 'forgotPasswordBtn', 'forgotPasswordLink', 'resetPasswordBtn', 'resetPasswordLink', 'forgotPasswordOverlay', 'resetPasswordOverlay'].forEach((id) => {
+    const el = $(id);
+    if (el) el.remove();
+  });
+
+  document.querySelectorAll('button, a').forEach((el) => {
+    const text = (el.textContent || '').trim().toLowerCase();
+    if (text === 'forgot password?' || text === 'forgot password' || text === 'reset password') {
+      el.remove();
+    }
+  });
+}
 
 function bindStaticEvents() {
   $('tabLogin')?.addEventListener('click', () => showPane('login'));
@@ -454,6 +470,12 @@ function updateAuthUI() {
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
   if (!loggedIn && $('forcePasswordOverlay')) $('forcePasswordOverlay').style.display = 'none';
+
+  if (loggedIn) {
+    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'];
+    const hasVisibleModal = visibleOverlayIds.some((overlayId) => $(overlayId)?.style.display !== 'none');
+    if (!hasVisibleModal) document.body.classList.remove('modal-open');
+  }
 }
 
 async function handleLogin() {
@@ -493,6 +515,10 @@ async function handleLogin() {
     }
   } catch (err) {
     console.error(err);
+    if (err?.code === 'auth/invalid-credential') {
+      alert('That email/password combination was rejected by Firebase. If you just set a temporary password, copy it exactly as shown and make sure you are signing in with the exact approved email address. If it still fails, set a new temporary password from the admin panel and try again.');
+      return;
+    }
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
   }
 }

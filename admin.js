@@ -409,7 +409,7 @@ function renderUserRows() {
       }
       const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
       const copied = await copyText(String(temporaryPassword).trim());
-      alert(`${result?.message || 'Temporary password saved.'}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
+      alert(`${result?.message || 'Temporary password saved.'}${result?.note ? ` ${result.note}` : ''}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
       return;
     }
     if (role === 'deleteDuplicate') {
