@@ -47,6 +47,34 @@ function parseTargetEmail(userRecord, fallbackEmail) {
   return String(userRecord?.email || fallbackEmail || '').trim().toLowerCase();
 }
 
+async function resolveTargetUser(targetUid, fallbackEmail) {
+  const uid = String(targetUid || '').trim();
+  const email = String(fallbackEmail || '').trim().toLowerCase();
+
+  let userRecord = null;
+  let resolvedUid = uid;
+
+  if (uid) {
+    try {
+      userRecord = await admin.auth().getUser(uid);
+      resolvedUid = userRecord.uid;
+    } catch (err) {
+      if (err?.code !== 'auth/user-not-found') throw err;
+    }
+  }
+
+  if (!userRecord && email) {
+    try {
+      userRecord = await admin.auth().getUserByEmail(email);
+      resolvedUid = userRecord.uid;
+    } catch (err) {
+      if (err?.code !== 'auth/user-not-found') throw err;
+    }
+  }
+
+  return { userRecord, resolvedUid, resolvedEmail: parseTargetEmail(userRecord, email) };
+}
+
 async function requireAdminUser(req, res) {
   const authHeader = req.get('Authorization') || '';
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -127,21 +155,16 @@ exports.deleteMarketplaceAccount = functions.region('us-central1').https.onReque
     const authInfo = await requireCoreAdmin(req, res);
     if (!authInfo) return;
 
-    const targetUid = String(req.body?.uid || '').trim();
+    const requestedUid = String(req.body?.uid || '').trim();
     const fallbackEmail = String(req.body?.email || '').trim().toLowerCase();
 
-    if (!targetUid) {
-      return res.status(400).json({ error: 'Target uid is required.' });
+    if (!requestedUid && !fallbackEmail) {
+      return res.status(400).json({ error: 'Target uid or email is required.' });
     }
 
-    let userRecord = null;
-    try {
-      userRecord = await admin.auth().getUser(targetUid);
-    } catch (err) {
-      if (err?.code !== 'auth/user-not-found') throw err;
-    }
-
-    const targetEmail = parseTargetEmail(userRecord, fallbackEmail);
+    const { userRecord, resolvedUid, resolvedEmail } = await resolveTargetUser(requestedUid, fallbackEmail);
+    const targetUid = resolvedUid || requestedUid;
+    const targetEmail = resolvedEmail;
     const targetIsProtected = CORE_ADMINS.has(targetEmail);
     const selfDelete = authInfo.requesterUid === targetUid;
 
@@ -195,20 +218,25 @@ exports.setMarketplaceTemporaryPassword = functions.region('us-central1').https.
     const authInfo = await requireAdminUser(req, res);
     if (!authInfo) return;
 
-    const targetUid = String(req.body?.uid || '').trim();
+    const requestedUid = String(req.body?.uid || '').trim();
     const fallbackEmail = String(req.body?.email || '').trim().toLowerCase();
     const temporaryPassword = String(req.body?.temporaryPassword || '');
 
-    if (!targetUid) {
-      return res.status(400).json({ error: 'Target uid is required.' });
+    if (!requestedUid && !fallbackEmail) {
+      return res.status(400).json({ error: 'Target uid or email is required.' });
     }
 
     if (temporaryPassword.length < 8) {
       return res.status(400).json({ error: 'Temporary password must be at least 8 characters.' });
     }
 
-    const userRecord = await admin.auth().getUser(targetUid);
-    const targetEmail = parseTargetEmail(userRecord, fallbackEmail);
+    const { userRecord, resolvedUid, resolvedEmail } = await resolveTargetUser(requestedUid, fallbackEmail);
+    if (!userRecord || !resolvedUid) {
+      return res.status(404).json({ error: 'No Firebase Authentication user was found for that account. Open Authentication > Users and confirm the email exists there.' });
+    }
+
+    const targetUid = resolvedUid;
+    const targetEmail = resolvedEmail;
     const targetIsProtected = CORE_ADMINS.has(targetEmail);
     const selfReset = authInfo.requesterUid === targetUid;
 
@@ -218,12 +246,33 @@ exports.setMarketplaceTemporaryPassword = functions.region('us-central1').https.
 
     await admin.auth().updateUser(targetUid, { password: temporaryPassword });
 
-    await admin.firestore().collection('profiles').doc(targetUid).set({
+    const db = admin.firestore();
+    const batch = db.batch();
+    const stamp = Date.now();
+    const profilePayload = {
       mustChangePassword: true,
-      tempPasswordSetAtMs: Date.now(),
+      tempPasswordSetAtMs: stamp,
       tempPasswordSetBy: authInfo.requesterEmail,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      authUid: targetUid
+    };
+
+    batch.set(db.collection('profiles').doc(targetUid), profilePayload, { merge: true });
+
+    if (targetEmail) {
+      const dupSnap = await db.collection('profiles').where('email', '==', targetEmail).get();
+      dupSnap.forEach((docSnap) => {
+        if (docSnap.id !== targetUid) {
+          batch.set(docSnap.ref, {
+            authUid: targetUid,
+            tempPasswordSetAtMs: stamp,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+      });
+    }
+
+    await batch.commit();
 
     return res.status(200).json({
       ok: true,
@@ -232,7 +281,10 @@ exports.setMarketplaceTemporaryPassword = functions.region('us-central1').https.
       selfReset,
       message: selfReset
         ? 'Your temporary password was saved. You will be forced to change it after login.'
-        : `Temporary password saved for ${targetEmail || targetUid}.`
+        : `Temporary password saved for ${targetEmail || targetUid}.`,
+      note: requestedUid && requestedUid !== targetUid
+        ? 'The selected profile row did not match the live Auth user, so the reset was applied to the real Firebase Authentication account for this email.'
+        : ''
     });
   } catch (error) {
     console.error('setMarketplaceTemporaryPassword failed', error);
