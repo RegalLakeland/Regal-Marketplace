@@ -270,7 +270,7 @@ function bindStaticEvents() {
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
-  $('btnChangeTempPassword')?.addEventListener('click', handleForcePasswordChange);
+  $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -355,7 +355,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -565,32 +565,32 @@ async function handleLogin() {
 
 
 function showPasswordGate() {
-  const msg = $('forcePasswordMsg');
+  const msg = $('passwordGateMsg');
   if (msg) {
     msg.style.display = 'none';
     msg.textContent = '';
     msg.dataset.state = '';
   }
-  if ($('forcePassword')) $('forcePassword').value = '';
-  if ($('forcePassword2')) $('forcePassword2').value = '';
-  const gate = $('passwordGate');
-  if (gate) gate.style.display = 'block';
-  document.body.classList.remove('modal-open');
+  if ($('newPasswordInput')) $('newPasswordInput').value = '';
+  if ($('confirmNewPasswordInput')) $('confirmNewPasswordInput').value = '';
+  const gate = $('passwordGateOverlay');
+  if (gate) gate.style.display = 'flex';
+  document.body.classList.add('modal-open');
   setTimeout(() => {
     gate?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    $('forcePassword')?.focus();
+    $('newPasswordInput')?.focus();
   }, 20);
 }
 
 function hidePasswordGate() {
-  const gate = $('passwordGate');
+  const gate = $('passwordGateOverlay');
   if (gate) gate.style.display = 'none';
 }
 
 async function handleForcePasswordChange() {
-  const password = $('forcePassword')?.value || '';
-  const password2 = $('forcePassword2')?.value || '';
-  const msg = $('forcePasswordMsg');
+  const password = $('newPasswordInput')?.value || '';
+  const password2 = $('confirmNewPasswordInput')?.value || '';
+  const msg = $('passwordGateMsg');
 
   if (msg) {
     msg.style.display = 'none';
