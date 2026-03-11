@@ -1,0 +1,12 @@
+This patch includes:
+- Manual approval-only account flow
+- Full name required at signup and shown in admin approval view
+- Delete-account UI removed from admin panel
+- Verification-link copy flow removed from admin panel
+- New Regal 50th Anniversary event banner with RSVP buttons
+- Admin RSVP tracker for Attending / Maybe / Can't Attend
+- Firestore rules updated for eventResponses collection
+
+Important:
+Manual-only approval does NOT prove mailbox ownership by itself.
+A user can still type a regallakeland.com email unless you also use email verification or company SSO.

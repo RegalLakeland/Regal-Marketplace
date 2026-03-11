@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Marketplace Admin</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="site-bg" aria-hidden="true">
+    <div class="market-bg market-bg1"></div>
+    <div class="market-bg market-bg2"></div>
+    <div class="market-bg market-bg3"></div>
+    <div class="market-bg-overlay"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="left">
+      <div class="logo"><span class="logo-dot"></span><span class="logo-text">Regal Honda</span></div>
+      <div class="title">
+        <div class="h1">Marketplace Admin</div>
+        <div class="h2">Moderation tools, manual account approvals, RSVP visibility, and protected account safeguards</div>
+      </div>
+    </div>
+    <div class="right">
+      <a class="btn ghost" href="index.html">Back to Marketplace</a>
+      <span class="pill" id="adminUser">Checking access…</span>
+    </div>
+  </header>
+
+  <main class="admin-wrap">
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-title">Admin Dashboard</div>
+        <div class="meta">Mark sold removes items from normal employee view. Admin can mark items active again, feature posts, hide posts, or approve/deny reactivation requests.</div>
+      </div>
+      <div class="panel-b admin-grid">
+        <section class="panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h"><div class="panel-title">Listings</div></div>
+          <div class="panel-b table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="listingRows"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h"><div><div class="panel-title">User Access</div><div class="meta">Search users, review full names, approve pending manual access, and clean up duplicate profile rows. Manual-only approval does not prove mailbox ownership, so unverified users are flagged as Not Proven.</div></div></div>
+          <div class="panel-b">
+            <div class="admin-tools">
+              <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
+              <select id="userFilter" class="adminFilter">
+                <option value="ALL">All Users</option>
+                <option value="PENDING">Pending Access</option>
+                <option value="ADMIN">Admins</option>
+                <option value="MODERATOR">Moderators</option>
+                <option value="BANNED">Blocked</option>
+                <option value="DUPLICATES">Duplicates</option>
+              </select>
+              <div class="admin-summary">
+                <span class="pill" id="adminUserCount">0</span>
+                <span class="pill" id="adminPendingCount">0 pending</span>
+              </div>
+            </div>
+            <div class="table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>User</th><th>Display Name</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+          </div>
+        </section>
+        <section class="panel admin-rsvp-panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h">
+            <div>
+              <div class="panel-title">May Event RSVP</div>
+              <div class="meta">Regal 50th Anniversary Party attendance tracker for leadership review.</div>
+            </div>
+            <div class="admin-summary">
+              <span class="pill" id="rsvpAttendCount">0 attending</span>
+              <span class="pill" id="rsvpMaybeCount">0 maybe</span>
+              <span class="pill" id="rsvpCantCount">0 can’t attend</span>
+            </div>
+          </div>
+          <div class="panel-b table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>Name</th><th>Email</th><th>Response</th><th>Updated</th></tr>
+              </thead>
+              <tbody id="rsvpRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

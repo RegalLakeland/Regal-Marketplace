@@ -1,0 +1,10 @@
+Updated the May event banner to display about 25% smaller and fixed RSVP writes for Regal employee/admin accounts.
+
+Files changed:
+- app.js
+- styles.css
+- firestore.rules
+
+Notes:
+- Deploy updated firestore.rules for the RSVP permission fix to go live.
+- Buttons now disable when the user is not eligible to RSVP and show a clearer status message.

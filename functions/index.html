@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Regal Honda Employee Marketplace</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="auth-open">
+  <div class="site-bg" aria-hidden="true">
+    <div class="market-bg market-bg1"></div>
+    <div class="market-bg market-bg2"></div>
+    <div class="market-bg market-bg3"></div>
+    <div class="market-bg-overlay"></div>
+  </div>
+
+  <div class="overlay login-overlay" id="loginOverlay">
+    <div class="login-shell">
+      <section class="login-promo" aria-hidden="true">
+        <div class="login-hero-image"></div>
+        <div class="login-hero-shade"></div>
+        <div class="login-copy">
+          <div class="promo-kicker">Regal Honda Lakeland</div>
+          <h1>Employee Marketplace</h1>
+          <p>Buy, sell, share free items, post events, and keep useful finds inside the team.</p>
+          <div class="promo-pills">
+            <span>Private Marketplace</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="login-card-wrap">
+        <div class="modal login-card">
+          <div class="modal-h">
+            <div class="brandmark">
+              <div class="brand-badge">RH</div>
+              <div>
+                <div class="brand-title">Marketplace Access</div>
+                <div class="brand-sub">Use your Regal Lakeland work email</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-b">
+            <div class="authTabs">
+              <button class="tabBtn active" id="tabLogin" type="button">Login</button>
+              <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
+            </div>
+
+            <div id="loginPane">
+              <div class="field">
+                <label>Email</label>
+                <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
+              </div>
+              <div class="field">
+                <label>Password</label>
+                <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+              </div>
+              <div class="note" id="verifyNote" style="display:none">
+                New accounts are approved manually by admin after review.
+              </div>
+              <div class="rowBtns stack-mobile">
+                <button class="btn primary" id="btnLogin" type="button">Login</button>
+                <button class="btn ghost" id="btnForgotPassword" type="button">Forgot Password</button>
+                <button class="btn ghost" id="btnResendVerify" type="button" style="display:none">Approval Help</button>
+              </div>
+            </div>
+
+            <div id="signupPane" style="display:none">
+              <div class="note">Create an account using your Regal Lakeland work email. New accounts stay pending until admin manually approves them.</div>
+              <div class="spacer-10"></div>
+              <div class="field">
+                <label>Full Name</label>
+                <input id="signupName" type="text" placeholder="First Last" autocomplete="name" />
+              </div>
+              <div class="field">
+                <label>Work Email</label>
+                <input id="signupEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
+              </div>
+              <div class="field">
+                <label>Password</label>
+                <input id="signupPassword" type="password" placeholder="Create a password" autocomplete="new-password" />
+              </div>
+              <div class="field">
+                <label>Confirm Password</label>
+                <input id="signupPassword2" type="password" placeholder="Re-enter password" autocomplete="new-password" />
+              </div>
+              <div class="note" id="signupMsg" style="display:none"></div>
+              <div class="modal-actions compact-actions">
+                <button class="btn primary" id="btnSignup" type="button">Create Account</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <div class="note tight-note">Allowed domain: <b>@regallakeland.com</b></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="overlay" id="forgotPasswordOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-h">
+        <strong>Reset Password</strong>
+        <button class="btn ghost" data-close="forgotPasswordOverlay" type="button">Close</button>
+      </div>
+      <div class="modal-b">
+        <div class="note">Enter your Regal Lakeland work email and we’ll send password reset instructions.</div>
+        <div class="spacer-10"></div>
+        <div class="field">
+          <label>Work Email</label>
+          <input id="forgotEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="email" />
+        </div>
+        <div class="note" id="forgotPasswordMsg" style="display:none"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close="forgotPasswordOverlay" type="button">Cancel</button>
+        <button class="btn primary" id="btnSendPasswordReset" type="button">Send Reset Email</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="nameOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-h"><strong>Set Your Display Name</strong></div>
+      <div class="modal-b">
+        <div class="field">
+          <label>First &amp; Last Name</label>
+          <input id="displayNameInput" placeholder="e.g. John Smith" autocomplete="name" />
+        </div>
+        <div class="note">This name will show on posts and replies instead of your email.</div>
+      </div>
+      <div class="modal-actions"><button class="btn primary" id="btnSaveName" type="button">Save</button></div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="left">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <span class="logo-text">Regal Honda</span>
+      </div>
+      <div class="title">
+        <div class="h1">Employee Marketplace</div>
+        <div class="h2">Forum boards for free items, buy and sell, garage sales, events, work news, and services.</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <span class="pill" id="pillUser">Not signed in</span>
+      <span class="pill" id="boardPill">All</span>
+      <a class="btn ghost" id="adminLink" href="admin.html" style="display:none">Admin</a>
+      <button class="btn primary" id="btnNew" type="button">+ Post</button>
+      <button class="btn danger" id="btnLogout" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="pageShell forum-layout">
+    <section class="glass heroBanner">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">Regal Employee Marketplace</div>
+          <h1 id="feedTitle">All Boards</h1>
+          <div class="subline" id="countLine">0 shown | 0 total</div>
+          <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share events, and keep useful finds inside the dealership community.</p>
+          <div class="rowBtns hero-actions">
+            <button class="btn primary" id="heroPostBtn" type="button">Post Item</button>
+            <button class="btn ghost" id="heroFreeBtn" type="button">Browse Free Items</button>
+          </div>
+        </div>
+        <div class="hero-side glass-soft">
+          <div class="hero-stat"><span id="heroBoardCount">6</span><small>Boards</small></div>
+          <div class="hero-stat"><span id="heroListingCount">0</span><small>Listings</small></div>
+          <div class="hero-stat"><span id="heroRegisteredCount">0</span><small>Registered Users</small></div>
+          <div class="hero-stat"><span id="heroOnlineCount">0</span><small>Online Now</small></div>
+          <div class="hero-stat"><span id="heroRecentLabel">Latest</span><small id="heroRecentText">Waiting for new posts</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="glass eventSpotlight" id="featuredEventCard">
+      <div class="eventSpotlight-copy">
+        <div class="eventSpotlight-kicker">Upcoming Regal Event</div>
+        <h2>Save the Date — Regal 50th Anniversary Party</h2>
+        <p class="eventSpotlight-text">Dinner, drinks, live entertainment, and a chance for the team to celebrate together. Let us know if you are planning to attend so leadership can track turnout.</p>
+        <div class="eventSpotlight-meta">
+          <span class="eventMetaPill">May 15th • 6:30 PM</span>
+          <span class="eventMetaPill">Haus 820 • Lakeland</span>
+        </div>
+        <div class="eventCounters">
+          <div class="eventCounter"><strong id="eventAttendCount">0</strong><span>Attending</span></div>
+          <div class="eventCounter"><strong id="eventMaybeCount">0</strong><span>Maybe</span></div>
+          <div class="eventCounter"><strong id="eventCantCount">0</strong><span>Can’t Attend</span></div>
+        </div>
+        <div class="rowBtns eventActions">
+          <button class="btn primary eventBtn" id="btnEventAttend" data-rsvp="ATTENDING" type="button">I’m Attending</button>
+          <button class="btn ghost eventBtn" id="btnEventMaybe" data-rsvp="MAYBE" type="button">Maybe</button>
+          <button class="btn ghost eventBtn" id="btnEventCant" data-rsvp="CANT" type="button">Can’t Attend</button>
+        </div>
+        <div class="note eventStatusNote" id="eventStatusText">Choose your response below.</div>
+      </div>
+      <div class="eventSpotlight-artWrap">
+        <img id="eventImage" class="eventSpotlight-art" src="Images/background5.jpg" alt="Regal Lakeland 50th anniversary event flyer" />
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <aside class="glass boardPanel">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Boards</div>
+            <div class="section-sub">Choose a section to browse or post</div>
+          </div>
+        </div>
+        <div class="boards forumBoards" id="boards"></div>
+      </aside>
+
+      <section class="glass feedPanel">
+        <div class="section-head filters-head">
+          <div>
+            <div class="section-title">Listings</div>
+            <div class="section-sub">Recent activity inside the selected board</div>
+          </div>
+          <div class="filters compact-filters">
+            <input id="q" placeholder="Search title, description, location, contact…" />
+            <select id="st">
+              <option value="ALL">All</option>
+              <option value="ACTIVE">Active</option>
+              <option value="SOLD">Closed</option>
+            </select>
+            <select id="sort">
+              <option value="NEW">Newest</option>
+              <option value="OLD">Oldest</option>
+              <option value="PRICE_ASC">Price ↑</option>
+              <option value="PRICE_DESC">Price ↓</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="cards topicList" id="cards"></div>
+        <div class="note emptyState" id="empty" style="display:none">No listings match your filters.</div>
+      </section>
+    </section>
+  </main>
+
+  <div class="overlay" id="postOverlay" style="display:none">
+    <div class="modal wide modal-scroll">
+      <div class="modal-h sticky-head">
+        <strong>Create Post</strong>
+        <button class="btn ghost" data-close="postOverlay" type="button">Close</button>
+      </div>
+      <div class="modal-b">
+        <div class="grid2">
+          <div class="field">
+            <label>Board</label>
+            <select id="fBoard">
+              <option value="FREE">Free Items</option>
+              <option value="BUYSELL">Buy / Sell</option>
+              <option value="GARAGE">Garage Sales</option>
+              <option value="EVENTS">Events</option>
+              <option value="WORK">Work News</option>
+              <option value="SERVICES">Local Services</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="fStatus">
+              <option value="ACTIVE">Active</option>
+              <option value="SOLD">Closed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Title</label>
+          <input id="fTitle" placeholder="e.g. Free couch • Garage sale Saturday…" />
+        </div>
+
+        <div class="grid2">
+          <div class="field">
+            <label>Price (optional)</label>
+            <input id="fPrice" inputmode="decimal" placeholder="0 for free, 25, 100…" />
+          </div>
+          <div class="field">
+            <label>Location (optional)</label>
+            <input id="fLocation" placeholder="Lakeland, Plant City…" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Description</label>
+          <textarea id="fDesc" placeholder="Condition, pickup window, details…"></textarea>
+        </div>
+
+        <div class="grid2">
+          <div class="field">
+            <label>Contact person name / details (optional)</label>
+            <input id="fContact" placeholder="Contact name | text/call/email or where to find you at work" />
+          </div>
+          <div class="field">
+            <label>Photo (optional)</label>
+            <input id="fPhoto" type="file" accept="image/*" />
+          </div>
+        </div>
+
+        <div class="note">Posts are visible to approved members only. Sold posts stay visible and can be reactivated by admin approval.</div>
+      </div>
+      <div class="modal-actions sticky-actions">
+        <button class="btn primary" id="btnSavePost" type="button">Post Listing</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="threadOverlay" style="display:none;">
+    <div class="modal wide modal-scroll">
+      <div class="modal-h sticky-head">
+        <strong id="threadTitle">Thread</strong>
+        <button class="btn ghost" data-close="threadOverlay" type="button">Close</button>
+      </div>
+
+      <div class="modal-b">
+        <div id="threadMeta" class="meta"></div>
+        <div id="threadBody"></div>
+
+        <hr />
+
+        <div id="threadReplies"></div>
+
+        <div class="field thread-reply-box">
+          <label>Reply</label>
+          <textarea id="replyText" rows="4" placeholder="Write a reply"></textarea>
+        </div>
+
+        <div class="rowBtns sticky-actions thread-actions">
+          <button id="btnSendReply" class="btn primary" type="button">Send Reply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
