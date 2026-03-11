@@ -19,7 +19,7 @@
       <div class="logo"><span class="logo-dot"></span><span class="logo-text">Regal Honda</span></div>
       <div class="title">
         <div class="h1">Marketplace Admin</div>
-        <div class="h2">Moderation tools, account access controls, protected account safeguards, and visibility controls</div>
+        <div class="h2">Moderation tools, manual account approvals, RSVP visibility, and protected account safeguards</div>
       </div>
     </div>
     <div class="right">
@@ -47,7 +47,7 @@
           </div>
         </section>
         <section class="panel" style="background:rgba(8,16,30,.52)">
-          <div class="panel-h"><div><div class="panel-title">User Access</div><div class="meta">Search users, filter by role/status, approve pending access, generate verification links, delete test accounts, and clean up duplicate profile rows.</div></div></div>
+          <div class="panel-h"><div><div class="panel-title">User Access</div><div class="meta">Search users, review full names, approve pending manual access, and clean up duplicate profile rows. Manual-only approval does not prove mailbox ownership, so unverified users are flagged as Not Proven.</div></div></div>
           <div class="panel-b">
             <div class="admin-tools">
               <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
@@ -70,6 +70,28 @@
                 <tr><th>User</th><th>Display Name</th><th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody id="userRows"></tbody>
+            </table>
+          </div>
+          </div>
+        </section>
+        <section class="panel admin-rsvp-panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h">
+            <div>
+              <div class="panel-title">May Event RSVP</div>
+              <div class="meta">Regal 50th Anniversary Party attendance tracker for leadership review.</div>
+            </div>
+            <div class="admin-summary">
+              <span class="pill" id="rsvpAttendCount">0 attending</span>
+              <span class="pill" id="rsvpMaybeCount">0 maybe</span>
+              <span class="pill" id="rsvpCantCount">0 can’t attend</span>
+            </div>
+          </div>
+          <div class="panel-b table-scroll">
+            <table class="adminTable">
+              <thead>
+                <tr><th>Name</th><th>Email</th><th>Response</th><th>Updated</th></tr>
+              </thead>
+              <tbody id="rsvpRows"></tbody>
             </table>
           </div>
         </section>

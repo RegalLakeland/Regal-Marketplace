@@ -29,6 +29,7 @@ service cloud.firestore {
         && (
           request.auth.token.email_verified == true
           || (hasProfile() && requesterProfile().manualVerified == true)
+          || (hasProfile() && requesterProfile().accessApproved == true)
         );
     }
 
@@ -96,6 +97,16 @@ service cloud.firestore {
 
       allow delete: if isAdminUser()
         && (!protectedTarget() || request.auth.uid == uid);
+    }
+    match /eventResponses/{id} {
+      allow read: if marketplaceMember() || isAdminUser();
+
+      allow create, update: if marketplaceMember()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email;
+
+      allow delete: if (marketplaceMember() && resource.data.uid == request.auth.uid)
+        || isAdminUser();
     }
   }
 }

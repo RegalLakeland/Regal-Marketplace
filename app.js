@@ -92,6 +92,21 @@ const BOARD_DEFS = [
   { key: 'SERVICES', label: 'Local Services', desc: 'Side work and help needed' }
 ];
 
+const FEATURED_EVENT = {
+  id: 'regal-50th-anniversary-may-15-2026',
+  title: 'Regal 50th Anniversary Party',
+  subtitle: 'Dinner, drinks & live entertainment',
+  dateLine: 'May 15th • 6:30 PM',
+  locationLine: 'Haus 820 • 820 Massachusetts Ave, Lakeland, FL',
+  imageUrl: 'Images/background5.jpg'
+};
+
+const RSVP_LABELS = {
+  ATTENDING: 'Attending',
+  MAYBE: 'Maybe',
+  CANT: "Can't Attend"
+};
+
 let currentUser = null;
 let currentProfile = null;
 let listings = [];
@@ -101,6 +116,8 @@ let listingsUnsub = null;
 let profilesUnsub = null;
 let presenceTimer = null;
 let profiles = [];
+let eventResponses = [];
+let eventResponsesUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
@@ -134,88 +151,66 @@ document.addEventListener('DOMContentLoaded', () => {
   renderListings();
 
   onAuthStateChanged(auth, async (user) => {
-    try {
-      if (!user) {
-        currentUser = null;
-        currentProfile = null;
-        stopListeners();
-        updateAuthUI();
-        return;
-      }
-
-      await user.reload().catch(() => {});
-      currentUser = user;
-      if (authUtilityMode === 'signupVerification' || authUtilityMode === 'resendVerification') {
-        return;
-      }
-      lastUnverifiedEmail = user.email || '';
-      await ensureProfile(user);
-
-      if (currentProfile?.banned) {
-        alert('Your marketplace access has been disabled. Contact an admin.');
-        await signOut(auth);
-        return;
-      }
-
-      if (user.emailVerified || currentProfile?.manualVerified) {
-        const authUpdates = {};
-        if (user.emailVerified && currentProfile && currentProfile.emailVerified !== true) {
-          authUpdates.emailVerified = true;
-          authUpdates.emailVerifiedAt = Date.now();
-        }
-        if (!currentProfile?.accessManuallyDenied && currentProfile?.accessApproved !== true) {
-          authUpdates.accessApproved = true;
-        }
-        if (Object.keys(authUpdates).length) {
-          authUpdates.updatedAt = serverTimestamp();
-          await updateDoc(doc(db, 'profiles', user.uid), authUpdates).catch(() => {});
-          currentProfile = { ...currentProfile, ...authUpdates };
-        }
-      }
-
-      if (!user.emailVerified && !currentProfile?.manualVerified) {
-        if ($('verifyNote')) {
-          $('verifyNote').textContent = 'Your email is not verified yet. Check your inbox, click the verification link, then come back and log in.';
-          $('verifyNote').style.display = 'block';
-        }
-        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
-        await signOut(auth);
-        alert('Please verify your email before logging in.');
-        return;
-      }
-
-      if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
-        if ($('verifyNote')) {
-          $('verifyNote').textContent = 'Your account is waiting for admin approval. Please check back later.';
-          $('verifyNote').style.display = 'block';
-        }
-        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-        await signOut(auth);
-        alert('Your account is waiting for admin approval.');
-        return;
-      }
-
-      lastUnverifiedEmail = '';
-      if ($('verifyNote')) $('verifyNote').style.display = 'none';
-      if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
+  try {
+    if (!user) {
+      currentUser = null;
+      currentProfile = null;
+      stopListeners();
       updateAuthUI();
-      startListingsListener();
-      startProfilesListener();
-      touchPresence();
-      if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
-
-      if (!currentProfile?.displayName) {
-        if ($('displayNameInput')) $('displayNameInput').value = user.displayName || '';
-        show('nameOverlay');
-      } else {
-        hide('nameOverlay');
-      }
-    } catch (err) {
-      console.error(err);
-      alert(err?.message || 'Authentication error.');
+      return;
     }
-  });
+
+    await user.reload().catch(() => {});
+    currentUser = user;
+    lastUnverifiedEmail = user.email || '';
+    await ensureProfile(user);
+
+    if (currentProfile?.banned) {
+      alert('Your marketplace access has been disabled. Contact an admin.');
+      await signOut(auth);
+      return;
+    }
+
+    if (user.emailVerified && currentProfile && currentProfile.emailVerified !== true) {
+      const authUpdates = {
+        emailVerified: true,
+        emailVerifiedAt: Date.now(),
+        updatedAt: serverTimestamp()
+      };
+      await updateDoc(doc(db, 'profiles', user.uid), authUpdates).catch(() => {});
+      currentProfile = { ...currentProfile, ...authUpdates };
+    }
+
+    if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
+      if ($('verifyNote')) {
+        $('verifyNote').textContent = 'Your account has been created and is waiting for manual admin approval.';
+        $('verifyNote').style.display = 'block';
+      }
+      if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+      await signOut(auth);
+      alert('Your account is waiting for manual admin approval.');
+      return;
+    }
+
+    lastUnverifiedEmail = '';
+    if ($('verifyNote')) $('verifyNote').style.display = 'none';
+    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+
+    updateAuthUI();
+    startListingsListener();
+    startProfilesListener();
+    startEventResponsesListener();
+    touchPresence();
+    if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
+
+    if (!currentProfile.displayName) {
+      $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+      show('nameOverlay');
+    }
+  } catch (err) {
+    console.error(err);
+    alert(`auth_error — ${err?.message || err}`);
+  }
 });
 
 function bindStaticEvents() {
@@ -226,6 +221,9 @@ function bindStaticEvents() {
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
+  $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
+  $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
+  $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
   $('btnLogout')?.addEventListener('click', async () => {
     await signOut(auth);
   });
@@ -356,14 +354,20 @@ function stopListeners() {
     profilesUnsub();
     profilesUnsub = null;
   }
+  if (eventResponsesUnsub) {
+    eventResponsesUnsub();
+    eventResponsesUnsub = null;
+  }
   if (presenceTimer) {
     clearInterval(presenceTimer);
     presenceTimer = null;
   }
   listings = [];
   profiles = [];
+  eventResponses = [];
   activeThread = null;
   updateHeroPeopleStats();
+  renderEventSpotlight();
   renderBoards();
   renderListings();
 }
@@ -376,10 +380,11 @@ async function ensureProfile(user) {
     uid: user.uid,
     email: user.email || '',
     displayName: (user.displayName || '').trim(),
+    pendingName: (user.displayName || '').trim(),
     isAdmin: isAdmin(user.email),
     isModerator: false,
     banned: false,
-    manualVerified: false,
+    manualVerified: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
@@ -404,7 +409,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.banned !== 'boolean') updates.banned = false;
     if (typeof currentProfile.manualVerified !== 'boolean') updates.manualVerified = false;
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
-    if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = true;
+    if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
@@ -412,11 +417,7 @@ async function ensureProfile(user) {
       updates.emailVerified = true;
       updates.emailVerifiedAt = Date.now();
     }
-    if ((user.emailVerified || currentProfile.manualVerified === true) && currentProfile.accessApproved !== true && currentProfile.accessManuallyDenied !== true) {
-      updates.accessApproved = true;
-    }
-
-    if (isProtectedCoreAdmin(user.email) && currentProfile.isAdmin !== true) {
+        if (isProtectedCoreAdmin(user.email) && currentProfile.isAdmin !== true) {
       updates.isAdmin = true;
     }
     if (isProtectedCoreAdmin(user.email) && currentProfile.accessApproved !== true) {
@@ -470,6 +471,7 @@ async function handleLogin() {
 }
 
 async function handleSignup() {
+  const fullName = $('signupName')?.value.trim() || '';
   const email = $('signupEmail')?.value.trim().toLowerCase();
   const password = $('signupPassword')?.value || '';
   const password2 = $('signupPassword2')?.value || '';
@@ -480,8 +482,12 @@ async function handleSignup() {
     msg.textContent = '';
   }
 
-  if (!email || !password || !password2) {
+  if (!fullName || !email || !password || !password2) {
     alert('Complete all signup fields.');
+    return;
+  }
+  if (fullName.split(/\s+/).length < 2) {
+    alert('Enter first and last name.');
     return;
   }
   if (!isAllowedEmail(email)) {
@@ -499,52 +505,42 @@ async function handleSignup() {
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
     await setDoc(doc(db, 'profiles', cred.user.uid), {
       uid: cred.user.uid,
       email,
-      displayName: '',
+      displayName: fullName,
+      pendingName: fullName,
+      requestedName: fullName,
       isAdmin: isAdmin(email),
       isModerator: false,
       banned: false,
-      manualVerified: false,
-      emailVerified: false,
-      accessApproved: isProtectedCoreAdmin(email) || isAdmin(email),
+      manualVerified: elevated,
+      emailVerified: !!cred.user.emailVerified,
+      accessApproved: elevated,
       accessManuallyDenied: false,
       createdAt: serverTimestamp(),
+      createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
     }, { merge: true });
-    applyAuthLanguage();
-    let verifySent = false;
-    authUtilityMode = 'signupVerification';
-    try {
-      await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
-      verifySent = true;
-      await updateDoc(doc(db, 'profiles', cred.user.uid), {
-        verificationEmailSentAt: Date.now(),
-        updatedAt: serverTimestamp()
-      });
-    } catch (verifyErr) {
-      console.error('Verification email send failed:', verifyErr);
-    }
-    await signOut(auth);
-    authUtilityMode = '';
 
+    await signOut(auth);
 
     if (msg) {
-      msg.textContent = verifySent
-        ? 'Account created. A verification email was sent to your inbox. Click the verification link in your email, then come back and sign in. If you cannot find the email, use Resend Verification Email on the login tab.'
-        : 'Account created, but the verification email could not be sent automatically. Use Resend Verification Email on the login tab.';
+      msg.textContent = elevated
+        ? 'Account created. You can sign in now.'
+        : 'Account created. An admin must manually approve your account before you can sign in.';
       msg.style.display = 'block';
     }
 
     if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
-
-    lastUnverifiedEmail = email;
-    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'inline-flex';
+    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-    alert(verifySent ? 'Account created. Verification email sent. Verify your email, then sign back in.' : 'Account created. Verification email was not confirmed as sent. Use Resend Verification Email on the login tab.');
+    alert(elevated
+      ? 'Account created. You can sign in now.'
+      : 'Account created. An admin must manually approve your account before you can sign in.');
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
@@ -553,36 +549,7 @@ async function handleSignup() {
 
 
 async function handleResendVerification() {
-  const email = (lastUnverifiedEmail || $('loginEmail')?.value || '').trim().toLowerCase();
-  const password = $('loginPassword')?.value || '';
-  if (!email) {
-    alert('Enter your email first.');
-    return;
-  }
-  if (!password) {
-    alert('Enter your password, then tap Resend Verification Email.');
-    return;
-  }
-  try {
-    applyAuthLanguage();
-    authUtilityMode = 'resendVerification';
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(cred.user, getVerifyActionCodeSettings());
-    try {
-      await updateDoc(doc(db, 'profiles', cred.user.uid), {
-        verificationEmailSentAt: Date.now(),
-        updatedAt: serverTimestamp()
-      });
-    } catch (_) {}
-    await signOut(auth);
-    authUtilityMode = '';
-    alert('Verification email sent. Check your inbox and junk folder.');
-  } catch (err) {
-    console.error(err);
-    try { await signOut(auth); } catch (_) {}
-    authUtilityMode = '';
-    alert(err?.message || 'Unable to resend verification email right now.');
-  }
+  alert('Verification links are disabled in this build. New accounts are approved manually by admin after review.');
 }
 
 
@@ -599,6 +566,8 @@ async function handleSaveName() {
 
   await updateDoc(doc(db, 'profiles', currentUser.uid), {
     displayName: name,
+    pendingName: name,
+    requestedName: name,
     updatedAt: serverTimestamp()
   });
 
@@ -634,6 +603,73 @@ function onlineProfiles() {
 function updateHeroPeopleStats() {
   if ($('heroRegisteredCount')) $('heroRegisteredCount').textContent = String(approvedProfiles().length);
   if ($('heroOnlineCount')) $('heroOnlineCount').textContent = String(onlineProfiles().length);
+}
+
+function featuredEventResponses() {
+  return eventResponses.filter((item) => item && item.eventId === FEATURED_EVENT.id);
+}
+
+function featuredEventCounts() {
+  const counts = { ATTENDING: 0, MAYBE: 0, CANT: 0 };
+  featuredEventResponses().forEach((item) => {
+    const key = String(item.status || '').toUpperCase();
+    if (counts[key] !== undefined) counts[key] += 1;
+  });
+  return counts;
+}
+
+function currentUserEventResponse() {
+  if (!currentUser) return null;
+  return featuredEventResponses().find((item) => item.uid === currentUser.uid) || null;
+}
+
+function renderEventSpotlight() {
+  if (!$('featuredEventCard')) return;
+  const counts = featuredEventCounts();
+  const mine = currentUserEventResponse();
+  if ($('eventImage')) $('eventImage').src = FEATURED_EVENT.imageUrl;
+  if ($('eventAttendCount')) $('eventAttendCount').textContent = String(counts.ATTENDING || 0);
+  if ($('eventMaybeCount')) $('eventMaybeCount').textContent = String(counts.MAYBE || 0);
+  if ($('eventCantCount')) $('eventCantCount').textContent = String(counts.CANT || 0);
+  if ($('eventStatusText')) $('eventStatusText').textContent = mine ? `Your current response: ${RSVP_LABELS[mine.status] || mine.status}` : 'Choose your response below.';
+  ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
+    const btn = document.querySelector(`[data-rsvp="${status}"]`);
+    if (!btn) return;
+    btn.classList.toggle('active-rsvp', mine?.status === status);
+  });
+}
+
+async function handleEventRsvp(status) {
+  if (!currentUser || !currentProfile) {
+    alert('Please log in first.');
+    return;
+  }
+  try {
+    const responseRef = doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`);
+    await setDoc(responseRef, {
+      eventId: FEATURED_EVENT.id,
+      eventTitle: FEATURED_EVENT.title,
+      uid: currentUser.uid,
+      userEmail: currentUser.email || '',
+      displayName: currentProfile.displayName || currentProfile.pendingName || currentUser.email || '',
+      status,
+      updatedAt: serverTimestamp(),
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  } catch (err) {
+    console.error(err);
+    alert(err?.message || 'Unable to save your RSVP right now.');
+  }
+}
+
+function startEventResponsesListener() {
+  if (eventResponsesUnsub) return;
+  eventResponsesUnsub = onSnapshot(collection(db, 'eventResponses'), (snap) => {
+    eventResponses = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderEventSpotlight();
+  }, (err) => {
+    console.error('Event responses error:', err);
+  });
 }
 
 function startProfilesListener() {
@@ -825,6 +861,7 @@ function renderListings() {
   if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
   if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   updateHeroPeopleStats();
+  renderEventSpotlight();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
 
   if (!data.length) {
