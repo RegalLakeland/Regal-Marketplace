@@ -22,6 +22,10 @@ function deleteAccountFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/deleteMarketplaceAccount`;
 }
 
+function tempPasswordFunctionUrl() {
+  return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/setMarketplaceTemporaryPassword`;
+}
+
 async function callAdminVerificationResend(email) {
   if (!currentViewer) throw new Error('You must be signed in.');
   const token = await currentViewer.getIdToken(true);
@@ -51,6 +55,22 @@ async function callDeleteMarketplaceAccount(targetUser) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || `Account delete request failed (${res.status})`);
+  return data;
+}
+
+async function callSetMarketplaceTempPassword(targetUser, temporaryPassword) {
+  if (!currentViewer) throw new Error('You must be signed in.');
+  const token = await currentViewer.getIdToken(true);
+  const res = await fetch(tempPasswordFunctionUrl(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ uid: targetUser.id, email: targetUser.email || '', temporaryPassword })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `Temporary password request failed (${res.status})`);
   return data;
 }
 
@@ -95,6 +115,12 @@ function shouldAutoGrantAccess(user) {
   return emailApproved && !user?.banned && !user?.accessApproved && !user?.accessManuallyDenied;
 }
 
+function generateTempPassword() {
+  const digits = String(Math.floor(1000 + Math.random() * 9000));
+  const tail = Math.random().toString(36).slice(-4);
+  return `Regal!${digits}${tail}`;
+}
+
 function accessStatusMeta(user) {
   if (user?.banned) return { label: 'Blocked', tone: 'bad' };
   if (user?.accessApproved) return { label: 'Granted', tone: 'ok' };
@@ -103,9 +129,9 @@ function accessStatusMeta(user) {
 }
 
 function emailStatusMeta(user) {
-  if (user?.emailVerified) return { label: 'Verified', tone: 'ok' };
-  if (user?.manualVerified) return { label: 'Manual Approval', tone: 'ok' };
-  return { label: 'Pending', tone: 'pending' };
+  if (user?.emailVerified) return { label: 'Verified Inbox', tone: 'ok' };
+  if (user?.manualVerified) return { label: 'Manual Review', tone: 'ok' };
+  return { label: 'Not Proven', tone: 'pending' };
 }
 
 function roleSummary(user, protectedUser) {
@@ -116,9 +142,12 @@ function roleSummary(user, protectedUser) {
   return roles.length ? roles.join(' • ') : 'Standard User';
 }
 
-function flagSummary(dup) {
+function flagSummary(user, dup) {
   const flags = [];
   if (dup?.isDuplicate) flags.push(`Duplicate x${dup.count}`);
+  if (!user?.emailVerified) flags.push('Manual-only email');
+  if (!user?.displayName && !user?.pendingName && !user?.requestedName) flags.push('Name missing');
+  if (user?.mustChangePassword) flags.push('Temp password active');
   return flags.length ? flags.join(' • ') : '—';
 }
 
@@ -127,6 +156,7 @@ let currentViewer = null;
 let currentViewerProfile = null;
 let listingRowsData = [];
 let userRowsData = [];
+let eventRowsData = [];
 let adminEditingId = null;
 let userSearchTerm = '';
 let userFilterValue = 'ALL';
@@ -159,6 +189,7 @@ onAuthStateChanged(auth, async (user) => {
   });
   startListings();
   startUsers();
+  startEventResponses();
 });
 
 function startListings() {
@@ -263,7 +294,7 @@ function applyUserFilters(rows) {
   let filtered = rows.slice();
   if (userSearchTerm) {
     filtered = filtered.filter((user) => {
-      const hay = [user.email, user.displayName].join(' ').toLowerCase();
+      const hay = [user.email, user.displayName, user.pendingName, user.requestedName].join(' ').toLowerCase();
       return hay.includes(userSearchTerm);
     });
   }
@@ -272,14 +303,13 @@ function applyUserFilters(rows) {
   if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
   if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
   if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
-  filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName).localeCompare(normalizeEmail(b.displayName)));
+  filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
   return { filtered, dmeta };
 }
 
 function buildUserActionButtons(user, dup, protectedUser) {
   const buttons = [];
   const selfRow = isSelfRow(user);
-  const coreViewer = isCoreAdminViewer();
 
   if (!user.isModerator) buttons.push(`<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>`);
   if (user.isModerator && !protectedUser) buttons.push(`<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>`);
@@ -287,21 +317,15 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (!user.isAdmin) buttons.push(`<button class="btn" data-role="grantAdmin" data-id="${esc(user.id)}" type="button">Grant Admin</button>`);
   if (user.isAdmin && !protectedUser) buttons.push(`<button class="btn ghost" data-role="removeAdmin" data-id="${esc(user.id)}" type="button">Remove Admin</button>`);
 
-  if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve Access</button>`);
-  if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Deny Access</button>`);
+  if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
+  if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
 
-  if (coreViewer && !user.emailVerified) buttons.push(`<button class="btn ghost" data-role="resendVerify" data-id="${esc(user.id)}" type="button">Get Verify Link</button>`);
-  if (coreViewer && !user.manualVerified && !user.emailVerified) buttons.push(`<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>`);
-  if (coreViewer && user.manualVerified && !protectedUser && !user.emailVerified) buttons.push(`<button class="btn ghost" data-role="revokeEmail" data-id="${esc(user.id)}" type="button">Revoke Email</button>`);
+  if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
 
   if (dup.isDuplicate && !dup.isPrimary && !protectedUser) buttons.push(`<button class="btn danger" data-role="deleteDuplicate" data-id="${esc(user.id)}" type="button">Delete Duplicate</button>`);
-
-  if (coreViewer && (!protectedUser || selfRow)) {
-    buttons.push(`<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">${selfRow ? 'Delete My Account' : 'Delete Account'}</button>`);
-  }
 
   if (!buttons.length && protectedUser && !selfRow) {
     buttons.push('<span class="pill">Protected</span>');
@@ -322,6 +346,7 @@ function renderUserRows() {
     const emailState = emailStatusMeta(user);
     const accessState = accessStatusMeta(user);
     const actions = buildUserActionButtons(user, dup, protectedUser);
+    const shownName = user.displayName || user.pendingName || user.requestedName || '—';
 
     return `
       <tr>
@@ -330,15 +355,17 @@ function renderUserRows() {
           <div class="note user-id">UID: ${esc(user.uid || user.id)}</div>
         </td>
         <td>
-          <div class="user-main">${esc(user.displayName || '—')}</div>
+          <div class="user-main">${esc(shownName)}</div>
           <div class="note">Created / updated: ${esc(fmtDate(user.createdAtMs || user.emailVerifiedAt || Date.now()))}</div>
         </td>
         <td>
           <div class="user-status-stack">
             <div class="user-status-line"><span class="user-status-key">Email</span><span class="user-status-value ${emailState.tone}">${esc(emailState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(dup))}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Password</span><span class="user-status-meta">${esc(user.mustChangePassword ? 'Temporary password active' : 'Normal sign-in')}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
           </div>
         </td>
         <td>
@@ -353,13 +380,8 @@ function renderUserRows() {
 
     const role = btn.dataset.role;
     const protectedUser = isProtectedCoreAdmin(user.email);
-    const selfRow = isSelfRow(user);
-    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'revokeEmail', 'denyAccess', 'deleteDuplicate'].includes(role)) {
+    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate'].includes(role)) {
       alert('This core admin account cannot be modified.');
-      return;
-    }
-    if (protectedUser && role === 'deleteAccount' && !selfRow) {
-      alert('Protected core admin accounts can only be deleted by themselves.');
       return;
     }
 
@@ -367,91 +389,71 @@ function renderUserRows() {
 
     if (role === 'grantMod') await updateDoc(ref, { isModerator: true, updatedAt: Date.now() });
     if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
-    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, accessApproved: true, accessManuallyDenied: false, updatedAt: Date.now() });
+    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
     if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
-    if (role === 'approveAccess') await updateDoc(ref, { accessApproved: true, accessManuallyDenied: false, updatedAt: Date.now() });
-    if (role === 'denyAccess') await updateDoc(ref, { accessApproved: false, accessManuallyDenied: true, updatedAt: Date.now() });
-    if (role === 'resendVerify') {
-      try {
-        const result = await callAdminVerificationResend(user.email);
-        await updateDoc(ref, {
-          verificationLinkGeneratedAt: Date.now(),
-          verificationLinkGeneratedBy: normalizeEmail(currentViewer?.email),
-          updatedAt: Date.now()
-        });
-        const link = result?.verificationLink || '';
-        if (!link) throw new Error('No verification link was returned.');
-        const copied = await copyText(link);
-        if (copied) {
-          alert(`Verification link copied for ${user.email}. You can now paste it into a text or email.`);
-        } else {
-          prompt(`Copy this verification link for ${user.email}:`, link);
-        }
-      } catch (err) {
-        console.error(err);
-        alert(err?.message || 'Unable to generate a verification link.');
-      }
-    }
-    if (role === 'approveEmail') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, updatedAt: Date.now() });
-    if (role === 'revokeEmail') {
-      const revokePayload = { manualVerified: false, updatedAt: Date.now() };
-      if (!user.emailVerified && !user.isAdmin && !protectedUser) {
-        revokePayload.accessApproved = false;
-        revokePayload.accessManuallyDenied = false;
-      }
-      await updateDoc(ref, revokePayload);
+    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+    if (role === 'denyAccess') {
+      const denyPayload = { accessApproved: false, accessManuallyDenied: true, updatedAt: Date.now() };
+      if (!user.emailVerified) denyPayload.manualVerified = false;
+      await updateDoc(ref, denyPayload);
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
+    if (role === 'setTempPassword') {
+      const suggested = generateTempPassword();
+      const temporaryPassword = window.prompt(`Set a temporary password for ${user.email}. Share it with the user and they will be forced to change it after login.`, suggested);
+      if (temporaryPassword === null) return;
+      if (String(temporaryPassword).trim().length < 8) {
+        alert('Temporary password must be at least 8 characters.');
+        return;
+      }
+      const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
+      const copied = await copyText(String(temporaryPassword).trim());
+      alert(`${result?.message || 'Temporary password saved.'}${result?.note ? ` ${result.note}` : ''}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
+      return;
+    }
     if (role === 'deleteDuplicate') {
       if (!confirm(`Delete duplicate profile row for ${user.email}? This removes only the extra profile document.`)) return;
       await deleteDoc(ref);
     }
-    if (role === 'deleteAccount') {
-      const deletePrompt = selfRow
-        ? `Type DELETE to permanently remove your own account (${user.email}). This deletes your auth account, profile, and your listings.`
-        : `Type DELETE to permanently remove ${user.email}. This deletes the auth account, profile, and that user's listings.`;
-      const confirmation = prompt(deletePrompt, '');
-      if (confirmation !== 'DELETE') return;
-      try {
-        const result = await callDeleteMarketplaceAccount(user);
-        alert(result?.message || `${user.email} was deleted.`);
-        if (selfRow) {
-          await signOut(auth).catch(() => {});
-          location.href = 'index.html';
-        }
-      } catch (err) {
-        console.error(err);
-        alert(err?.message || 'Unable to delete that account.');
-      }
-    }
   });
-}
-
-async function syncVerifiedAccessForRows(rows) {
-  if (!isCoreAdminViewer()) return;
-  const targets = rows.filter((user) => shouldAutoGrantAccess(user) && !autoGrantSyncIds.has(user.id));
-  for (const user of targets) {
-    autoGrantSyncIds.add(user.id);
-    updateDoc(doc(db, 'profiles', user.id), {
-      accessApproved: true,
-      accessManuallyDenied: false,
-      accessAutoGrantedAt: Date.now(),
-      updatedAt: Date.now()
-    }).catch((err) => {
-      console.warn('Auto-grant access sync failed for', user.email, err);
-    }).finally(() => {
-      autoGrantSyncIds.delete(user.id);
-    });
-  }
 }
 
 function startUsers() {
   onSnapshot(collection(db, 'profiles'), (snap) => {
     const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     userRowsData = rows;
-    syncVerifiedAccessForRows(rows);
     renderUserRows();
+  });
+}
+
+function renderRsvpRows() {
+  if (!$('rsvpRows')) return;
+  const counts = { ATTENDING: 0, MAYBE: 0, CANT: 0 };
+  const rows = eventRowsData.slice().sort((a, b) => Number(b.updatedAtMs || 0) - Number(a.updatedAtMs || 0));
+  rows.forEach((row) => {
+    const key = String(row.status || '').toUpperCase();
+    if (counts[key] !== undefined) counts[key] += 1;
+  });
+  if ($('rsvpAttendCount')) $('rsvpAttendCount').textContent = `${counts.ATTENDING} attending`;
+  if ($('rsvpMaybeCount')) $('rsvpMaybeCount').textContent = `${counts.MAYBE} maybe`;
+  if ($('rsvpCantCount')) $('rsvpCantCount').textContent = `${counts.CANT} can’t attend`;
+  $('rsvpRows').innerHTML = rows.length ? rows.map((row) => `
+    <tr>
+      <td><div class="user-main">${esc(row.displayName || '—')}</div></td>
+      <td>${esc(row.userEmail || '—')}</td>
+      <td><span class="user-status-value ${row.status === 'ATTENDING' ? 'ok' : row.status === 'MAYBE' ? 'pending' : 'bad'}">${esc(row.status === 'ATTENDING' ? 'Attending' : row.status === 'MAYBE' ? 'Maybe' : "Can't Attend")}</span></td>
+      <td>${esc(fmtDate(row.updatedAtMs || Date.now()))}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4"><div class="note">No RSVP responses yet.</div></td></tr>';
+}
+
+function startEventResponses() {
+  onSnapshot(collection(db, 'eventResponses'), (snap) => {
+    eventRowsData = snap.docs
+      .map((d) => ({ id:d.id, ...d.data() }))
+      .filter((row) => row.eventId === 'regal-50th-anniversary-may-15-2026');
+    renderRsvpRows();
   });
 }
 
