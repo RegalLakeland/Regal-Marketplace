@@ -202,12 +202,12 @@ document.addEventListener('DOMContentLoaded', () => {
     touchPresence();
     if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
 
-    if (currentProfile?.mustChangePassword) {
-      openForcePasswordOverlay();
+    if (currentProfile?.mustChangePassword || currentProfile?.tempPasswordActive) {
+      showPasswordGate();
       return;
     }
 
-    hide('forcePasswordOverlay');
+    hidePasswordGate();
     if (!currentProfile.displayName) {
       $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
       show('nameOverlay');
@@ -410,6 +410,8 @@ async function ensureProfile(user) {
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
+    tempPasswordActive: false,
+    mustChangePassword: false,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -433,6 +435,8 @@ async function ensureProfile(user) {
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
+    if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
+    if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -469,10 +473,10 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
-  if (!loggedIn && $('forcePasswordOverlay')) $('forcePasswordOverlay').style.display = 'none';
+  if (!loggedIn) hidePasswordGate();
 
   if (loggedIn) {
-    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'];
+    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay'];
     const hasVisibleModal = visibleOverlayIds.some((overlayId) => $(overlayId)?.style.display !== 'none');
     if (!hasVisibleModal) document.body.classList.remove('modal-open');
   }
@@ -524,7 +528,7 @@ async function handleLogin() {
 }
 
 
-function openForcePasswordOverlay() {
+function showPasswordGate() {
   const msg = $('forcePasswordMsg');
   if (msg) {
     msg.style.display = 'none';
@@ -533,8 +537,18 @@ function openForcePasswordOverlay() {
   }
   if ($('forcePassword')) $('forcePassword').value = '';
   if ($('forcePassword2')) $('forcePassword2').value = '';
-  show('forcePasswordOverlay');
-  setTimeout(() => $('forcePassword')?.focus(), 20);
+  const gate = $('passwordGate');
+  if (gate) gate.style.display = 'block';
+  document.body.classList.remove('modal-open');
+  setTimeout(() => {
+    gate?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('forcePassword')?.focus();
+  }, 20);
+}
+
+function hidePasswordGate() {
+  const gate = $('passwordGate');
+  if (gate) gate.style.display = 'none';
 }
 
 async function handleForcePasswordChange() {
@@ -584,12 +598,14 @@ async function handleForcePasswordChange() {
     await updatePassword(currentUser, password);
     await updateDoc(doc(db, 'profiles', currentUser.uid), {
       mustChangePassword: false,
+      tempPasswordActive: false,
       passwordChangedAtMs: Date.now(),
       updatedAt: serverTimestamp()
     });
 
     if (currentProfile) {
       currentProfile.mustChangePassword = false;
+      currentProfile.tempPasswordActive = false;
       currentProfile.passwordChangedAtMs = Date.now();
     }
 
@@ -600,7 +616,10 @@ async function handleForcePasswordChange() {
     }
 
     setTimeout(() => {
-      hide('forcePasswordOverlay');
+      hidePasswordGate();
+      document.body.classList.remove('modal-open');
+      if (currentProfile) currentProfile.tempPasswordActive = false;
+      renderListings();
       if (currentProfile && !currentProfile.displayName) {
         $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
         show('nameOverlay');

@@ -284,3 +284,11 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 #forcePasswordMsg{margin-top:6px}
 #forcePasswordMsg[data-state="error"]{color:#fecaca}
 #forcePasswordMsg[data-state="success"]{color:#bbf7d0}
+
+
+.passwordGate{padding:22px; margin:0 0 18px; display:block}
+.passwordGate-head{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:16px}
+.passwordGate-pill{white-space:nowrap}
+.passwordGate-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px}
+.passwordGate-actions{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px}
+@media (max-width: 900px){.passwordGate-grid{grid-template-columns:1fr}.passwordGate-head,.passwordGate-actions{flex-direction:column; align-items:flex-start}}
