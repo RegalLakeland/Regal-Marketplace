@@ -605,7 +605,10 @@ function buildUserActionButtons(user, dup, protectedUser) {
   }
 
   if (!buttons.length && protectedUser && !selfRow) buttons.push('<span class="owner-pill">Protected</span>');
-  if (!buttons.length && removed) buttons.push('<span class="owner-pill bad">Removed</span>');
+  if (removed && isCoreAdminViewer()) {
+      buttons.push(`<button class="btn primary" data-role="reactivateUser" data-id="${esc(user.id)}" type="button">Reactivate</button>`);
+    }
+    if (!buttons.length && removed) buttons.push('<span class="owner-pill bad">Removed</span>');
   return buttons.join('');
 }
 
@@ -711,6 +714,18 @@ function renderUserRows() {
     if (role === 'recoverUser') {
       await recoverMissingProfile(user);
       alert('User profile recovered and sent back to pending review.');
+      return;
+    }
+    if (role === 'reactivateUser') {
+      await updateDoc(ref, {
+        banned: false,
+        accessApproved: true,
+        accessManuallyDenied: false,
+        deletedAtMs: null,
+        deletedBy: null,
+        updatedAt: Date.now()
+      });
+      alert('User reactivated successfully.');
       return;
     }
     if (role === 'mergeDuplicates') {
