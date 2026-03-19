@@ -321,6 +321,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
 
   if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
+  if (isCoreAdminViewer() && (!protectedUser || selfRow)) buttons.push(`<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">Delete Account</button>`);
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
@@ -380,7 +381,7 @@ function renderUserRows() {
 
     const role = btn.dataset.role;
     const protectedUser = isProtectedCoreAdmin(user.email);
-    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate'].includes(role)) {
+    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate', 'deleteAccount'].includes(role)) {
       alert('This core admin account cannot be modified.');
       return;
     }
@@ -410,6 +411,18 @@ function renderUserRows() {
       const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
       const copied = await copyText(String(temporaryPassword).trim());
       alert(`${result?.message || 'Temporary password saved.'}${result?.note ? ` ${result.note}` : ''}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
+      return;
+    }
+    if (role === 'deleteAccount') {
+      const selfRow = isSelfRow(user);
+      const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, listings, and RSVP responses.${selfRow ? ' You are deleting your own account.' : ''}`, '');
+      if (confirmWord !== 'DELETE') return;
+      const result = await callDeleteMarketplaceAccount(user);
+      alert(result?.message || 'Account deleted.');
+      if (selfRow) {
+        await signOut(auth).catch(() => {});
+        window.location.href = 'index.html';
+      }
       return;
     }
     if (role === 'deleteDuplicate') {

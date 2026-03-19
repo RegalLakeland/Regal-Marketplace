@@ -1,0 +1,23 @@
+DELETE ACCOUNT PATCH
+
+This build adds admin-panel account deletion.
+
+Who can delete:
+- michael.h@regallakeland.com
+- janni.r@regallakeland.com
+
+Protection rules:
+- Michael cannot delete Janni
+- Janni cannot delete Michael
+- Each protected core admin can only delete their own account
+
+Deletion cleanup:
+- Firebase Authentication user
+- profiles/{uid}
+- duplicate profile rows matched by email
+- listings owned by the user
+- eventResponses owned by the user
+
+Important:
+Deploy Firebase Functions after uploading this build:
+firebase deploy --project regal-lakeland-marketplace --only functions
