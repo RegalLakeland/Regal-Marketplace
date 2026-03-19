@@ -1,4 +1,4 @@
-// FINAL STABLE APP.JS
+// FINAL APP.JS (NO BROKEN REDIRECTS)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
@@ -8,6 +8,9 @@ import { firebaseConfig } from "./firebase-config.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// CHANGE THIS TO YOUR REAL PAGE IF DIFFERENT
+const APP_PAGE = "marketplace.html";
 
 function showPending(){
   let o=document.getElementById("pendingOverlay");
@@ -20,7 +23,7 @@ function showPending(){
 }
 
 function goApp(){
-  window.location.href="marketplace.html";
+  window.location.href = APP_PAGE;
 }
 
 function watch(uid){
@@ -41,7 +44,7 @@ function watch(uid){
   });
 }
 
-// SIGNUP (AUTO SAVE + STAY LOGGED IN)
+// SIGNUP
 window.handleSignup = async ()=>{
   const email=document.getElementById("signupEmail").value.trim();
   const pass=document.getElementById("signupPassword").value.trim();

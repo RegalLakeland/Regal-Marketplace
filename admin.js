@@ -1,4 +1,4 @@
-// FINAL ADMIN.JS (CLEAN)
+// FINAL ADMIN.JS
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
