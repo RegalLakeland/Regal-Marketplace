@@ -102,6 +102,81 @@ function clearTempLoginContext() {
   } catch (_) {}
 }
 
+function stopApprovalWatcher() {
+  if (approvalUnsub) {
+    approvalUnsub();
+    approvalUnsub = null;
+  }
+}
+
+function showPendingApprovalScreen() {
+  let overlay = $('pendingApprovalOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'pendingApprovalOverlay';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(0,0,0,0.82)';
+    overlay.style.zIndex = '9999';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.innerHTML = `
+      <div style="max-width:460px;width:92%;background:#111827;color:#fff;border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:28px 24px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35)">
+        <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.72;margin-bottom:10px">Private Marketplace</div>
+        <h2 style="margin:0 0 12px 0;font-size:28px">Account Created</h2>
+        <p style="margin:0 0 10px 0;opacity:.9">Your account is pending admin approval.</p>
+        <p style="margin:0;opacity:.68;font-size:13px">Leave this page open. Access will unlock automatically as soon as an admin approves you.</p>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = 'flex';
+}
+
+function hidePendingApprovalScreen() {
+  const overlay = $('pendingApprovalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function unlockApprovedSession() {
+  hidePendingApprovalScreen();
+  updateAuthUI();
+  startListingsListener();
+  startProfilesListener();
+  startEventResponsesListener();
+  touchPresence();
+  if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
+  if (!currentProfile?.displayName) {
+    if ($('displayNameInput')) {
+      $('displayNameInput').value = currentUser?.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+    }
+    show('nameOverlay');
+  }
+}
+
+function startApprovalWatcher(uid) {
+  stopApprovalWatcher();
+  approvalUnsub = onSnapshot(doc(db, 'profiles', uid), (snap) => {
+    if (!snap.exists()) return;
+    currentProfile = { id: snap.id, ...snap.data() };
+
+    if (currentProfile.deletedAtMs || currentProfile.banned) {
+      hidePendingApprovalScreen();
+      signOut(auth).catch(() => {});
+      return;
+    }
+
+    if (currentProfile.accessApproved === true || isProtectedCoreAdmin(currentUser?.email)) {
+      unlockApprovedSession();
+    } else {
+      showPendingApprovalScreen();
+    }
+  }, (err) => {
+    console.error('approval watcher error', err);
+  });
+}
+
+
 const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -140,6 +215,7 @@ let activeThread = null;
 let listingsUnsub = null;
 let profilesUnsub = null;
 let presenceTimer = null;
+let approvalUnsub = null;
 let profiles = [];
 let eventResponses = [];
 let eventResponsesUnsub = null;
@@ -192,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lastUnverifiedEmail = user.email || '';
     await ensureProfile(user);
 
-    if (currentProfile?.banned) {
+    if (currentProfile?.banned || currentProfile?.deletedAtMs) {
       alert('Your marketplace access has been disabled. Contact an admin.');
       await signOut(auth);
       return;
@@ -214,8 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
         $('verifyNote').style.display = 'block';
       }
       if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-      await signOut(auth);
-      alert('Your account is waiting for manual admin approval.');
+      updateAuthUI();
+      showPendingApprovalScreen();
+      startApprovalWatcher(user.uid);
       return;
     }
 
@@ -223,14 +300,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if ($('verifyNote')) $('verifyNote').style.display = 'none';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
-    updateAuthUI();
-    startListingsListener();
-    startProfilesListener();
-    startEventResponsesListener();
-    touchPresence();
-    if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
+    stopApprovalWatcher();
+    unlockApprovedSession();
 
-    if (currentProfile?.mustChangePassword || currentProfile?.tempPasswordActive) {
+    if ((currentProfile?.mustChangePassword || currentProfile?.tempPasswordActive) && !isProtectedCoreAdmin(user.email)) {
       showPasswordGate();
       return;
     }
@@ -355,7 +428,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay', 'passwordGate', 'passwordGateOverlay', 'pendingApprovalOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -412,6 +485,7 @@ function stopListeners() {
     clearInterval(presenceTimer);
     presenceTimer = null;
   }
+  stopApprovalWatcher();
   listings = [];
   profiles = [];
   eventResponses = [];
@@ -528,7 +602,7 @@ async function handleLogin() {
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
     const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
-    const banned = profileData?.banned === true;
+    const banned = profileData?.banned === true || !!profileData?.deletedAtMs;
 
     if (profileData?.mustChangePassword || profileData?.tempPasswordActive) {
       setTempLoginContext(email, password);
@@ -556,7 +630,7 @@ async function handleLogin() {
   } catch (err) {
     console.error(err);
     if (err?.code === 'auth/invalid-credential') {
-      alert('That email/password combination was rejected by Firebase. If you just set a temporary password, copy it exactly as shown and make sure you are signing in with the exact approved email address. If it still fails, set a new temporary password from the admin panel and try again.');
+      alert('Incorrect email or password.');
       return;
     }
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
@@ -587,10 +661,11 @@ function hidePasswordGate() {
   if (gate) gate.style.display = 'none';
 }
 
+
 async function handleForcePasswordChange() {
-  const password = $('forcePassword')?.value || '';
-  const password2 = $('forcePassword2')?.value || '';
-  const msg = $('forcePasswordMsg');
+  const password = $('forcePassword')?.value || $('newPasswordInput')?.value || '';
+  const password2 = $('forcePassword2')?.value || $('confirmNewPasswordInput')?.value || '';
+  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
 
   if (msg) {
     msg.style.display = 'none';
@@ -602,7 +677,6 @@ async function handleForcePasswordChange() {
     alert('Please log in again.');
     return;
   }
-
   if (!password || !password2) {
     if (msg) {
       msg.textContent = 'Enter and confirm your new password.';
@@ -611,7 +685,6 @@ async function handleForcePasswordChange() {
     }
     return;
   }
-
   if (password.length < 8) {
     if (msg) {
       msg.textContent = 'Use at least 8 characters for your new password.';
@@ -620,7 +693,6 @@ async function handleForcePasswordChange() {
     }
     return;
   }
-
   if (password !== password2) {
     if (msg) {
       msg.textContent = 'The passwords do not match.';
@@ -631,65 +703,79 @@ async function handleForcePasswordChange() {
   }
 
   try {
-    const recentTempPassword = getTempLoginPasswordForCurrentUser();
-    if (recentTempPassword && currentUser?.email) {
+    await updatePassword(currentUser, password);
+  } catch (err) {
+    const code = String(err?.code || '');
+    if (code !== 'auth/requires-recent-login') {
+      console.error(err);
+      if (msg) {
+        msg.textContent = `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
+        msg.dataset.state = 'error';
+        msg.style.display = 'block';
+      }
+      return;
+    }
+
+    try {
+      const recentTempPassword = getTempLoginPasswordForCurrentUser();
+      if (!recentTempPassword || !currentUser?.email) {
+        if (msg) {
+          msg.textContent = 'Your temporary-password session was lost. Ask admin for a new temporary password and try again immediately without refreshing.';
+          msg.dataset.state = 'error';
+          msg.style.display = 'block';
+        }
+        return;
+      }
       const credential = EmailAuthProvider.credential(currentUser.email, recentTempPassword);
       await reauthenticateWithCredential(currentUser, credential);
-    }
-
-    await updatePassword(currentUser, password);
-    await updateDoc(doc(db, 'profiles', currentUser.uid), {
-      mustChangePassword: false,
-      tempPasswordActive: false,
-      passwordChangedAtMs: Date.now(),
-      updatedAt: serverTimestamp()
-    });
-
-    if (currentProfile) {
-      currentProfile.mustChangePassword = false;
-      currentProfile.tempPasswordActive = false;
-      currentProfile.passwordChangedAtMs = Date.now();
-    }
-
-    clearTempLoginContext();
-
-    if (msg) {
-      msg.textContent = 'Password updated successfully.';
-      msg.dataset.state = 'success';
-      msg.style.display = 'block';
-    }
-
-    setTimeout(() => {
-      hidePasswordGate();
-      document.body.classList.remove('modal-open');
-      if (currentProfile) currentProfile.tempPasswordActive = false;
-      renderListings();
-      if (currentProfile && !currentProfile.displayName) {
-        $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
-        show('nameOverlay');
+      await updatePassword(currentUser, password);
+    } catch (reauthErr) {
+      console.error(reauthErr);
+      if (msg) {
+        msg.textContent = 'The temporary password no longer matches. Ask admin for a new temporary password.';
+        msg.dataset.state = 'error';
+        msg.style.display = 'block';
       }
-    }, 500);
-  } catch (err) {
-    console.error(err);
-    const code = String(err?.code || '');
-    if (msg) {
-      msg.textContent = code === 'auth/requires-recent-login'
-        ? 'Your login session is no longer fresh enough to change the password. Log out, log back in with the temporary password, and try again immediately.'
-        : `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-    if (code === 'auth/requires-recent-login') {
-      await signOut(auth).catch(() => {});
+      return;
     }
   }
+
+  await updateDoc(doc(db, 'profiles', currentUser.uid), {
+    mustChangePassword: false,
+    tempPasswordActive: false,
+    passwordChangedAtMs: Date.now(),
+    updatedAt: serverTimestamp()
+  }).catch(() => {});
+
+  if (currentProfile) {
+    currentProfile.mustChangePassword = false;
+    currentProfile.tempPasswordActive = false;
+  }
+  clearTempLoginContext();
+
+  if (msg) {
+    msg.textContent = 'Password updated successfully.';
+    msg.dataset.state = 'success';
+    msg.style.display = 'block';
+  }
+
+  setTimeout(() => {
+    hidePasswordGate();
+    unlockApprovedSession();
+  }, 400);
 }
 
 async function handleSignup() {
-  const fullName = $('signupName')?.value.trim() || '';
-  const email = $('signupEmail')?.value.trim().toLowerCase();
+  const fullName =
+    $('signupFullName')?.value.trim() ||
+    $('signupName')?.value.trim() ||
+    '';
+  const email = $('signupEmail')?.value.trim().toLowerCase() || '';
   const password = $('signupPassword')?.value || '';
-  const password2 = $('signupPassword2')?.value || '';
+  const password2 =
+    $('signupConfirmPassword')?.value ||
+    $('signupPassword2')?.value ||
+    '';
   const msg = $('signupMsg');
 
   if (msg) {
@@ -721,6 +807,7 @@ async function handleSignup() {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
+
     await setDoc(doc(db, 'profiles', cred.user.uid), {
       uid: cred.user.uid,
       email,
@@ -730,41 +817,50 @@ async function handleSignup() {
       isAdmin: isAdmin(email),
       isModerator: false,
       banned: false,
+      deletedAtMs: null,
       manualVerified: elevated,
       emailVerified: !!cred.user.emailVerified,
       accessApproved: elevated,
       accessManuallyDenied: false,
+      tempPasswordActive: false,
+      mustChangePassword: false,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    await signOut(auth).catch(() => {});
-    currentUser = null;
-    currentProfile = null;
-    updateAuthUI();
+    currentUser = cred.user;
+    await ensureProfile(cred.user);
 
-    if (msg) {
-      msg.textContent = elevated
-        ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.';
-      msg.style.display = 'block';
+    if (elevated) {
+      stopApprovalWatcher();
+      unlockApprovedSession();
+      hidePasswordGate();
+      if (msg) {
+        msg.textContent = 'Account created. You can use the marketplace now.';
+        msg.style.display = 'block';
+      }
+      return;
     }
 
-    if ($('loginEmail')) $('loginEmail').value = email;
-    if ($('loginPassword')) $('loginPassword').value = '';
-    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
-    showPane('login');
-    alert(elevated
-      ? 'Account created. You can sign in now.'
-      : 'Account created. An admin must manually approve your account before you can sign in.');
+    if (msg) {
+      msg.textContent = 'Account created. Waiting for admin approval.';
+      msg.style.display = 'block';
+    }
+    updateAuthUI();
+    showPendingApprovalScreen();
+    startApprovalWatcher(cred.user.uid);
   } catch (err) {
     console.error(err);
+
+    if (err?.code === 'auth/email-already-in-use') {
+      alert('That email is already registered. Use login or ask admin to approve your account.');
+      return;
+    }
+
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
   }
 }
-
 
 async function handleResendVerification() {
   alert('Verification links are disabled in this build. New accounts are approved manually by admin after review.');
