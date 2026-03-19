@@ -1,1 +1,1 @@
-Replace your current app.js and admin.js with these files. This package keeps the previous app.js recovery/deleted-user update and adds the final admin system.
+Replace app.js. Admin.js already upgraded previously.

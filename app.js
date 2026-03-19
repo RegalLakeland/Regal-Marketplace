@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lastUnverifiedEmail = user.email || '';
     await ensureProfile(user);
 
-    if (currentProfile?.banned || currentProfile?.deletedAtMs) {
+    if (currentProfile?.banned) {
       alert('Your marketplace access has been disabled. Contact an admin.');
       await signOut(auth);
       return;
@@ -556,6 +556,9 @@ async function handleLogin() {
   } catch (err) {
     console.error(err);
     if (err?.code === 'auth/invalid-credential') {
+  alert('Incorrect email or password.');
+  return;
+}
       alert('That email/password combination was rejected by Firebase. If you just set a temporary password, copy it exactly as shown and make sure you are signing in with the exact approved email address. If it still fails, set a new temporary password from the admin panel and try again.');
       return;
     }
@@ -1375,4 +1378,37 @@ async function handleSendReply() {
     console.error(err);
     alert(err?.message || 'Unable to send reply.');
   }
+}
+
+
+// FINAL POLISH: TOAST SYSTEM
+function showToast(msg){
+  const t=document.createElement('div');
+  t.style.position='fixed';
+  t.style.bottom='20px';
+  t.style.left='50%';
+  t.style.transform='translateX(-50%)';
+  t.style.background='#111';
+  t.style.color='#fff';
+  t.style.padding='12px 18px';
+  t.style.borderRadius='10px';
+  t.style.zIndex=9999;
+  t.innerText=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),3000);
+}
+
+// AUTO LIVE APPROVAL
+function startApprovalWatcher(){
+  if(!currentUser) return;
+  onSnapshot(doc(db,'profiles',currentUser.uid),(snap)=>{
+    if(!snap.exists()) return;
+    const d=snap.data();
+    if(d.accessApproved===true && !d.deletedAtMs){
+      const o=document.getElementById('pendingOverlay');
+      if(o) o.remove();
+      updateAuthUI();
+      showToast('Account approved. Welcome!');
+    }
+  });
 }
