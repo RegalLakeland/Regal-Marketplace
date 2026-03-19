@@ -687,10 +687,24 @@ async function handleForcePasswordChange() {
 }
 
 async function handleSignup() {
-  const fullName = $('signupName')?.value.trim() || '';
-  const email = $('signupEmail')?.value.trim().toLowerCase();
-  const password = $('signupPassword')?.value || '';
-  const password2 = $('signupPassword2')?.value || '';
+  const fullName =
+    $('signupFullName')?.value.trim() ||
+    $('signupName')?.value.trim() ||
+    '';
+
+  const email =
+    $('signupEmail')?.value.trim().toLowerCase() ||
+    '';
+
+  const password =
+    $('signupPassword')?.value ||
+    '';
+
+  const password2 =
+    $('signupConfirmPassword')?.value ||
+    $('signupPassword2')?.value ||
+    '';
+
   const msg = $('signupMsg');
 
   if (msg) {
@@ -702,18 +716,22 @@ async function handleSignup() {
     alert('Complete all signup fields.');
     return;
   }
+
   if (fullName.split(/\s+/).length < 2) {
     alert('Enter first and last name.');
     return;
   }
+
   if (!isAllowedEmail(email)) {
     alert('Use your @regallakeland.com email.');
     return;
   }
+
   if (password.length < 6) {
     alert('Password must be at least 6 characters.');
     return;
   }
+
   if (password !== password2) {
     alert('Passwords do not match.');
     return;
@@ -722,6 +740,7 @@ async function handleSignup() {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
+
     await setDoc(doc(db, 'profiles', cred.user.uid), {
       uid: cred.user.uid,
       email,
@@ -735,6 +754,8 @@ async function handleSignup() {
       emailVerified: !!cred.user.emailVerified,
       accessApproved: elevated,
       accessManuallyDenied: false,
+      tempPasswordActive: false,
+      mustChangePassword: false,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -757,11 +778,20 @@ async function handleSignup() {
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-    alert(elevated
-      ? 'Account created. You can sign in now.'
-      : 'Account created. An admin must manually approve your account before you can sign in.');
+
+    alert(
+      elevated
+        ? 'Account created. You can sign in now.'
+        : 'Account created. An admin must manually approve your account before you can sign in.'
+    );
   } catch (err) {
     console.error(err);
+
+    if (err?.code === 'auth/email-already-in-use') {
+      alert('That email is already registered.');
+      return;
+    }
+
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
   }
 }
