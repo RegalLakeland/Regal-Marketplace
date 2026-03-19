@@ -177,10 +177,23 @@ exports.deleteMarketplaceAccount = functions.region('us-central1').https.onReque
     const db = admin.firestore();
     const profileRef = db.collection('profiles').doc(targetUid);
     const listingsSnap = await db.collection('listings').where('uid', '==', targetUid).get();
+    const eventResponsesByUidSnap = await db.collection('eventResponses').where('uid', '==', targetUid).get();
+
+    const duplicateProfileDocs = [];
+    if (targetEmail) {
+      const profilesByEmailSnap = await db.collection('profiles').where('email', '==', targetEmail).get();
+      profilesByEmailSnap.forEach((docSnap) => {
+        if (docSnap.id !== targetUid) duplicateProfileDocs.push(docSnap.ref);
+      });
+    }
 
     const batch = db.batch();
     batch.delete(profileRef);
+    duplicateProfileDocs.forEach((ref) => batch.delete(ref));
     listingsSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+    eventResponsesByUidSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+    const compositeEventRef = db.collection('eventResponses').doc(`regal-50th-anniversary-may-15-2026__${targetUid}`);
+    batch.delete(compositeEventRef);
     await batch.commit();
 
     if (userRecord) {
@@ -193,6 +206,8 @@ exports.deleteMarketplaceAccount = functions.region('us-central1').https.onReque
       email: targetEmail,
       selfDelete,
       listingsDeleted: listingsSnap.size,
+      eventResponsesDeleted: eventResponsesByUidSnap.size + 1,
+      duplicateProfilesDeleted: duplicateProfileDocs.length,
       message: selfDelete
         ? 'Your marketplace account was deleted.'
         : `${targetEmail || targetUid} was deleted successfully.`
