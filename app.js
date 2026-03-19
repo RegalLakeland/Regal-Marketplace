@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lastUnverifiedEmail = user.email || '';
     await ensureProfile(user);
 
-    if (currentProfile?.banned) {
+    if (currentProfile?.banned || currentProfile?.deletedAtMs) {
       alert('Your marketplace access has been disabled. Contact an admin.');
       await signOut(auth);
       return;
@@ -270,7 +270,7 @@ function bindStaticEvents() {
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
-  $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
+  $('btnChangeTempPassword')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -565,33 +565,32 @@ async function handleLogin() {
 
 
 function showPasswordGate() {
-  const msg = $('passwordGateMsg');
+  const msg = $('forcePasswordMsg');
   if (msg) {
     msg.style.display = 'none';
     msg.textContent = '';
     msg.dataset.state = '';
   }
-  if ($('newPasswordInput')) $('newPasswordInput').value = '';
-  if ($('confirmNewPasswordInput')) $('confirmNewPasswordInput').value = '';
-  const gate = $('passwordGateOverlay');
-  if (gate) gate.style.display = 'flex';
-  document.body.classList.add('modal-open');
+  if ($('forcePassword')) $('forcePassword').value = '';
+  if ($('forcePassword2')) $('forcePassword2').value = '';
+  const gate = $('passwordGate');
+  if (gate) gate.style.display = 'block';
+  document.body.classList.remove('modal-open');
   setTimeout(() => {
     gate?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    $('newPasswordInput')?.focus();
+    $('forcePassword')?.focus();
   }, 20);
 }
 
 function hidePasswordGate() {
-  const gate = $('passwordGateOverlay');
+  const gate = $('passwordGate');
   if (gate) gate.style.display = 'none';
-  document.body.classList.remove('modal-open');
 }
 
 async function handleForcePasswordChange() {
-  const password = $('newPasswordInput')?.value || '';
-  const password2 = $('confirmNewPasswordInput')?.value || '';
-  const msg = $('passwordGateMsg');
+  const password = $('forcePassword')?.value || '';
+  const password2 = $('forcePassword2')?.value || '';
+  const msg = $('forcePasswordMsg');
 
   if (msg) {
     msg.style.display = 'none';
@@ -687,24 +686,10 @@ async function handleForcePasswordChange() {
 }
 
 async function handleSignup() {
-  const fullName =
-    $('signupFullName')?.value.trim() ||
-    $('signupName')?.value.trim() ||
-    '';
-
-  const email =
-    $('signupEmail')?.value.trim().toLowerCase() ||
-    '';
-
-  const password =
-    $('signupPassword')?.value ||
-    '';
-
-  const password2 =
-    $('signupConfirmPassword')?.value ||
-    $('signupPassword2')?.value ||
-    '';
-
+  const fullName = $('signupName')?.value.trim() || '';
+  const email = $('signupEmail')?.value.trim().toLowerCase();
+  const password = $('signupPassword')?.value || '';
+  const password2 = $('signupPassword2')?.value || '';
   const msg = $('signupMsg');
 
   if (msg) {
@@ -716,22 +701,18 @@ async function handleSignup() {
     alert('Complete all signup fields.');
     return;
   }
-
   if (fullName.split(/\s+/).length < 2) {
     alert('Enter first and last name.');
     return;
   }
-
   if (!isAllowedEmail(email)) {
     alert('Use your @regallakeland.com email.');
     return;
   }
-
   if (password.length < 6) {
     alert('Password must be at least 6 characters.');
     return;
   }
-
   if (password !== password2) {
     alert('Passwords do not match.');
     return;
@@ -740,7 +721,6 @@ async function handleSignup() {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
-
     await setDoc(doc(db, 'profiles', cred.user.uid), {
       uid: cred.user.uid,
       email,
@@ -754,8 +734,6 @@ async function handleSignup() {
       emailVerified: !!cred.user.emailVerified,
       accessApproved: elevated,
       accessManuallyDenied: false,
-      tempPasswordActive: false,
-      mustChangePassword: false,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -778,20 +756,11 @@ async function handleSignup() {
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-
-    alert(
-      elevated
-        ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.'
-    );
+    alert(elevated
+      ? 'Account created. You can sign in now.'
+      : 'Account created. An admin must manually approve your account before you can sign in.');
   } catch (err) {
     console.error(err);
-
-    if (err?.code === 'auth/email-already-in-use') {
-      alert('That email is already registered.');
-      return;
-    }
-
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
   }
 }

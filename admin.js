@@ -12,6 +12,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   updateDoc,
   where
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
@@ -42,12 +43,12 @@ const esc = (s) => String(s ?? '')
   .replaceAll('>', '&gt;');
 
 const boardLabels = {
-  FREE:'Free Items',
-  BUYSELL:'Buy / Sell',
-  GARAGE:'Garage Sales',
-  EVENTS:'Events',
-  WORK:'Work News',
-  SERVICES:'Local Services'
+  FREE: 'Free Items',
+  BUYSELL: 'Buy / Sell',
+  GARAGE: 'Garage Sales',
+  EVENTS: 'Events',
+  WORK: 'Work News',
+  SERVICES: 'Local Services'
 };
 
 function injectOwnerViewStyles() {
@@ -56,7 +57,7 @@ function injectOwnerViewStyles() {
   style.id = 'ownerViewStyles';
   style.textContent = `
     .owner-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:14px 0 18px}
-    .owner-card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+    .owner-card{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:16px;box-shadow:0 10px 26px rgba(0,0,0,.18)}
     .owner-kicker{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.72;margin-bottom:8px}
     .owner-value{font-size:30px;font-weight:800;line-height:1}
     .owner-sub{font-size:12px;opacity:.72;margin-top:8px}
@@ -82,7 +83,7 @@ function injectOwnerViewStyles() {
     .user-id,.note{font-size:12px;opacity:.72}
     .user-status-stack{display:grid;gap:8px}
     .user-status-line{display:flex;gap:10px;align-items:flex-start}
-    .user-status-key{min-width:70px;font-size:12px;opacity:.7;text-transform:uppercase;letter-spacing:.04em}
+    .user-status-key{min-width:82px;font-size:12px;opacity:.7;text-transform:uppercase;letter-spacing:.04em}
     .user-status-value,.user-status-meta{font-size:13px}
     .user-status-value.ok{color:#8fe2aa}
     .user-status-value.pending{color:#ffd36a}
@@ -105,16 +106,26 @@ function injectOwnerViewStyles() {
   document.head.appendChild(style);
 }
 
-
 function ensureDeletedFilterOption() {
   const filter = $('userFilter');
   if (!filter) return;
-  const hasDeleted = Array.from(filter.options).some((opt) => opt.value === 'DELETED');
-  if (!hasDeleted) {
-    const opt = document.createElement('option');
-    opt.value = 'DELETED';
-    opt.textContent = 'Deleted';
-    filter.appendChild(opt);
+  const wanted = [
+    ['PENDING', 'Pending'],
+    ['ALL', 'All Users'],
+    ['ADMIN', 'Admins'],
+    ['MODERATOR', 'Moderators'],
+    ['BANNED', 'Blocked'],
+    ['DUPLICATES', 'Duplicates'],
+    ['DELETED', 'Deleted']
+  ];
+  const existing = new Set(Array.from(filter.options).map((opt) => opt.value));
+  for (const [value, label] of wanted) {
+    if (!existing.has(value)) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      filter.appendChild(opt);
+    }
   }
   filter.value = userFilterValue;
 }
@@ -133,11 +144,11 @@ function ensureOwnerShell() {
   container.innerHTML = `
     <h3>Owner Overview</h3>
     <div class="owner-card-grid">
-      <div class="owner-card"><div class="owner-kicker">Users</div><div class="owner-value" id="ownerUsersValue">0</div><div class="owner-sub" id="ownerUsersSub">Marketplace accounts</div></div>
-      <div class="owner-card"><div class="owner-kicker">Pending Approval</div><div class="owner-value" id="ownerPendingValue">0</div><div class="owner-sub" id="ownerPendingSub">Waiting on admin review</div></div>
-      <div class="owner-card"><div class="owner-kicker">Active Listings</div><div class="owner-value" id="ownerListingsValue">0</div><div class="owner-sub" id="ownerListingsSub">Live marketplace posts</div></div>
-      <div class="owner-card"><div class="owner-kicker">Deleted Accounts</div><div class="owner-value" id="ownerDeletedValue">0</div><div class="owner-sub" id="ownerDeletedSub">Hidden from normal user views</div></div>
-      <div class="owner-card"><div class="owner-kicker">50th Anniversary RSVP</div><div class="owner-value" id="ownerRsvpValue">0</div><div class="owner-sub" id="ownerRsvpSub">Total employee responses</div></div>
+      <div class="owner-card"><div class="owner-kicker">Users</div><div class="owner-value" id="ownerUsersValue">0</div><div class="owner-sub">Marketplace accounts</div></div>
+      <div class="owner-card"><div class="owner-kicker">Pending Approval</div><div class="owner-value" id="ownerPendingValue">0</div><div class="owner-sub">Waiting on admin review</div></div>
+      <div class="owner-card"><div class="owner-kicker">Active Listings</div><div class="owner-value" id="ownerListingsValue">0</div><div class="owner-sub">Live marketplace posts</div></div>
+      <div class="owner-card"><div class="owner-kicker">Deleted Accounts</div><div class="owner-value" id="ownerDeletedValue">0</div><div class="owner-sub">Hidden from normal user views</div></div>
+      <div class="owner-card"><div class="owner-kicker">50th Anniversary RSVP</div><div class="owner-value" id="ownerRsvpValue">0</div><div class="owner-sub">Total employee responses</div></div>
     </div>
 
     <div class="owner-split">
@@ -189,7 +200,7 @@ function ensureOwnerShell() {
     wrap.appendChild(rsvpTable);
   }
 
-  if ($('userSearch') && $('userFilter')) {
+  if ($('userSearch') && $('userFilter') && !document.getElementById('ownerFilterSummary')) {
     const left = document.createElement('div');
     left.className = 'owner-left';
     const right = document.createElement('div');
@@ -205,7 +216,7 @@ function ensureOwnerShell() {
     const countPill = document.createElement('div');
     countPill.className = 'owner-pill';
     countPill.id = 'ownerFilterSummary';
-    countPill.textContent = 'Showing all users';
+    countPill.textContent = 'Showing pending users';
     right.appendChild(countPill);
 
     const target = $('userRows')?.closest('section, .card, .panel, .owner-section, .tableWrap, .admin-section') || $('userRows')?.parentElement;
@@ -324,12 +335,8 @@ async function disableMarketplaceAccount(targetUser) {
   const selfRow = isSelfRow(targetUser);
   const protectedUser = isProtectedCoreAdmin(email);
 
-  if (!isCoreAdminViewer()) {
-    throw new Error('Only Michael and Janni can remove accounts.');
-  }
-  if (protectedUser && !selfRow) {
-    throw new Error('Protected core admin account cannot be removed by another admin.');
-  }
+  if (!isCoreAdminViewer()) throw new Error('Only Michael and Janni can remove accounts.');
+  if (protectedUser && !selfRow) throw new Error('Protected core admin account cannot be removed by another admin.');
 
   const listingsSnap = await getDocs(query(collection(db, 'listings'), where('uid', '==', uid)));
   for (const d of listingsSnap.docs) await deleteDoc(d.ref);
@@ -381,6 +388,58 @@ async function disableMarketplaceAccount(targetUser) {
       ? 'Your marketplace account was removed and blocked from future access.'
       : 'User removed from the marketplace and blocked from future access.'
   };
+}
+
+async function recoverMissingProfile(user) {
+  if (!user?.email) throw new Error('User email is missing.');
+  const displayName = user.displayName || user.email.split('@')[0].replace(/[._]/g, ' ');
+  await setDoc(doc(db, 'profiles', user.id), {
+    uid: user.id,
+    email: user.email,
+    displayName,
+    pendingName: displayName,
+    requestedName: displayName,
+    isAdmin: false,
+    isModerator: false,
+    banned: false,
+    manualVerified: false,
+    emailVerified: !!user.emailVerified,
+    accessApproved: false,
+    accessManuallyDenied: false,
+    tempPasswordActive: false,
+    mustChangePassword: false,
+    recoveredAtMs: Date.now(),
+    updatedAt: Date.now()
+  }, { merge: true });
+}
+
+async function mergeDuplicateProfiles(targetUser) {
+  const email = normalizeEmail(targetUser.email);
+  if (!email) throw new Error('No email found to merge.');
+  const dupSnap = await getDocs(query(collection(db, 'profiles'), where('email', '==', email)));
+  const rows = dupSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (rows.length <= 1) throw new Error('No duplicate profiles found for this email.');
+
+  const primary = rows.find((r) => r.id === targetUser.id) || rows[0];
+  for (const row of rows) {
+    if (row.id === primary.id) continue;
+    await updateDoc(doc(db, 'profiles', row.id), {
+      banned: true,
+      accessApproved: false,
+      accessManuallyDenied: true,
+      isAdmin: false,
+      isModerator: false,
+      deletedAtMs: Date.now(),
+      deletedBy: normalizeEmail(currentViewer?.email),
+      mergedInto: primary.id,
+      updatedAt: Date.now()
+    }).catch(() => {});
+  }
+  await updateDoc(doc(db, 'profiles', primary.id), {
+    accessApproved: primary.accessApproved ?? false,
+    accessManuallyDenied: false,
+    updatedAt: Date.now()
+  }).catch(() => {});
 }
 
 function duplicateMeta(rows) {
@@ -523,6 +582,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
   const buttons = [];
   const selfRow = isSelfRow(user);
   const removed = !!user.deletedAtMs;
+  const missingProfileSignals = !user.displayName && !user.pendingName && !user.requestedName;
 
   if (!removed) {
     if (!user.isModerator) buttons.push(`<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>`);
@@ -540,6 +600,8 @@ function buildUserActionButtons(user, dup, protectedUser) {
     if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
     if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
     if (dup.isDuplicate && !dup.isPrimary && !protectedUser) buttons.push(`<button class="btn danger" data-role="deleteDuplicate" data-id="${esc(user.id)}" type="button">Delete Duplicate</button>`);
+    if (dup.isDuplicate) buttons.push(`<button class="btn ghost" data-role="mergeDuplicates" data-id="${esc(user.id)}" type="button">Merge Duplicates</button>`);
+    if (missingProfileSignals || user.recoveredAtMs) buttons.push(`<button class="btn ghost" data-role="recoverUser" data-id="${esc(user.id)}" type="button">Recover User</button>`);
   }
 
   if (!buttons.length && protectedUser && !selfRow) buttons.push('<span class="owner-pill">Protected</span>');
@@ -645,6 +707,16 @@ function renderUserRows() {
     if (role === 'deleteDuplicate') {
       if (!confirm(`Delete duplicate profile row for ${user.email}? This removes only the extra profile document.`)) return;
       await deleteDoc(ref);
+    }
+    if (role === 'recoverUser') {
+      await recoverMissingProfile(user);
+      alert('User profile recovered and sent back to pending review.');
+      return;
+    }
+    if (role === 'mergeDuplicates') {
+      await mergeDuplicateProfiles(user);
+      alert('Duplicate profiles merged. Extra rows were moved out of normal views.');
+      return;
     }
   });
 
@@ -862,7 +934,6 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   if ($('adminUser')) $('adminUser').textContent = user.email;
-
   ensureDeletedFilterOption();
 
   $('userSearch')?.addEventListener('input', (e) => {
@@ -870,7 +941,7 @@ onAuthStateChanged(auth, async (user) => {
     renderUserRows();
   });
   $('userFilter')?.addEventListener('change', (e) => {
-    userFilterValue = String(e.target.value || 'ALL');
+    userFilterValue = String(e.target.value || 'PENDING');
     renderUserRows();
   });
 
