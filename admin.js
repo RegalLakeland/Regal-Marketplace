@@ -33,7 +33,7 @@ let userRowsData = [];
 let eventRowsData = [];
 let adminEditingId = null;
 let userSearchTerm = '';
-let userFilterValue = 'ALL';
+let userFilterValue = 'PENDING';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '')
@@ -105,6 +105,20 @@ function injectOwnerViewStyles() {
   document.head.appendChild(style);
 }
 
+
+function ensureDeletedFilterOption() {
+  const filter = $('userFilter');
+  if (!filter) return;
+  const hasDeleted = Array.from(filter.options).some((opt) => opt.value === 'DELETED');
+  if (!hasDeleted) {
+    const opt = document.createElement('option');
+    opt.value = 'DELETED';
+    opt.textContent = 'Deleted';
+    filter.appendChild(opt);
+  }
+  filter.value = userFilterValue;
+}
+
 function ensureOwnerShell() {
   injectOwnerViewStyles();
   const root = document.body;
@@ -122,6 +136,7 @@ function ensureOwnerShell() {
       <div class="owner-card"><div class="owner-kicker">Users</div><div class="owner-value" id="ownerUsersValue">0</div><div class="owner-sub" id="ownerUsersSub">Marketplace accounts</div></div>
       <div class="owner-card"><div class="owner-kicker">Pending Approval</div><div class="owner-value" id="ownerPendingValue">0</div><div class="owner-sub" id="ownerPendingSub">Waiting on admin review</div></div>
       <div class="owner-card"><div class="owner-kicker">Active Listings</div><div class="owner-value" id="ownerListingsValue">0</div><div class="owner-sub" id="ownerListingsSub">Live marketplace posts</div></div>
+      <div class="owner-card"><div class="owner-kicker">Deleted Accounts</div><div class="owner-value" id="ownerDeletedValue">0</div><div class="owner-sub" id="ownerDeletedSub">Hidden from normal user views</div></div>
       <div class="owner-card"><div class="owner-kicker">50th Anniversary RSVP</div><div class="owner-value" id="ownerRsvpValue">0</div><div class="owner-sub" id="ownerRsvpSub">Total employee responses</div></div>
     </div>
 
@@ -400,17 +415,22 @@ function userPending(user) {
 function applyUserFilters(rows) {
   const dmeta = duplicateMeta(rows);
   let filtered = rows.slice();
+
   if (userSearchTerm) {
     filtered = filtered.filter((user) => {
       const hay = [user.email, user.displayName, user.pendingName, user.requestedName].join(' ').toLowerCase();
       return hay.includes(userSearchTerm);
     });
   }
-  if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
-  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
-  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
-  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned || !!u.deletedAtMs);
-  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
+
+  if (userFilterValue === 'PENDING') filtered = filtered.filter((u) => !u.deletedAtMs && userPending(u));
+  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !u.deletedAtMs && (!!u.isAdmin || isProtectedCoreAdmin(u.email)));
+  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !u.deletedAtMs && !!u.isModerator);
+  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !u.deletedAtMs && !!u.banned);
+  if (userFilterValue === 'DELETED') filtered = filtered.filter((u) => !!u.deletedAtMs);
+  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => !u.deletedAtMs && dmeta.get(u.id)?.isDuplicate);
+  if (userFilterValue === 'ALL') filtered = filtered.filter((u) => !u.deletedAtMs);
+
   filtered.sort((a, b) =>
     normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) ||
     normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(
@@ -421,9 +441,10 @@ function applyUserFilters(rows) {
 }
 
 function renderOwnerHighlights() {
-  const usersTotal = userRowsData.length;
-  const pending = userRowsData.filter(userPending).length;
+  const usersTotal = userRowsData.filter((u) => !u.deletedAtMs).length;
+  const pending = userRowsData.filter((u) => !u.deletedAtMs && userPending(u)).length;
   const listingsLive = listingRowsData.filter((x) => !x.hidden && String(x.status || 'ACTIVE').toUpperCase() !== 'SOLD').length;
+  const deletedTotal = userRowsData.filter((u) => !!u.deletedAtMs).length;
   const rsvpTotal = eventRowsData.length;
   const attending = eventRowsData.filter((x) => String(x.status || '').toUpperCase() === 'ATTENDING').length;
   const maybe = eventRowsData.filter((x) => String(x.status || '').toUpperCase() === 'MAYBE').length;
@@ -432,6 +453,7 @@ function renderOwnerHighlights() {
   if ($('ownerUsersValue')) $('ownerUsersValue').textContent = String(usersTotal);
   if ($('ownerPendingValue')) $('ownerPendingValue').textContent = String(pending);
   if ($('ownerListingsValue')) $('ownerListingsValue').textContent = String(listingsLive);
+  if ($('ownerDeletedValue')) $('ownerDeletedValue').textContent = String(deletedTotal);
   if ($('ownerRsvpValue')) $('ownerRsvpValue').textContent = String(rsvpTotal);
 
   if ($('rsvpAttendBig')) $('rsvpAttendBig').textContent = String(attending);
@@ -439,7 +461,7 @@ function renderOwnerHighlights() {
   if ($('rsvpCantBig')) $('rsvpCantBig').textContent = String(cant);
 
   const pendingUsers = userRowsData
-    .filter(userPending)
+    .filter((u) => !u.deletedAtMs && userPending(u))
     .slice(0, 6)
     .map((u) => `
       <div class="owner-list-row">
@@ -529,7 +551,7 @@ function renderUserRows() {
   if (!$('userRows')) return;
   const { filtered, dmeta } = applyUserFilters(userRowsData);
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
-  if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
+  if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter((u) => !u.deletedAtMs && userPending(u)).length} pending`;
   if ($('ownerFilterSummary')) {
     $('ownerFilterSummary').textContent = userSearchTerm || userFilterValue !== 'ALL'
       ? `Showing ${filtered.length} filtered users`
@@ -840,6 +862,8 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   if ($('adminUser')) $('adminUser').textContent = user.email;
+
+  ensureDeletedFilterOption();
 
   $('userSearch')?.addEventListener('input', (e) => {
     userSearchTerm = String(e.target.value || '').trim().toLowerCase();
