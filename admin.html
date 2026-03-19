@@ -52,8 +52,8 @@
             <div class="admin-tools">
               <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
               <select id="userFilter" class="adminFilter">
-                <option value="ALL">All Users</option>
                 <option value="PENDING" selected>Pending Access</option>
+                <option value="ALL">All Users</option>
                 <option value="ADMIN">Admins</option>
                 <option value="MODERATOR">Moderators</option>
                 <option value="BANNED">Blocked</option>
@@ -72,6 +72,23 @@
               </thead>
               <tbody id="userRows"></tbody>
             </table>
+          </div>
+        </section>
+
+        <section class="panel" style="background:rgba(8,16,30,.52)">
+          <div class="panel-h"><div><div class="panel-title">50th Anniversary RSVP</div><div class="meta">Live RSVP activity for the Regal 50th Anniversary event.</div></div></div>
+          <div class="panel-b">
+            <div class="admin-summary" style="margin-bottom:12px">
+              <span class="pill" id="rsvpAttendCount">0 attending</span>
+              <span class="pill" id="rsvpMaybeCount">0 maybe</span>
+              <span class="pill" id="rsvpCantCount">0 can’t attend</span>
+            </div>
+            <div class="table-scroll">
+              <table class="adminTable">
+                <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Updated</th></tr></thead>
+                <tbody id="rsvpRows"></tbody>
+              </table>
+            </div>
           </div>
         </section>
       </div>
