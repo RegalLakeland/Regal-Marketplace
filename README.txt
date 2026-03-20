@@ -1,1 +1,1 @@
-Replace app.js. Admin.js already upgraded previously.
+Replace app.js, admin.js, admin.html, index.html, and styles.css. firebase-config.js was not changed.

@@ -39,19 +39,16 @@ async function callAdminVerificationResend(email) {
 }
 
 async function callDeleteMarketplaceAccount(targetUser) {
-  if (!currentViewer) throw new Error('You must be signed in.');
-  const token = await currentViewer.getIdToken(true);
-  const res = await fetch(deleteAccountFunctionUrl(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ uid: targetUser.id, email: targetUser.email || '' })
+  const ref = doc(db, 'profiles', targetUser.id);
+  await updateDoc(ref, {
+    banned: true,
+    accessApproved: false,
+    accessManuallyDenied: true,
+    deletedAtMs: Date.now(),
+    deletedBy: normalizeEmail(currentViewer?.email),
+    updatedAt: Date.now()
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Account delete request failed (${res.status})`);
-  return data;
+  return { message: 'Account removed from active marketplace view.' };
 }
 
 async function copyText(text) {
@@ -134,19 +131,6 @@ let adminEditingId = null;
 let userSearchTerm = '';
 let userFilterValue = 'PENDING';
 
-function ensureDeletedFilterOption() {
-  const filter = $('userFilter');
-  if (!filter) return;
-  const hasDeleted = Array.from(filter.options).some((opt) => opt.value === 'DELETED');
-  if (!hasDeleted) {
-    const opt = document.createElement('option');
-    opt.value = 'DELETED';
-    opt.textContent = 'Deleted';
-    filter.appendChild(opt);
-  }
-  filter.value = userFilterValue;
-}
-
 onAuthStateChanged(auth, async (user) => {
   authResolved = true;
   currentViewer = user || null;
@@ -165,13 +149,12 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   if ($('adminUser')) $('adminUser').textContent = user.email;
-  ensureDeletedFilterOption();
   $('userSearch')?.addEventListener('input', (e) => {
     userSearchTerm = String(e.target.value || '').trim().toLowerCase();
     renderUserRows();
   });
   $('userFilter')?.addEventListener('change', (e) => {
-    userFilterValue = String(e.target.value || 'ALL');
+    userFilterValue = String(e.target.value || 'PENDING');
     renderUserRows();
   });
   startListings();
@@ -276,7 +259,6 @@ function userPending(user) {
   return !user.accessApproved || (!user.emailVerified && !user.manualVerified);
 }
 
-
 function applyUserFilters(rows) {
   const dmeta = duplicateMeta(rows);
   let filtered = rows.slice();
@@ -290,17 +272,21 @@ function applyUserFilters(rows) {
   if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !u.deletedAtMs && (!!u.isAdmin || isProtectedCoreAdmin(u.email)));
   if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !u.deletedAtMs && !!u.isModerator);
   if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !u.deletedAtMs && !!u.banned);
-  if (userFilterValue === 'DELETED') filtered = filtered.filter((u) => !!u.deletedAtMs);
   if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => !u.deletedAtMs && dmeta.get(u.id)?.isDuplicate);
+  if (userFilterValue === 'DELETED') filtered = filtered.filter((u) => !!u.deletedAtMs);
   if (userFilterValue === 'ALL') filtered = filtered.filter((u) => !u.deletedAtMs);
   filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
   return { filtered, dmeta };
 }
 
-
 function buildUserActionButtons(user, dup, protectedUser) {
   const buttons = [];
   const selfRow = isSelfRow(user);
+
+  if (user?.deletedAtMs) {
+    if (isCoreAdminViewer()) buttons.push(`<button class="btn primary" data-role="reactivateUser" data-id="${esc(user.id)}" type="button">Reactivate</button>`);
+    return buttons.join('') || '<span class="pill">Deleted</span>';
+  }
 
   if (!user.isModerator) buttons.push(`<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>`);
   if (user.isModerator && !protectedUser) buttons.push(`<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>`);
@@ -311,14 +297,8 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
 
-  if (user.deletedAtMs) {
-    if (isCoreAdminViewer()) buttons.push(`<button class="btn primary" data-role="reactivateUser" data-id="${esc(user.id)}" type="button">Reactivate</button>`);
-    return buttons.join('');
-  }
-
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
-  if (isCoreAdminViewer() && !protectedUser) buttons.push(`<button class="btn danger" data-role="softDeleteUser" data-id="${esc(user.id)}" type="button">Delete</button>`);
 
   if (dup.isDuplicate && !dup.isPrimary && !protectedUser) buttons.push(`<button class="btn danger" data-role="deleteDuplicate" data-id="${esc(user.id)}" type="button">Delete Duplicate</button>`);
 
@@ -374,7 +354,7 @@ function renderUserRows() {
 
     const role = btn.dataset.role;
     const protectedUser = isProtectedCoreAdmin(user.email);
-    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate'].includes(role)) {
+    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate', 'deleteAccount'].includes(role) && !isSelfRow(user)) {
       alert('This core admin account cannot be modified.');
       return;
     }
@@ -393,13 +373,9 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
-    if (role === 'softDeleteUser') {
-      if (!confirm(`Move ${user.email} to Deleted?`)) return;
-      await updateDoc(ref, { deletedAtMs: Date.now(), banned: true, accessApproved: false, updatedAt: Date.now() });
-      return;
-    }
     if (role === 'reactivateUser') {
-      await updateDoc(ref, { deletedAtMs: null, banned: false, accessApproved: true, accessManuallyDenied: false, updatedAt: Date.now() });
+      await updateDoc(ref, { banned: false, accessApproved: true, accessManuallyDenied: false, deletedAtMs: null, deletedBy: null, updatedAt: Date.now() });
+      alert('User reactivated.');
       return;
     }
     if (role === 'deleteDuplicate') {
