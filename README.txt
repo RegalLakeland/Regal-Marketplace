@@ -1,14 +1,12 @@
-These files were rebuilt directly from your uploaded project ZIP and syntax-checked.
-
-Replace only these files:
+Replace ONLY:
 - app.js
-- admin.js
-- admin.html
-- index.html
-- styles.css
 
-firebase-config.js was not changed.
+What this does:
+- restores the FULL working app.js from the best patch
+- keeps login logic intact
+- keeps the working signup/pending flow intact
+- exposes handleSaveName globally so the name-save button works
+- does NOT touch firebase-config.js
 
-JS syntax check results:
-- app.js: OK
-- admin.js: OK
+Syntax check return code: 0
+
