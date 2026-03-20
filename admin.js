@@ -284,7 +284,10 @@ function buildUserActionButtons(user, dup, protectedUser) {
   const selfRow = isSelfRow(user);
 
   if (user?.deletedAtMs) {
-    if (isCoreAdminViewer()) buttons.push(`<button class="btn primary" data-role="reactivateUser" data-id="${esc(user.id)}" type="button">Reactivate</button>`);
+    if (isCoreAdminViewer()) {
+      buttons.push(`<button class="btn primary" data-role="reactivateUser" data-id="${esc(user.id)}" type="button">Reactivate</button>`);
+      buttons.push(`<button class="btn danger" data-role="permanentDeleteUser" data-id="${esc(user.id)}" type="button">Permanent Delete</button>`);
+    }
     return buttons.join('') || '<span class="pill">Deleted</span>';
   }
 
@@ -296,6 +299,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
 
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
+  if (isCoreAdminViewer() && (!protectedUser || selfRow)) buttons.push(`<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">Delete Account</button>`);
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
@@ -373,9 +377,34 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
+    if (role === 'deleteAccount') {
+      const confirmWord = window.prompt(`Type DELETE to move ${user.email || 'this account'} into Deleted.`, '');
+      if (confirmWord !== 'DELETE') return;
+      await updateDoc(ref, {
+        banned: true,
+        accessApproved: false,
+        accessManuallyDenied: true,
+        deletedAtMs: Date.now(),
+        deletedBy: normalizeEmail(currentViewer?.email),
+        updatedAt: Date.now()
+      });
+      alert('User moved to Deleted.');
+      if (isSelfRow(user)) {
+        await signOut(auth).catch(() => {});
+        window.location.href = 'index.html';
+      }
+      return;
+    }
     if (role === 'reactivateUser') {
       await updateDoc(ref, { banned: false, accessApproved: true, accessManuallyDenied: false, deletedAtMs: null, deletedBy: null, updatedAt: Date.now() });
       alert('User reactivated.');
+      return;
+    }
+    if (role === 'permanentDeleteUser') {
+      const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this deleted account'}. This cannot be undone.`, '');
+      if (confirmWord !== 'DELETE') return;
+      await deleteDoc(ref);
+      alert('Deleted account removed permanently.');
       return;
     }
     if (role === 'deleteDuplicate') {
