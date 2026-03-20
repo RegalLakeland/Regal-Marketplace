@@ -83,7 +83,12 @@ async function getFreshProfileSnapshot(uid) {
   try {
     return await getDocFromServer(profileRef);
   } catch (_) {
-    return await getDoc(profileRef);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return await getDocFromServer(profileRef);
+    } catch (_) {
+      return await getDoc(profileRef);
+    }
   }
 }
 
@@ -210,6 +215,7 @@ async function handleAcceptTerms() {
       currentProfile.termsVersion = TERMS_VERSION;
     }
     hideTermsOverlay();
+    clearLoginApprovalIntent();
     startMarketplaceForApprovedUser();
   } catch (err) {
     console.error(err);
@@ -232,6 +238,15 @@ let selfProfileUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
+let loginApprovalCheckUid = '';
+
+function setLoginApprovalIntent(uid) {
+  loginApprovalCheckUid = uid || '';
+}
+
+function clearLoginApprovalIntent() {
+  loginApprovalCheckUid = '';
+}
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
@@ -333,6 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentUser = null;
       currentProfile = null;
       stopListeners();
+      clearLoginApprovalIntent();
       updateAuthUI();
       return;
     }
@@ -359,8 +375,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
-      const freshSnap = await getFreshProfileSnapshot(user.uid).catch(() => null);
-      const freshData = freshSnap?.exists?.() ? freshSnap.data() : null;
+      let freshSnap = await getFreshProfileSnapshot(user.uid).catch(() => null);
+      let freshData = freshSnap?.exists?.() ? freshSnap.data() : null;
+
+      if (loginApprovalCheckUid === user.uid && freshData?.accessApproved !== true) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        freshSnap = await getFreshProfileSnapshot(user.uid).catch(() => freshSnap);
+        freshData = freshSnap?.exists?.() ? freshSnap.data() : freshData;
+      }
+
       if (freshData?.accessApproved === true) {
         currentProfile = { id: user.uid, ...freshData };
       } else {
@@ -724,6 +747,7 @@ async function handleLogin() {
     hidePendingApprovalOverlay();
     hideTermsOverlay();
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    setLoginApprovalIntent(cred.user.uid);
 
     const freshSnap = await getFreshProfileSnapshot(cred.user.uid);
     if (freshSnap.exists()) {
