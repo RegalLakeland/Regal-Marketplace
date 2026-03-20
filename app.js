@@ -1440,3 +1440,11 @@ async function handleSendReply() {
     alert(err?.message || 'Unable to send reply.');
   }
 }
+
+
+// ===== AUTO FIX: CLOSE ANY TRUNCATED BLOCKS =====
+}
+try {
+} catch (e) {
+  console.error(e);
+}
