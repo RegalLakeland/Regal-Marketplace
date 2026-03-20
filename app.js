@@ -152,38 +152,11 @@ function showPendingApprovalOverlay(message = 'Your account is pending admin app
   if (note) note.textContent = message;
   wrap.style.display = 'flex';
   document.body.classList.add('modal-open');
-  document.body.style.overflow = 'hidden';
-  document.documentElement.style.overflow = 'hidden';
 }
 
 function hidePendingApprovalOverlay() {
   const wrap = document.getElementById('pendingApprovalOverlay');
-  if (wrap) wrap.remove();
-  document.body.classList.remove('modal-open');
-  document.body.style.overflow = '';
-  document.documentElement.style.overflow = '';
-}
-
-function hardUnlockUiOverlays() {
-  const pending = document.getElementById('pendingApprovalOverlay');
-  if (pending) pending.remove();
-
-  document.body.classList.remove('modal-open');
-  document.body.style.overflow = '';
-  document.body.style.position = '';
-  document.body.style.width = '';
-  document.documentElement.style.overflow = '';
-
-  ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el && el.style.display === 'flex' && id !== 'nameOverlay') {
-      // leave real user-invoked modals alone except stale leftovers
-    }
-  });
-
-  document.querySelectorAll('.overlay').forEach((el) => {
-    if (el.id === 'pendingApprovalOverlay') el.remove();
-  });
+  if (wrap) wrap.style.display = 'none';
 }
 
 let pendingApprovalUnsub = null;
@@ -300,6 +273,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentProfile.displayName) {
       $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
       show('nameOverlay');
+      document.body.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     }
   } catch (err) {
     console.error(err);
@@ -476,8 +452,8 @@ async function ensureProfile(user) {
   const baseProfile = {
     uid: user.uid,
     email: user.email || '',
-    displayName: (user.displayName || user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '').trim(),
-    pendingName: (user.displayName || user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '').trim(),
+    displayName: (user.displayName || '').trim(),
+    pendingName: (user.displayName || '').trim(),
     isAdmin: isAdmin(user.email),
     isModerator: false,
     banned: false,
