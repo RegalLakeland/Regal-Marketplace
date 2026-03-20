@@ -370,7 +370,7 @@ function renderUserRows() {
     if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
     if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
     if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
-    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, banned: false, deletedAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
     if (role === 'denyAccess') {
       const denyPayload = { accessApproved: false, accessManuallyDenied: true, updatedAt: Date.now() };
       if (!user.emailVerified) denyPayload.manualVerified = false;
@@ -396,7 +396,7 @@ function renderUserRows() {
       return;
     }
     if (role === 'reactivateUser') {
-      await updateDoc(ref, { banned: false, accessApproved: true, accessManuallyDenied: false, deletedAtMs: null, deletedBy: null, updatedAt: Date.now() });
+      await updateDoc(ref, { banned: false, accessApproved: true, accessManuallyDenied: false, manualVerified: true, deletedAtMs: null, deletedBy: null, updatedAt: Date.now() });
       alert('User reactivated.');
       return;
     }

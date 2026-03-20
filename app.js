@@ -15,6 +15,7 @@ import {
   addDoc,
   doc,
   getDoc,
+  getDocFromServer,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -75,6 +76,15 @@ function applyAuthLanguage() {
       auth.languageCode = navigator.language;
     }
   } catch (_) {}
+}
+
+async function getFreshProfileSnapshot(uid) {
+  const profileRef = doc(db, 'profiles', uid);
+  try {
+    return await getDocFromServer(profileRef);
+  } catch (_) {
+    return await getDoc(profileRef);
+  }
 }
 
 const esc = (s) => String(s ?? '')
@@ -345,22 +355,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
-      const pendingEmail = user.email || '';
-      await signOut(auth).catch(() => {});
-      currentUser = null;
-      currentProfile = null;
-      stopListeners();
-      hidePendingApprovalOverlay();
-      hideTermsOverlay();
-      updateAuthUI();
-      showPane('login');
-      if ($('loginEmail')) $('loginEmail').value = pendingEmail;
-      if ($('verifyNote')) {
-        $('verifyNote').textContent = 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you created.';
-        $('verifyNote').style.display = 'block';
+      const freshSnap = await getFreshProfileSnapshot(user.uid).catch(() => null);
+      const freshData = freshSnap?.exists?.() ? freshSnap.data() : null;
+      if (freshData?.accessApproved === true) {
+        currentProfile = { id: user.uid, ...freshData };
+      } else {
+        const pendingEmail = user.email || '';
+        await signOut(auth).catch(() => {});
+        currentUser = null;
+        currentProfile = null;
+        stopListeners();
+        hidePendingApprovalOverlay();
+        hideTermsOverlay();
+        updateAuthUI();
+        showPane('login');
+        if ($('loginEmail')) $('loginEmail').value = pendingEmail;
+        if ($('verifyNote')) {
+          $('verifyNote').textContent = 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you created.';
+          $('verifyNote').style.display = 'block';
+        }
+        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+        return;
       }
-      if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-      return;
     }
 
     if (!currentProfile?.termsAccepted && !isProtectedCoreAdmin(user.email)) {
@@ -567,7 +583,7 @@ function startMarketplaceForApprovedUser() {
 
 async function ensureProfile(user) {
   const profileRef = doc(db, 'profiles', user.uid);
-  const snap = await getDoc(profileRef);
+  const snap = await getFreshProfileSnapshot(user.uid);
 
   const baseProfile = {
     uid: user.uid,
