@@ -152,11 +152,16 @@ function showPendingApprovalOverlay(message = 'Your account is pending admin app
   if (note) note.textContent = message;
   wrap.style.display = 'flex';
   document.body.classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
 }
 
 function hidePendingApprovalOverlay() {
   const wrap = document.getElementById('pendingApprovalOverlay');
-  if (wrap) wrap.style.display = 'none';
+  if (wrap) wrap.remove();
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
 }
 
 let pendingApprovalUnsub = null;
@@ -184,6 +189,7 @@ function watchPendingApproval(uid) {
       touchPresence();
       if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
       renderListings();
+      window.scrollTo({ top: 0, behavior: 'auto' });
     }
   }, (err) => console.error('Pending approval watch failed', err));
 }
