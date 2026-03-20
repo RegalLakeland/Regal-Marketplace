@@ -228,6 +228,7 @@ let presenceTimer = null;
 let profiles = [];
 let eventResponses = [];
 let eventResponsesUnsub = null;
+let selfProfileUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
@@ -267,6 +268,9 @@ function showPendingApprovalOverlay(message = 'Your account is pending admin app
 function hidePendingApprovalOverlay() {
   const wrap = document.getElementById('pendingApprovalOverlay');
   if (wrap) wrap.style.display = 'none';
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
 }
 
 let pendingApprovalUnsub = null;
@@ -544,6 +548,10 @@ function stopListeners() {
     eventResponsesUnsub();
     eventResponsesUnsub = null;
   }
+  if (selfProfileUnsub) {
+    selfProfileUnsub();
+    selfProfileUnsub = null;
+  }
   if (presenceTimer) {
     clearInterval(presenceTimer);
     presenceTimer = null;
@@ -566,6 +574,7 @@ function startMarketplaceForApprovedUser() {
   if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
   updateAuthUI();
+  startSelfProfileListener();
   startListingsListener();
   startProfilesListener();
   startEventResponsesListener();
@@ -579,6 +588,45 @@ function startMarketplaceForApprovedUser() {
   }
 
   renderListings();
+}
+
+
+function startSelfProfileListener() {
+  if (!currentUser) return;
+  if (selfProfileUnsub) {
+    selfProfileUnsub();
+    selfProfileUnsub = null;
+  }
+  selfProfileUnsub = onSnapshot(doc(db, 'profiles', currentUser.uid), async (snap) => {
+    if (!snap.exists()) return;
+    const latest = { id: snap.id, ...snap.data() };
+    currentProfile = latest;
+
+    if (latest.deletedAtMs || latest.banned) {
+      stopListeners();
+      hidePendingApprovalOverlay();
+      hideTermsOverlay();
+      alert('Your marketplace access has been disabled. Contact an admin.');
+      await signOut(auth).catch(() => {});
+      return;
+    }
+
+    if (latest.accessApproved === false && !isProtectedCoreAdmin(currentUser?.email)) {
+      stopListeners();
+      hideTermsOverlay();
+      updateAuthUI();
+      await signOut(auth).catch(() => {});
+      if ($('verifyNote')) {
+        $('verifyNote').textContent = 'Your account is waiting for admin approval.';
+        $('verifyNote').style.display = 'block';
+      }
+      return;
+    }
+
+    renderListings();
+    renderEventSpotlight();
+    updateHeroPeopleStats();
+  }, (err) => console.error('Self profile watch failed', err));
 }
 
 async function ensureProfile(user) {
@@ -675,7 +723,25 @@ async function handleLogin() {
     if ($('verifyNote')) $('verifyNote').style.display = 'none';
     hidePendingApprovalOverlay();
     hideTermsOverlay();
-    await signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+
+    const freshSnap = await getFreshProfileSnapshot(cred.user.uid);
+    if (freshSnap.exists()) {
+      const freshProfile = { id: freshSnap.id, ...freshSnap.data() };
+      if ((freshProfile.deletedAtMs || freshProfile.banned) && !isProtectedCoreAdmin(email)) {
+        await signOut(auth).catch(() => {});
+        alert('Your marketplace access has been disabled. Contact an admin.');
+        return;
+      }
+      if (!freshProfile.accessApproved && !isProtectedCoreAdmin(email)) {
+        await signOut(auth).catch(() => {});
+        if ($('verifyNote')) {
+          $('verifyNote').textContent = 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you created.';
+          $('verifyNote').style.display = 'block';
+        }
+        return;
+      }
+    }
   } catch (err) {
     console.error(err);
     if (err?.code === 'auth/invalid-credential') {
@@ -1293,6 +1359,20 @@ async function handleSavePost() {
     return;
   }
 
+  try {
+    const freshSnap = await getFreshProfileSnapshot(currentUser.uid);
+    if (freshSnap.exists()) {
+      currentProfile = { id: freshSnap.id, ...freshSnap.data() };
+    }
+    if (!currentProfile?.accessApproved || currentProfile?.banned || currentProfile?.deletedAtMs) {
+      alert('Your account does not currently have permission to post. Contact an admin.');
+      await signOut(auth).catch(() => {});
+      return;
+    }
+  } catch (err) {
+    console.error('fresh profile check failed before post save', err);
+  }
+
   const title = $('fTitle')?.value.trim();
   const description = $('fDesc')?.value.trim();
   const board = $('fBoard')?.value || 'BUYSELL';
@@ -1464,6 +1544,20 @@ async function handleSendReply() {
   if (!currentUser || !currentProfile || !activeThread) {
     alert('Open a thread first.');
     return;
+  }
+
+  try {
+    const freshSnap = await getFreshProfileSnapshot(currentUser.uid);
+    if (freshSnap.exists()) {
+      currentProfile = { id: freshSnap.id, ...freshSnap.data() };
+    }
+    if (!currentProfile?.accessApproved || currentProfile?.banned || currentProfile?.deletedAtMs) {
+      alert('Your account does not currently have permission to reply. Contact an admin.');
+      await signOut(auth).catch(() => {});
+      return;
+    }
+  } catch (err) {
+    console.error('fresh profile check failed before reply save', err);
   }
 
   const text = $('replyText')?.value.trim();
