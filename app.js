@@ -164,6 +164,28 @@ function hidePendingApprovalOverlay() {
   document.documentElement.style.overflow = '';
 }
 
+function hardUnlockUiOverlays() {
+  const pending = document.getElementById('pendingApprovalOverlay');
+  if (pending) pending.remove();
+
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.body.style.position = '';
+  document.body.style.width = '';
+  document.documentElement.style.overflow = '';
+
+  ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && el.style.display === 'flex' && id !== 'nameOverlay') {
+      // leave real user-invoked modals alone except stale leftovers
+    }
+  });
+
+  document.querySelectorAll('.overlay').forEach((el) => {
+    if (el.id === 'pendingApprovalOverlay') el.remove();
+  });
+}
+
 let pendingApprovalUnsub = null;
 function watchPendingApproval(uid) {
   if (pendingApprovalUnsub) {
@@ -182,6 +204,7 @@ function watchPendingApproval(uid) {
     }
     if (data.accessApproved === true) {
       hidePendingApprovalOverlay();
+      hardUnlockUiOverlays();
       updateAuthUI();
       startListingsListener();
       startProfilesListener();
@@ -453,8 +476,8 @@ async function ensureProfile(user) {
   const baseProfile = {
     uid: user.uid,
     email: user.email || '',
-    displayName: (user.displayName || '').trim(),
-    pendingName: (user.displayName || '').trim(),
+    displayName: (user.displayName || user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '').trim(),
+    pendingName: (user.displayName || user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '').trim(),
     isAdmin: isAdmin(user.email),
     isModerator: false,
     banned: false,
@@ -754,6 +777,8 @@ async function handleSaveName() {
   currentProfile.displayName = name;
   updateAuthUI();
   hide('nameOverlay');
+  hardUnlockUiOverlays();
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 

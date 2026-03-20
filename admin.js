@@ -296,7 +296,6 @@ function buildUserActionButtons(user, dup, protectedUser) {
 
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
-  if (isCoreAdminViewer() && (!protectedUser || selfRow)) buttons.push(`<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">Delete Account</button>`);
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
@@ -374,25 +373,6 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
-    if (role === 'deleteAccount') {
-      const selfRow = isSelfRow(user);
-      const confirmWord = window.prompt(`Type DELETE to remove ${user.email || 'this account'} from the marketplace. This keeps the UI clean and moves the user into Deleted.${selfRow ? ' You are deleting your own account.' : ''}`, '');
-      if (confirmWord !== 'DELETE') return;
-      await updateDoc(ref, {
-        banned: true,
-        accessApproved: false,
-        accessManuallyDenied: true,
-        deletedAtMs: Date.now(),
-        deletedBy: normalizeEmail(currentViewer?.email),
-        updatedAt: Date.now()
-      });
-      alert('User moved to Deleted.');
-      if (selfRow) {
-        await signOut(auth).catch(() => {});
-        window.location.href = 'index.html';
-      }
-      return;
-    }
     if (role === 'reactivateUser') {
       await updateDoc(ref, { banned: false, accessApproved: true, accessManuallyDenied: false, deletedAtMs: null, deletedBy: null, updatedAt: Date.now() });
       alert('User reactivated.');
