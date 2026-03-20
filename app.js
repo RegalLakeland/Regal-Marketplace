@@ -156,8 +156,135 @@ function showPendingApprovalOverlay(message = 'Your account is pending admin app
 
 function hidePendingApprovalOverlay() {
   const wrap = document.getElementById('pendingApprovalOverlay');
-  if (wrap) wrap.style.display = 'none';
+  if (wrap) wrap.remove();
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
 }
+
+const TERMS_VERSION = 1;
+const TERMS_HTML = `
+  <div style="display:grid;gap:12px">
+    <p>Please review and accept these rules before using the marketplace.</p>
+    <div style="max-height:42vh;overflow:auto;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(0,0,0,.16);font-size:14px;line-height:1.45">
+      <strong>Regal Lakeland Employee Marketplace – Terms of Use</strong><br><br>
+      1. This marketplace is for Regal Lakeland employees only. Do not share your account or use another employee's access.<br><br>
+      2. Be respectful and professional. Harassment, threats, discrimination, or abusive conduct are not allowed.<br><br>
+      3. Listings must be accurate. Do not misrepresent condition, ownership, price, availability, or service details.<br><br>
+      4. Prohibited items include illegal goods, controlled substances, stolen property, firearms or weapons, and anything that violates company policy or law.<br><br>
+      5. Transactions are strictly between employees. Regal Lakeland, its managers, and marketplace admins are not responsible for payment disputes, item condition, delivery issues, or losses.<br><br>
+      6. No spam, no excessive duplicate postings, and no using this platform as an outside commercial business channel without approval.<br><br>
+      7. Do not post sensitive personal information, customer information, dealership-confidential information, or anything that could create legal or workplace issues.<br><br>
+      8. Marketplace admins may approve, deny, remove, suspend, reactivate, or permanently delete accounts or listings at any time to protect the dealership and employees.<br><br>
+      9. Violations may result in account removal and escalation to management if needed.<br><br>
+      By clicking <strong>I Agree</strong>, you confirm that you have read, understood, and agree to follow these rules.
+    </div>
+    <label style="display:flex;gap:10px;align-items:flex-start"><input id="termsAgreeCheck" type="checkbox" style="margin-top:3px"> <span>I have read and agree to these marketplace rules.</span></label>
+    <div class="note" id="termsGateMessage" style="display:none"></div>
+  </div>`;
+
+function showTermsGate() {
+  let wrap = document.getElementById('termsGateOverlay');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'termsGateOverlay';
+    wrap.className = 'overlay';
+    wrap.style.zIndex = '70';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:720px;width:min(96vw,720px)">
+        <div class="modal-h"><strong>Marketplace Rules Agreement</strong></div>
+        <div class="modal-b">${TERMS_HTML}</div>
+        <div class="modal-actions">
+          <button class="btn primary" id="btnAgreeTerms" type="button">I Agree</button>
+          <button class="btn ghost" id="btnLogoutTerms" type="button">Log Out</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector('#btnAgreeTerms')?.addEventListener('click', handleAcceptTerms);
+    wrap.querySelector('#btnLogoutTerms')?.addEventListener('click', async () => {
+      await signOut(auth).catch(() => {});
+    });
+  }
+  wrap.style.display = 'flex';
+  document.body.classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+}
+
+function hideTermsGate() {
+  const wrap = document.getElementById('termsGateOverlay');
+  if (wrap) wrap.remove();
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
+}
+
+async function handleAcceptTerms() {
+  const check = document.getElementById('termsAgreeCheck');
+  const msg = document.getElementById('termsGateMessage');
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+  }
+  if (!check?.checked) {
+    if (msg) {
+      msg.textContent = 'You must agree before continuing.';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+  if (!currentUser) return;
+  await updateDoc(doc(db, 'profiles', currentUser.uid), {
+    termsAccepted: true,
+    termsAcceptedAt: Date.now(),
+    termsVersionAccepted: TERMS_VERSION,
+    updatedAt: serverTimestamp()
+  });
+  if (currentProfile) {
+    currentProfile.termsAccepted = true;
+    currentProfile.termsAcceptedAt = Date.now();
+    currentProfile.termsVersionAccepted = TERMS_VERSION;
+  }
+  hideTermsGate();
+  enterApprovedSession();
+}
+
+function openLoginPendingState(email, message) {
+  currentUser = null;
+  currentProfile = null;
+  clearTempLoginContext();
+  stopListeners();
+  updateAuthUI();
+  showPane('login');
+  if ($('loginEmail')) $('loginEmail').value = email || '';
+  if ($('loginPassword')) $('loginPassword').value = '';
+  if ($('verifyNote')) {
+    $('verifyNote').textContent = message;
+    $('verifyNote').style.display = 'block';
+  }
+  if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+  hidePendingApprovalOverlay();
+  hideTermsGate();
+}
+
+function enterApprovedSession() {
+  hidePendingApprovalOverlay();
+  hideTermsGate();
+  lastUnverifiedEmail = '';
+  if ($('verifyNote')) $('verifyNote').style.display = 'none';
+  if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+  updateAuthUI();
+  startListingsListener();
+  startProfilesListener();
+  startEventResponsesListener();
+  touchPresence();
+  if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
+  if (!currentProfile?.displayName) {
+    $('displayNameInput').value = currentUser?.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+    show('nameOverlay');
+  }
+}
+
 
 let pendingApprovalUnsub = null;
 function watchPendingApproval(uid) {
@@ -177,7 +304,6 @@ function watchPendingApproval(uid) {
     }
     if (data.accessApproved === true) {
       hidePendingApprovalOverlay();
-      hardUnlockUiOverlays();
       updateAuthUI();
       startListingsListener();
       startProfilesListener();
@@ -185,7 +311,6 @@ function watchPendingApproval(uid) {
       touchPresence();
       if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
       renderListings();
-      window.scrollTo({ top: 0, behavior: 'auto' });
     }
   }, (err) => console.error('Pending approval watch failed', err));
 }
@@ -215,12 +340,15 @@ document.addEventListener('DOMContentLoaded', () => {
   renderBoards();
   renderListings();
 
-  onAuthStateChanged(auth, async (user) => {
+  
+onAuthStateChanged(auth, async (user) => {
   try {
     if (!user) {
       currentUser = null;
       currentProfile = null;
       stopListeners();
+      hidePendingApprovalOverlay();
+      hideTermsGate();
       updateAuthUI();
       return;
     }
@@ -230,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lastUnverifiedEmail = user.email || '';
     await ensureProfile(user);
 
-    if (currentProfile?.banned) {
+    if (currentProfile?.banned || currentProfile?.deletedAtMs) {
       alert('Your marketplace access has been disabled. Contact an admin.');
       await signOut(auth);
       return;
@@ -247,42 +375,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
-      if ($('verifyNote')) {
-        $('verifyNote').textContent = 'Your account has been created and is waiting for manual admin approval.';
-        $('verifyNote').style.display = 'block';
-      }
-      if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-      updateAuthUI();
-      showPendingApprovalOverlay('Your account is waiting for manual admin approval. Leave this page open and you will unlock automatically when approved.');
-      watchPendingApproval(user.uid);
+      openLoginPendingState(user.email || '', 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you just created.');
+      await signOut(auth).catch(() => {});
       return;
     }
 
-    hidePendingApprovalOverlay();
-    lastUnverifiedEmail = '';
-    if ($('verifyNote')) $('verifyNote').style.display = 'none';
-    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
-    updateAuthUI();
-    startListingsListener();
-    startProfilesListener();
-    startEventResponsesListener();
-    touchPresence();
-    if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
-
-    if (!currentProfile.displayName) {
-      $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
-      show('nameOverlay');
-      document.body.classList.add('modal-open');
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
+    const needsTerms = !currentProfile?.termsAccepted || Number(currentProfile?.termsVersionAccepted || 0) < TERMS_VERSION;
+    if (needsTerms) {
+      updateAuthUI();
+      showTermsGate();
+      return;
     }
+
+    enterApprovedSession();
   } catch (err) {
     console.error(err);
     alert(`auth_error — ${err?.message || err}`);
   }
-  });
 });
+});
+
 
 function bindStaticEvents() {
   $('tabLogin')?.addEventListener('click', () => showPane('login'));
@@ -452,8 +564,8 @@ async function ensureProfile(user) {
   const baseProfile = {
     uid: user.uid,
     email: user.email || '',
-    displayName: (user.displayName || '').trim(),
-    pendingName: (user.displayName || '').trim(),
+    displayName: (user.displayName || user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '').trim(),
+    pendingName: (user.displayName || user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '').trim(),
     isAdmin: isAdmin(user.email),
     isModerator: false,
     banned: false,
@@ -539,7 +651,7 @@ async function handleLogin() {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
     console.error(err);
-    alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
+    alert(err?.code === 'auth/invalid-credential' ? 'Incorrect email or password.' : `${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
   }
 }
 
@@ -606,11 +718,12 @@ async function handleForgotPassword() {
   }
 }
 
+
 async function handleSignup() {
   const fullName = $('signupFullName')?.value.trim() || $('signupName')?.value.trim() || '';
-  const email = $('signupEmail')?.value.trim().toLowerCase();
+  const email = $('signupEmail')?.value.trim().toLowerCase() || '';
   const password = $('signupPassword')?.value || '';
-  const password2 = $('signupPassword2')?.value || '';
+  const password2 = $('signupConfirmPassword')?.value || $('signupPassword2')?.value || '';
   const msg = $('signupMsg');
 
   if (msg) {
@@ -655,36 +768,27 @@ async function handleSignup() {
       emailVerified: !!cred.user.emailVerified,
       accessApproved: elevated,
       accessManuallyDenied: false,
+      tempPasswordActive: false,
+      mustChangePassword: false,
+      termsAccepted: false,
+      termsAcceptedAt: null,
+      termsVersionAccepted: 0,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    currentUser = cred.user;
-    await ensureProfile(cred.user);
-    updateAuthUI();
-
-    if (elevated) {
-      hidePendingApprovalOverlay();
-      if (msg) {
-        msg.textContent = 'Account created. You can sign in now.';
-        msg.style.display = 'block';
-      }
-      showPane('login');
-      alert('Account created. You can sign in now.');
-      return;
-    }
-
+    await signOut(auth).catch(() => {});
+    openLoginPendingState(
+      email,
+      elevated
+        ? 'Account created. Log in with the password you just created.'
+        : 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you just created.'
+    );
     if (msg) {
-      msg.textContent = 'Account created. Waiting for manual admin approval.';
+      msg.textContent = elevated ? 'Account created. You can log in now.' : 'Account created successfully. Waiting for admin approval.';
       msg.style.display = 'block';
     }
-    if ($('verifyNote')) {
-      $('verifyNote').textContent = 'Your account has been created and is waiting for manual admin approval.';
-      $('verifyNote').style.display = 'block';
-    }
-    showPendingApprovalOverlay('Account created. Waiting for manual admin approval. Leave this page open and you will unlock automatically when approved.');
-    watchPendingApproval(cred.user.uid);
   } catch (err) {
     console.error(err);
     if (err?.code === 'auth/email-already-in-use') {
@@ -703,18 +807,16 @@ async function handleSignup() {
           emailVerified: !!cred.user.emailVerified,
           accessApproved: false,
           accessManuallyDenied: false,
+          tempPasswordActive: false,
+          mustChangePassword: false,
+          termsAccepted: false,
+          termsAcceptedAt: null,
+          termsVersionAccepted: 0,
           updatedAt: serverTimestamp(),
           createdAtMs: Date.now()
         }, { merge: true });
-        currentUser = cred.user;
-        await ensureProfile(cred.user);
-        updateAuthUI();
-        if ($('verifyNote')) {
-          $('verifyNote').textContent = 'Your account is waiting for manual admin approval.';
-          $('verifyNote').style.display = 'block';
-        }
-        showPendingApprovalOverlay('Your account is waiting for manual admin approval. Leave this page open and you will unlock automatically when approved.');
-        watchPendingApproval(cred.user.uid);
+        await signOut(auth).catch(() => {});
+        openLoginPendingState(email, 'Account already existed but was repaired. Waiting for admin approval. Once approved, log in with the password you just created.');
         return;
       } catch (_) {
         alert('That email is already registered. Use Login instead.');
@@ -727,6 +829,7 @@ async function handleSignup() {
   }
 }
 
+async function handleResendVerification() {
 async function handleResendVerification() {
   alert('Verification links are disabled in this build. New accounts are approved manually by admin after review.');
 }
@@ -753,8 +856,6 @@ async function handleSaveName() {
   currentProfile.displayName = name;
   updateAuthUI();
   hide('nameOverlay');
-  hardUnlockUiOverlays();
-  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 

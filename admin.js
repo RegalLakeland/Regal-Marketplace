@@ -1,7 +1,7 @@
 import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import { getFirestore, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { getFirestore, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -343,6 +343,7 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${user.termsAccepted ? `Agreed ${esc(fmtDate(user.termsAcceptedAt || Date.now()))}` : 'Not yet agreed'}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
           </div>
         </td>
@@ -388,7 +389,6 @@ function renderUserRows() {
         deletedBy: normalizeEmail(currentViewer?.email),
         updatedAt: Date.now()
       });
-      alert('User moved to Deleted.');
       if (isSelfRow(user)) {
         await signOut(auth).catch(() => {});
         window.location.href = 'index.html';
@@ -403,8 +403,11 @@ function renderUserRows() {
     if (role === 'permanentDeleteUser') {
       const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this deleted account'}. This cannot be undone.`, '');
       if (confirmWord !== 'DELETE') return;
+      const rsvpSnap = await getDocs(query(collection(db, 'eventResponses'), where('uid', '==', user.id)));
+      for (const d of rsvpSnap.docs) await deleteDoc(d.ref);
+      const listingsSnap = await getDocs(query(collection(db, 'listings'), where('uid', '==', user.id)));
+      for (const d of listingsSnap.docs) await deleteDoc(d.ref);
       await deleteDoc(ref);
-      alert('Deleted account removed permanently.');
       return;
     }
     if (role === 'deleteDuplicate') {
