@@ -1,12 +1,8 @@
-Replace ONLY:
-- app.js
+Replace only:
+- styles.css
 
-What this does:
-- restores the FULL working app.js from the best patch
-- keeps login logic intact
-- keeps the working signup/pending flow intact
-- exposes handleSaveName globally so the name-save button works
-- does NOT touch firebase-config.js
-
-Syntax check return code: 0
-
+What this fixes:
+- RSVP selected button now looks clearly green and professional
+- unselected RSVP buttons stay neutral
+- keeps your current working logic intact
+- firebase-config.js was not changed
