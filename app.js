@@ -1,35 +1,3 @@
-import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updatePassword,
-  signOut,
-  onAuthStateChanged,
-  EmailAuthProvider,
-  reauthenticateWithCredential
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -77,31 +45,6 @@ function applyAuthLanguage() {
   } catch (_) {}
 }
 
-function setTempLoginContext(email, password) {
-  try {
-    sessionStorage.setItem('marketplace_temp_login_email', String(email || '').toLowerCase());
-    sessionStorage.setItem('marketplace_temp_login_password', String(password || ''));
-  } catch (_) {}
-}
-
-function getTempLoginPasswordForCurrentUser() {
-  try {
-    const storedEmail = sessionStorage.getItem('marketplace_temp_login_email') || '';
-    const storedPassword = sessionStorage.getItem('marketplace_temp_login_password') || '';
-    const activeEmail = String(currentUser?.email || '').toLowerCase();
-    return storedEmail && activeEmail && storedEmail === activeEmail ? storedPassword : '';
-  } catch (_) {
-    return '';
-  }
-}
-
-function clearTempLoginContext() {
-  try {
-    sessionStorage.removeItem('marketplace_temp_login_email');
-    sessionStorage.removeItem('marketplace_temp_login_password');
-  } catch (_) {}
-}
-
 const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -123,7 +66,7 @@ const FEATURED_EVENT = {
   subtitle: 'Dinner, drinks & live entertainment',
   dateLine: 'May 15th • 6:30 PM',
   locationLine: 'Haus 820 • 820 Massachusetts Ave, Lakeland, FL',
-  imageUrl: '/Images/background5.jpg'
+  imageUrl: './Images/background5.jpg'
 };
 
 const RSVP_LABELS = {
@@ -171,13 +114,6 @@ window.addEventListener('error', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-rsvp]').forEach((btn) => {
-    btn.classList.remove('primary', 'active-rsvp');
-    btn.classList.add('ghost');
-    btn.setAttribute('aria-pressed', 'false');
-  });
-
-  removeLegacyForgotPasswordUI();
   bindStaticEvents();
   renderBoards();
   renderListings();
@@ -187,7 +123,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!user) {
       currentUser = null;
       currentProfile = null;
-      clearTempLoginContext();
       stopListeners();
       updateAuthUI();
       return;
@@ -236,12 +171,12 @@ document.addEventListener('DOMContentLoaded', () => {
     touchPresence();
     if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
 
-    if (currentProfile?.mustChangePassword || currentProfile?.tempPasswordActive) {
-      showPasswordGate();
+    if (currentProfile?.mustChangePassword) {
+      openForcePasswordOverlay();
       return;
     }
 
-    hidePasswordGate();
+    hide('forcePasswordOverlay');
     if (!currentProfile.displayName) {
       $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
       show('nameOverlay');
@@ -253,21 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-
-function removeLegacyForgotPasswordUI() {
-  ['btnForgotPassword', 'forgotPasswordBtn', 'forgotPasswordLink', 'resetPasswordBtn', 'resetPasswordLink', 'forgotPasswordOverlay', 'resetPasswordOverlay'].forEach((id) => {
-    const el = $(id);
-    if (el) el.remove();
-  });
-
-  document.querySelectorAll('button, a').forEach((el) => {
-    const text = (el.textContent || '').trim().toLowerCase();
-    if (text === 'forgot password?' || text === 'forgot password' || text === 'reset password') {
-      el.remove();
-    }
-  });
-}
-
 function bindStaticEvents() {
   $('tabLogin')?.addEventListener('click', () => showPane('login'));
   $('tabSignup')?.addEventListener('click', () => showPane('signup'));
@@ -277,7 +197,6 @@ function bindStaticEvents() {
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
   $('btnChangeTempPassword')?.addEventListener('click', handleForcePasswordChange);
-  $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -362,7 +281,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay', 'passwordGateOverlay', 'passwordGate'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -445,8 +364,6 @@ async function ensureProfile(user) {
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
-    tempPasswordActive: false,
-    mustChangePassword: false,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -470,8 +387,6 @@ async function ensureProfile(user) {
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
-    if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
-    if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -508,13 +423,7 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
-  if (!loggedIn) hidePasswordGate();
-
-  if (loggedIn) {
-    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay'];
-    const hasVisibleModal = visibleOverlayIds.some((overlayId) => $(overlayId)?.style.display !== 'none');
-    if (!hasVisibleModal) document.body.classList.remove('modal-open');
-  }
+  if (!loggedIn && $('forcePasswordOverlay')) $('forcePasswordOverlay').style.display = 'none';
 }
 
 async function handleLogin() {
@@ -537,21 +446,13 @@ async function handleLogin() {
     const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
     const banned = profileData?.banned === true;
 
-    if (profileData?.mustChangePassword || profileData?.tempPasswordActive) {
-      setTempLoginContext(email, password);
-    } else {
-      clearTempLoginContext();
-    }
-
     if (banned) {
-      clearTempLoginContext();
       await signOut(auth).catch(() => {});
       alert('Your marketplace access has been disabled. Contact an admin.');
       return;
     }
 
     if (!approved) {
-      clearTempLoginContext();
       await signOut(auth).catch(() => {});
       if ($('verifyNote')) {
         $('verifyNote').textContent = 'Your account exists but is still waiting for manual admin approval.';
@@ -562,44 +463,28 @@ async function handleLogin() {
     }
   } catch (err) {
     console.error(err);
-    if (err?.code === 'auth/invalid-credential') {
-      alert('That email/password combination was rejected by Firebase. If you just set a temporary password, copy it exactly as shown and make sure you are signing in with the exact approved email address. If it still fails, set a new temporary password from the admin panel and try again.');
-      return;
-    }
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
   }
 }
 
 
-function showPasswordGate() {
-  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
+function openForcePasswordOverlay() {
+  const msg = $('forcePasswordMsg');
   if (msg) {
     msg.style.display = 'none';
     msg.textContent = '';
     msg.dataset.state = '';
   }
-  const passwordInput = $('forcePassword') || $('newPasswordInput');
-  const confirmInput = $('forcePassword2') || $('confirmNewPasswordInput');
-  if (passwordInput) passwordInput.value = '';
-  if (confirmInput) confirmInput.value = '';
-  const gate = $('passwordGate') || $('passwordGateOverlay');
-  if (gate) gate.style.display = 'block';
-  document.body.classList.remove('modal-open');
-  setTimeout(() => {
-    gate?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    (passwordInput || $('forcePassword') || $('newPasswordInput'))?.focus();
-  }, 20);
-}
-
-function hidePasswordGate() {
-  const gate = $('passwordGate') || $('passwordGateOverlay');
-  if (gate) gate.style.display = 'none';
+  if ($('forcePassword')) $('forcePassword').value = '';
+  if ($('forcePassword2')) $('forcePassword2').value = '';
+  show('forcePasswordOverlay');
+  setTimeout(() => $('forcePassword')?.focus(), 20);
 }
 
 async function handleForcePasswordChange() {
-  const password = ($('forcePassword') || $('newPasswordInput'))?.value || '';
-  const password2 = ($('forcePassword2') || $('confirmNewPasswordInput'))?.value || '';
-  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
+  const password = $('forcePassword')?.value || '';
+  const password2 = $('forcePassword2')?.value || '';
+  const msg = $('forcePasswordMsg');
 
   if (msg) {
     msg.style.display = 'none';
@@ -640,27 +525,17 @@ async function handleForcePasswordChange() {
   }
 
   try {
-    const recentTempPassword = getTempLoginPasswordForCurrentUser();
-    if (recentTempPassword && currentUser?.email) {
-      const credential = EmailAuthProvider.credential(currentUser.email, recentTempPassword);
-      await reauthenticateWithCredential(currentUser, credential);
-    }
-
     await updatePassword(currentUser, password);
     await updateDoc(doc(db, 'profiles', currentUser.uid), {
       mustChangePassword: false,
-      tempPasswordActive: false,
       passwordChangedAtMs: Date.now(),
       updatedAt: serverTimestamp()
     });
 
     if (currentProfile) {
       currentProfile.mustChangePassword = false;
-      currentProfile.tempPasswordActive = false;
       currentProfile.passwordChangedAtMs = Date.now();
     }
-
-    clearTempLoginContext();
 
     if (msg) {
       msg.textContent = 'Password updated successfully.';
@@ -669,10 +544,7 @@ async function handleForcePasswordChange() {
     }
 
     setTimeout(() => {
-      hidePasswordGate();
-      document.body.classList.remove('modal-open');
-      if (currentProfile) currentProfile.tempPasswordActive = false;
-      renderListings();
+      hide('forcePasswordOverlay');
       if (currentProfile && !currentProfile.displayName) {
         $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
         show('nameOverlay');
@@ -683,7 +555,7 @@ async function handleForcePasswordChange() {
     const code = String(err?.code || '');
     if (msg) {
       msg.textContent = code === 'auth/requires-recent-login'
-        ? 'Your login session is no longer fresh enough to change the password. Log out, log back in with the temporary password, and try again immediately.'
+        ? 'For security, please log in again with the temporary password and try once more.'
         : `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
       msg.dataset.state = 'error';
       msg.style.display = 'block';
@@ -695,7 +567,7 @@ async function handleForcePasswordChange() {
 }
 
 async function handleSignup() {
-  const fullName = ($('signupName') || $('signupFullName'))?.value.trim() || '';
+  const fullName = $('signupName')?.value.trim() || '';
   const email = $('signupEmail')?.value.trim().toLowerCase();
   const password = $('signupPassword')?.value || '';
   const password2 = $('signupPassword2')?.value || '';
@@ -762,11 +634,6 @@ async function handleSignup() {
 
     if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
-    if ($('signupFullName')) $('signupFullName').value = '';
-    if ($('signupName')) $('signupName').value = '';
-    if ($('signupEmail')) $('signupEmail').value = '';
-    if ($('signupPassword')) $('signupPassword').value = '';
-    if ($('signupPassword2')) $('signupPassword2').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
@@ -885,13 +752,7 @@ function renderEventSpotlight() {
   ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
     const btn = document.querySelector(`[data-rsvp="${status}"]`);
     if (!btn) return;
-    btn.classList.remove('primary', 'active-rsvp', 'ghost');
-    if (mine?.status === status) {
-      btn.classList.add('primary', 'active-rsvp');
-    } else {
-      btn.classList.add('ghost');
-    }
-    btn.setAttribute('aria-pressed', mine?.status === status ? 'true' : 'false');
+    btn.classList.toggle('active-rsvp', mine?.status === status);
     btn.disabled = !canRsvp;
     btn.title = canRsvp ? '' : 'Log in with your Regal Lakeland account to RSVP';
   });
@@ -910,19 +771,7 @@ async function handleEventRsvp(status) {
     return;
   }
   try {
-    const responseId = `${FEATURED_EVENT.id}__${currentUser.uid}`;
-    const responseRef = doc(db, 'eventResponses', responseId);
-    const existingIndex = eventResponses.findIndex((item) => item.id === responseId);
-    const existing = existingIndex >= 0 ? eventResponses[existingIndex] : null;
-
-    if (existing?.status === status) {
-      await deleteDoc(responseRef);
-      if (existingIndex >= 0) eventResponses.splice(existingIndex, 1);
-      renderEventSpotlight();
-      if ($('eventStatusText')) $('eventStatusText').textContent = 'Your response was cleared.';
-      return;
-    }
-
+    const responseRef = doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`);
     const payload = {
       eventId: FEATURED_EVENT.id,
       eventTitle: FEATURED_EVENT.title,
@@ -934,7 +783,8 @@ async function handleEventRsvp(status) {
       updatedAtMs: Date.now()
     };
     await setDoc(responseRef, payload, { merge: true });
-    const optimistic = { id: responseId, ...payload };
+    const existingIndex = eventResponses.findIndex((item) => item.id === `${FEATURED_EVENT.id}__${currentUser.uid}`);
+    const optimistic = { id: `${FEATURED_EVENT.id}__${currentUser.uid}`, ...payload };
     if (existingIndex >= 0) {
       eventResponses[existingIndex] = { ...eventResponses[existingIndex], ...optimistic };
     } else {
@@ -1188,7 +1038,7 @@ function renderListings() {
         <div class="topicSide">
           <div class="topicSideTop">
             <div class="price">${esc(formatPrice(item.price))}</div>
-            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
+            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
           </div>
           <div class="topicMeta topicMetaRight">
             <span>${esc(item.location || 'No location')}</span>
@@ -1340,7 +1190,7 @@ async function openThread(id) {
   if ($('threadBody')) {
     $('threadBody').innerHTML = `
       <div class="thread-body-grid">
-        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
+        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
         <div>${esc(item.description || '')}</div>
         <div class="topicMeta">
           <span>${esc(item.location || 'No location')}</span>
@@ -1407,3 +1257,46 @@ async function handleSendReply() {
     alert(err?.message || 'Unable to send reply.');
   }
 }
+
+
+// ===== SAFE ROOT-ONLY PATCH: ENTER KEY SUPPORT =====
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+
+  const target = e.target;
+  const id = target?.id || '';
+
+  // Login
+  if (id === 'loginEmail' || id === 'loginPassword') {
+    e.preventDefault();
+    handleLogin();
+    return;
+  }
+
+  // Signup
+  if (['signupName', 'signupFullName', 'signupEmail', 'signupPassword', 'signupPassword2'].includes(id)) {
+    e.preventDefault();
+    handleSignup();
+    return;
+  }
+
+  // Forced password change
+  if (['forcePassword', 'forcePassword2', 'newPasswordInput', 'confirmNewPasswordInput'].includes(id)) {
+    e.preventDefault();
+    handleForcePasswordChange();
+    return;
+  }
+
+  // Display name modal
+  if (id === 'displayNameInput') {
+    e.preventDefault();
+    handleSaveName();
+    return;
+  }
+
+  // Reply box: Enter sends, Shift+Enter makes newline
+  if (id === 'replyText' && !e.shiftKey) {
+    e.preventDefault();
+    handleSendReply();
+  }
+});
