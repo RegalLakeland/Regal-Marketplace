@@ -277,6 +277,7 @@ function bindStaticEvents() {
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
   $('btnChangeTempPassword')?.addEventListener('click', handleForcePasswordChange);
+  $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -361,7 +362,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay', 'passwordGateOverlay', 'passwordGate'].some((overlayId) => $(overlayId)?.style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -571,32 +572,34 @@ async function handleLogin() {
 
 
 function showPasswordGate() {
-  const msg = $('forcePasswordMsg');
+  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
   if (msg) {
     msg.style.display = 'none';
     msg.textContent = '';
     msg.dataset.state = '';
   }
-  if ($('forcePassword')) $('forcePassword').value = '';
-  if ($('forcePassword2')) $('forcePassword2').value = '';
-  const gate = $('passwordGate');
+  const passwordInput = $('forcePassword') || $('newPasswordInput');
+  const confirmInput = $('forcePassword2') || $('confirmNewPasswordInput');
+  if (passwordInput) passwordInput.value = '';
+  if (confirmInput) confirmInput.value = '';
+  const gate = $('passwordGate') || $('passwordGateOverlay');
   if (gate) gate.style.display = 'block';
   document.body.classList.remove('modal-open');
   setTimeout(() => {
     gate?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    $('forcePassword')?.focus();
+    (passwordInput || $('forcePassword') || $('newPasswordInput'))?.focus();
   }, 20);
 }
 
 function hidePasswordGate() {
-  const gate = $('passwordGate');
+  const gate = $('passwordGate') || $('passwordGateOverlay');
   if (gate) gate.style.display = 'none';
 }
 
 async function handleForcePasswordChange() {
-  const password = $('forcePassword')?.value || '';
-  const password2 = $('forcePassword2')?.value || '';
-  const msg = $('forcePasswordMsg');
+  const password = ($('forcePassword') || $('newPasswordInput'))?.value || '';
+  const password2 = ($('forcePassword2') || $('confirmNewPasswordInput'))?.value || '';
+  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
 
   if (msg) {
     msg.style.display = 'none';
@@ -692,7 +695,7 @@ async function handleForcePasswordChange() {
 }
 
 async function handleSignup() {
-  const fullName = $('signupName')?.value.trim() || '';
+  const fullName = ($('signupName') || $('signupFullName'))?.value.trim() || '';
   const email = $('signupEmail')?.value.trim().toLowerCase();
   const password = $('signupPassword')?.value || '';
   const password2 = $('signupPassword2')?.value || '';
@@ -759,6 +762,11 @@ async function handleSignup() {
 
     if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
+    if ($('signupFullName')) $('signupFullName').value = '';
+    if ($('signupName')) $('signupName').value = '';
+    if ($('signupEmail')) $('signupEmail').value = '';
+    if ($('signupPassword')) $('signupPassword').value = '';
+    if ($('signupPassword2')) $('signupPassword2').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
@@ -1180,7 +1188,7 @@ function renderListings() {
         <div class="topicSide">
           <div class="topicSideTop">
             <div class="price">${esc(formatPrice(item.price))}</div>
-            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
+            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
           </div>
           <div class="topicMeta topicMetaRight">
             <span>${esc(item.location || 'No location')}</span>
@@ -1332,7 +1340,7 @@ async function openThread(id) {
   if ($('threadBody')) {
     $('threadBody').innerHTML = `
       <div class="thread-body-grid">
-        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
+        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
         <div>${esc(item.description || '')}</div>
         <div class="topicMeta">
           <span>${esc(item.location || 'No location')}</span>
