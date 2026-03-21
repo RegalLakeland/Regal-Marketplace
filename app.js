@@ -123,7 +123,7 @@ const FEATURED_EVENT = {
   subtitle: 'Dinner, drinks & live entertainment',
   dateLine: 'May 15th • 6:30 PM',
   locationLine: 'Haus 820 • 820 Massachusetts Ave, Lakeland, FL',
-  imageUrl: 'Images/background5.jpg'
+  imageUrl: '/Images/background5.jpg'
 };
 
 const RSVP_LABELS = {
