@@ -243,6 +243,30 @@ function hideTermsOverlay() {
   document.documentElement.style.overflow = '';
 }
 
+function openForcePasswordOverlay() {
+  const gate = $('passwordGateOverlay');
+  if (!gate) return;
+  if ($('newPasswordInput')) $('newPasswordInput').value = '';
+  if ($('confirmNewPasswordInput')) $('confirmNewPasswordInput').value = '';
+  if ($('passwordGateMsg')) {
+    $('passwordGateMsg').style.display = 'none';
+    $('passwordGateMsg').textContent = '';
+    $('passwordGateMsg').dataset.state = '';
+  }
+  gate.style.display = 'flex';
+  document.body.classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+}
+
+function hideForcePasswordOverlay() {
+  const gate = $('passwordGateOverlay');
+  if (gate) gate.style.display = 'none';
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
+}
+
 async function handleAcceptTerms() {
   const checkbox = document.getElementById('termsAgreeCheckbox');
   if (!checkbox?.checked) {
@@ -338,6 +362,7 @@ function watchPendingApproval(uid) {
     currentProfile = { id: uid, ...data };
     if (data.deletedAtMs || data.banned) {
       hidePendingApprovalOverlay();
+      clearTempLoginContext();
       await signOut(auth).catch(() => {});
       alert('Your marketplace access has been disabled. Contact an admin.');
       return;
@@ -438,9 +463,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startSelfProfileListener(user.uid);
 
-    if (currentProfile?.mustChangePassword) {
+    if (currentProfile?.mustChangePassword || currentProfile?.tempPasswordActive) {
       updateAuthUI();
-      showPasswordGate();
+      openForcePasswordOverlay();
       return;
     }
 
@@ -450,6 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    hideForcePasswordOverlay();
     startMarketplaceForApprovedUser();
   } catch (err) {
     console.error(err);
@@ -503,6 +529,15 @@ function bindStaticEvents() {
   $('q')?.addEventListener('input', renderListings);
   $('st')?.addEventListener('change', renderListings);
   $('sort')?.addEventListener('change', renderListings);
+
+  ['loginEmail', 'loginPassword'].forEach((id) => {
+    $(id)?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleLogin();
+      }
+    });
+  });
 
   document.body.addEventListener('click', async (e) => {
     const actionEl = e.target.closest('[data-action]');
@@ -628,104 +663,10 @@ function stopListeners() {
   renderListings();
 }
 
-
-function showPasswordGate() {
-  const msg = $('passwordGateMsg');
-  if (msg) {
-    msg.style.display = 'none';
-    msg.textContent = '';
-    msg.dataset.state = '';
-  }
-  if ($('newPasswordInput')) $('newPasswordInput').value = '';
-  if ($('confirmNewPasswordInput')) $('confirmNewPasswordInput').value = '';
-  const gate = $('passwordGateOverlay');
-  if (gate) gate.style.display = 'flex';
-  document.body.classList.add('modal-open');
-  document.body.style.overflow = 'hidden';
-  document.documentElement.style.overflow = 'hidden';
-}
-
-function hidePasswordGate() {
-  const gate = $('passwordGateOverlay');
-  if (gate) gate.style.display = 'none';
-  document.body.classList.remove('modal-open');
-  document.body.style.overflow = '';
-  document.documentElement.style.overflow = '';
-}
-
-async function handleForcePasswordChange() {
-  const password = $('newPasswordInput')?.value || '';
-  const password2 = $('confirmNewPasswordInput')?.value || '';
-  const msg = $('passwordGateMsg');
-
-  if (msg) {
-    msg.style.display = 'none';
-    msg.textContent = '';
-    msg.dataset.state = '';
-  }
-
-  if (!currentUser) {
-    alert('Please log in again.');
-    return;
-  }
-  if (!password || !password2) {
-    if (msg) {
-      msg.textContent = 'Enter and confirm your new password.';
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-    return;
-  }
-  if (password.length < 8) {
-    if (msg) {
-      msg.textContent = 'Use at least 8 characters for your new password.';
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-    return;
-  }
-  if (password !== password2) {
-    if (msg) {
-      msg.textContent = 'The passwords do not match.';
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-    return;
-  }
-
-  try {
-    await updatePassword(currentUser, password);
-    await updateDoc(doc(db, 'profiles', currentUser.uid), {
-      mustChangePassword: false,
-      passwordChangedAtMs: Date.now(),
-      updatedAt: serverTimestamp()
-    });
-    if (currentProfile) {
-      currentProfile.mustChangePassword = false;
-      currentProfile.passwordChangedAtMs = Date.now();
-    }
-    if (msg) {
-      msg.textContent = 'Password updated successfully.';
-      msg.dataset.state = 'success';
-      msg.style.display = 'block';
-    }
-    setTimeout(() => {
-      hidePasswordGate();
-      startMarketplaceForApprovedUser();
-    }, 350);
-  } catch (err) {
-    console.error(err);
-    if (msg) {
-      msg.textContent = `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-  }
-}
-
 function startMarketplaceForApprovedUser() {
   hidePendingApprovalOverlay();
   hideTermsOverlay();
+  hideForcePasswordOverlay();
   lastUnverifiedEmail = '';
   if ($('verifyNote')) $('verifyNote').style.display = 'none';
   if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
@@ -763,6 +704,7 @@ async function ensureProfile(user) {
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
     mustChangePassword: false,
+    tempPasswordActive: false,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -787,6 +729,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
     if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
+    if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -823,7 +766,6 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
-  if (!loggedIn) hidePasswordGate();
 }
 
 async function handleLogin() {
@@ -1051,6 +993,78 @@ async function handleResendVerification() {
   alert('Verification links are disabled in this build. New accounts are approved manually by admin after review.');
 }
 
+
+
+async function handleForcePasswordChange() {
+  const password = $('newPasswordInput')?.value || '';
+  const password2 = $('confirmNewPasswordInput')?.value || '';
+  const msg = $('passwordGateMsg');
+
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.dataset.state = '';
+  }
+
+  if (!currentUser) {
+    alert('Please log in again.');
+    return;
+  }
+  if (!password || !password2) {
+    if (msg) {
+      msg.textContent = 'Enter and confirm your new password.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+  if (password.length < 8) {
+    if (msg) {
+      msg.textContent = 'Use at least 8 characters for your new password.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+  if (password !== password2) {
+    if (msg) {
+      msg.textContent = 'The passwords do not match.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    await updatePassword(auth.currentUser || currentUser, password);
+    await updateDoc(doc(db, 'profiles', currentUser.uid), {
+      mustChangePassword: false,
+      tempPasswordActive: false,
+      passwordChangedAtMs: Date.now(),
+      updatedAt: serverTimestamp()
+    });
+    if (currentProfile) {
+      currentProfile.mustChangePassword = false;
+      currentProfile.tempPasswordActive = false;
+      currentProfile.passwordChangedAtMs = Date.now();
+    }
+    clearTempLoginContext();
+    hideForcePasswordOverlay();
+    if (msg) {
+      msg.textContent = 'Password updated successfully.';
+      msg.dataset.state = 'success';
+      msg.style.display = 'block';
+    }
+    startMarketplaceForApprovedUser();
+  } catch (err) {
+    console.error(err);
+    if (msg) {
+      msg.textContent = `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+  }
+}
 
 async function handleSaveName() {
   const name = $('displayNameInput')?.value.trim();

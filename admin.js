@@ -55,7 +55,6 @@ async function callDeleteMarketplaceAccount(targetUser) {
   return { message: 'Account removed from active marketplace view.' };
 }
 
-
 async function callSetMarketplaceTempPassword(targetUser, temporaryPassword) {
   if (!currentViewer) throw new Error('You must be signed in.');
   const token = await currentViewer.getIdToken(true);
@@ -401,7 +400,7 @@ function renderUserRows() {
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
     if (role === 'setTempPassword') {
-      const suggested = `Regal!${String(Math.floor(1000 + Math.random() * 9000))}${Math.random().toString(36).slice(-4)}`;
+      const suggested = `Regal!${Math.floor(1000 + Math.random() * 9000)}${Math.random().toString(36).slice(-4)}`;
       const temporaryPassword = window.prompt(`Set a temporary password for ${user.email}. They will be forced to change it after login.`, suggested);
       if (temporaryPassword === null) return;
       if (String(temporaryPassword).trim().length < 8) {
@@ -411,10 +410,15 @@ function renderUserRows() {
       const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
       await updateDoc(ref, {
         mustChangePassword: true,
+        tempPasswordActive: true,
+        accessApproved: true,
+        accessManuallyDenied: false,
+        banned: false,
+        deletedAtMs: null,
         updatedAt: Date.now()
-      }).catch(() => {});
+      });
       const copied = await copyText(String(temporaryPassword).trim());
-      alert(`${result?.message || 'Temporary password saved.'}${copied ? ' The password was copied to your clipboard.' : ''}`);
+      alert(`${result?.message || 'Temporary password saved.'}${copied ? ' Password copied to clipboard.' : ''}`);
       return;
     }
 
