@@ -986,7 +986,7 @@ function startListingsListener() {
     listings = snap.docs.map((d) => normalizeListing({ id: d.id, ...d.data() }));
     renderBoards();
     renderListings();
-    
+
     if (activeThread && $('threadOverlay')?.style.display !== 'none') {
       const updatedThread = listings.find((x) => x.id === activeThread.id);
       if (updatedThread) {
@@ -1463,7 +1463,6 @@ class HeroSlider extends HTMLElement {
         transition: opacity 2.5s ease-in-out, transform 12s linear;
         transform: scale(1);
         z-index: 1;
-        will-change: transform, opacity;
       }
       
       .slide.active {
@@ -1475,6 +1474,7 @@ class HeroSlider extends HTMLElement {
       .noise-overlay {
         position: absolute;
         inset: 0;
+        background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)" opacity="0.08"/%3E%3C/svg%3E');
         z-index: 3;
         pointer-events: none;
       }
