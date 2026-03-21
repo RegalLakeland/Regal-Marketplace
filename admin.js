@@ -230,36 +230,46 @@ function startListings() {
 }
 
 
-function approvedVisibleUsers() {
-  return userRowsData.filter((u) => u && !u.deletedAtMs && !u.banned && u.accessApproved !== false);
+function approvedVisibleProfiles() {
+  return userRowsData.filter((user) => user && !user.deletedAtMs && !user.banned && user.accessApproved !== false);
 }
 
-function onlineUsers() {
+function onlineProfilesNow() {
   const cutoff = Date.now() - ONLINE_WINDOW_MS;
-  return approvedVisibleUsers()
-    .filter((u) => Number(u.lastSeenAtMs || 0) >= cutoff)
+  return approvedVisibleProfiles()
+    .filter((user) => Number(user.lastSeenAtMs || 0) >= cutoff)
     .sort((a, b) => Number(b.lastSeenAtMs || 0) - Number(a.lastSeenAtMs || 0));
 }
 
-function renderOnlineNames() {
-  const countEl = $('adminOnlineCount');
-  const lineEl = $('adminOnlineNames');
-  if (!countEl || !lineEl) return;
+function ensureOnlineNamesLine() {
+  const summary = document.querySelector('.admin-tools .admin-summary');
+  if (!summary) return null;
+  let line = document.getElementById('adminOnlineNamesLine');
+  if (!line) {
+    line = document.createElement('div');
+    line.id = 'adminOnlineNamesLine';
+    line.style.width = '100%';
+    line.style.marginTop = '8px';
+    line.style.fontSize = '13px';
+    line.style.lineHeight = '1.45';
+    line.style.color = 'rgba(255,255,255,.88)';
+    summary.parentNode.insertBefore(line, summary.nextSibling);
+  }
+  return line;
+}
 
-  const online = onlineUsers();
-  countEl.textContent = `${online.length} online`;
-
+function renderOnlineNamesLine() {
+  const line = ensureOnlineNamesLine();
+  const countEl = document.getElementById('adminOnlineCountInline');
+  const online = onlineProfilesNow();
+  if (countEl) countEl.textContent = `${online.length} online`;
+  if (!line) return;
   if (!online.length) {
-    lineEl.textContent = 'No one online right now.';
+    line.textContent = 'Online now: none';
     return;
   }
-
-  const names = online.map((u) => {
-    const shownName = (u.displayName || u.pendingName || u.requestedName || '').trim();
-    return shownName || String(u.email || '').split('@')[0] || 'Unknown';
-  });
-
-  lineEl.textContent = names.join(', ');
+  const names = online.map((user) => user.displayName || user.pendingName || user.requestedName || (user.email || 'Unknown User').split('@')[0]);
+  line.textContent = `Online now: ${names.join(', ')}`;
 }
 
 function duplicateMeta(rows) {
@@ -352,7 +362,17 @@ function renderUserRows() {
   const { filtered, dmeta } = applyUserFilters(userRowsData);
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter((u) => !u.deletedAtMs && userPending(u)).length} pending`;
-  renderOnlineNames();
+  if (!$('adminOnlineCountInline')) {
+    const summary = document.querySelector('.admin-tools .admin-summary');
+    if (summary) {
+      const pill = document.createElement('span');
+      pill.className = 'pill';
+      pill.id = 'adminOnlineCountInline';
+      pill.textContent = '0 online';
+      summary.appendChild(pill);
+    }
+  }
+  renderOnlineNamesLine();
 
   $('userRows').innerHTML = filtered.map((user) => {
     const protectedUser = isProtectedCoreAdmin(user.email);
@@ -457,6 +477,7 @@ function startUsers() {
     const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     userRowsData = rows;
     renderUserRows();
+    renderOnlineNamesLine();
   });
 }
 
