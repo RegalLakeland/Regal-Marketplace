@@ -355,7 +355,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'].some((overlayId) => $(overlayId) && $(overlayId).style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -505,7 +505,7 @@ function updateAuthUI() {
 
   if (loggedIn) {
     const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay'];
-    const hasVisibleModal = visibleOverlayIds.some((overlayId) => $(overlayId)?.style.display !== 'none');
+    const hasVisibleModal = visibleOverlayIds.some((overlayId) => $(overlayId) && $(overlayId).style.display !== 'none');
     if (!hasVisibleModal) document.body.classList.remove('modal-open');
   }
 }
