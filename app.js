@@ -123,7 +123,7 @@ const FEATURED_EVENT = {
   subtitle: 'Dinner, drinks & live entertainment',
   dateLine: 'May 15th • 6:30 PM',
   locationLine: 'Haus 820 • 820 Massachusetts Ave, Lakeland, FL',
-  imageUrl: './Images/background5.jpg'
+  imageUrl: '/Images/background5.jpg'
 };
 
 const RSVP_LABELS = {
@@ -838,7 +838,16 @@ function updateHeroPeopleStats() {
 }
 
 function featuredEventResponses() {
-  return eventResponses.filter((item) => item && item.eventId === FEATURED_EVENT.id);
+  const deduped = new Map();
+  eventResponses.forEach((item) => {
+    if (!item || item.eventId !== FEATURED_EVENT.id) return;
+    const key = item.uid || item.userEmail || item.id;
+    const prev = deduped.get(key);
+    const prevMs = Number(prev?.updatedAtMs || 0);
+    const nextMs = Number(item.updatedAtMs || 0);
+    if (!prev || nextMs >= prevMs) deduped.set(key, item);
+  });
+  return Array.from(deduped.values());
 }
 
 function featuredEventCounts() {
@@ -934,13 +943,6 @@ async function handleEventRsvp(status) {
       updatedAtMs: Date.now()
     };
     await setDoc(responseRef, payload, { merge: true });
-    const optimistic = { id: responseId, ...payload };
-    if (existingIndex >= 0) {
-      eventResponses[existingIndex] = { ...eventResponses[existingIndex], ...optimistic };
-    } else {
-      eventResponses.unshift(optimistic);
-    }
-    renderEventSpotlight();
     if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
   } catch (err) {
     console.error(err);
