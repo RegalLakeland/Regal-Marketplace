@@ -7,7 +7,8 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  updatePassword
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import {
   getFirestore,
@@ -437,6 +438,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startSelfProfileListener(user.uid);
 
+    if (currentProfile?.mustChangePassword) {
+      updateAuthUI();
+      showPasswordGate();
+      return;
+    }
+
     if (!currentProfile?.termsAccepted && !isProtectedCoreAdmin(user.email)) {
       updateAuthUI();
       showTermsOverlay();
@@ -461,6 +468,7 @@ function bindStaticEvents() {
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
+  $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -620,6 +628,101 @@ function stopListeners() {
   renderListings();
 }
 
+
+function showPasswordGate() {
+  const msg = $('passwordGateMsg');
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.dataset.state = '';
+  }
+  if ($('newPasswordInput')) $('newPasswordInput').value = '';
+  if ($('confirmNewPasswordInput')) $('confirmNewPasswordInput').value = '';
+  const gate = $('passwordGateOverlay');
+  if (gate) gate.style.display = 'flex';
+  document.body.classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+}
+
+function hidePasswordGate() {
+  const gate = $('passwordGateOverlay');
+  if (gate) gate.style.display = 'none';
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
+}
+
+async function handleForcePasswordChange() {
+  const password = $('newPasswordInput')?.value || '';
+  const password2 = $('confirmNewPasswordInput')?.value || '';
+  const msg = $('passwordGateMsg');
+
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.dataset.state = '';
+  }
+
+  if (!currentUser) {
+    alert('Please log in again.');
+    return;
+  }
+  if (!password || !password2) {
+    if (msg) {
+      msg.textContent = 'Enter and confirm your new password.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+  if (password.length < 8) {
+    if (msg) {
+      msg.textContent = 'Use at least 8 characters for your new password.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+  if (password !== password2) {
+    if (msg) {
+      msg.textContent = 'The passwords do not match.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    await updatePassword(currentUser, password);
+    await updateDoc(doc(db, 'profiles', currentUser.uid), {
+      mustChangePassword: false,
+      passwordChangedAtMs: Date.now(),
+      updatedAt: serverTimestamp()
+    });
+    if (currentProfile) {
+      currentProfile.mustChangePassword = false;
+      currentProfile.passwordChangedAtMs = Date.now();
+    }
+    if (msg) {
+      msg.textContent = 'Password updated successfully.';
+      msg.dataset.state = 'success';
+      msg.style.display = 'block';
+    }
+    setTimeout(() => {
+      hidePasswordGate();
+      startMarketplaceForApprovedUser();
+    }, 350);
+  } catch (err) {
+    console.error(err);
+    if (msg) {
+      msg.textContent = `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+  }
+}
+
 function startMarketplaceForApprovedUser() {
   hidePendingApprovalOverlay();
   hideTermsOverlay();
@@ -659,6 +762,7 @@ async function ensureProfile(user) {
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
+    mustChangePassword: false,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -682,6 +786,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
+    if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -718,6 +823,7 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
+  if (!loggedIn) hidePasswordGate();
 }
 
 async function handleLogin() {

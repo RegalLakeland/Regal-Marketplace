@@ -22,6 +22,10 @@ function deleteAccountFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/deleteMarketplaceAccount`;
 }
 
+function tempPasswordFunctionUrl() {
+  return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/setMarketplaceTemporaryPassword`;
+}
+
 async function callAdminVerificationResend(email) {
   if (!currentViewer) throw new Error('You must be signed in.');
   const token = await currentViewer.getIdToken(true);
@@ -49,6 +53,23 @@ async function callDeleteMarketplaceAccount(targetUser) {
     updatedAt: Date.now()
   });
   return { message: 'Account removed from active marketplace view.' };
+}
+
+
+async function callSetMarketplaceTempPassword(targetUser, temporaryPassword) {
+  if (!currentViewer) throw new Error('You must be signed in.');
+  const token = await currentViewer.getIdToken(true);
+  const res = await fetch(tempPasswordFunctionUrl(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ uid: targetUser.id, email: targetUser.email || '', temporaryPassword })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `Temporary password request failed (${res.status})`);
+  return data;
 }
 
 async function copyText(text) {
@@ -299,6 +320,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
 
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
+  if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
   if (isCoreAdminViewer() && (!protectedUser || selfRow)) buttons.push(`<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">Delete Account</button>`);
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
@@ -378,6 +400,24 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
+    if (role === 'setTempPassword') {
+      const suggested = `Regal!${String(Math.floor(1000 + Math.random() * 9000))}${Math.random().toString(36).slice(-4)}`;
+      const temporaryPassword = window.prompt(`Set a temporary password for ${user.email}. They will be forced to change it after login.`, suggested);
+      if (temporaryPassword === null) return;
+      if (String(temporaryPassword).trim().length < 8) {
+        alert('Temporary password must be at least 8 characters.');
+        return;
+      }
+      const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
+      await updateDoc(ref, {
+        mustChangePassword: true,
+        updatedAt: Date.now()
+      }).catch(() => {});
+      const copied = await copyText(String(temporaryPassword).trim());
+      alert(`${result?.message || 'Temporary password saved.'}${copied ? ' The password was copied to your clipboard.' : ''}`);
+      return;
+    }
+
     if (role === 'deleteAccount') {
       const confirmWord = window.prompt(`Type DELETE to move ${user.email || 'this account'} into Deleted.`, '');
       if (confirmWord !== 'DELETE') return;
