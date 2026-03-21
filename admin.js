@@ -15,20 +15,12 @@ const CORE_ADMIN_EMAILS = [
 const autoGrantSyncIds = new Set();
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
-function isUserOnline(user) {
-  return !user?.deletedAtMs && !user?.banned && Number(user?.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS);
-}
-
 function verificationFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/resendVerificationEmail`;
 }
 
 function deleteAccountFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/deleteMarketplaceAccount`;
-}
-
-function tempPasswordFunctionUrl() {
-  return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/setMarketplaceTemporaryPassword`;
 }
 
 async function callAdminVerificationResend(email) {
@@ -58,22 +50,6 @@ async function callDeleteMarketplaceAccount(targetUser) {
     updatedAt: Date.now()
   });
   return { message: 'Account removed from active marketplace view.' };
-}
-
-async function callSetMarketplaceTempPassword(targetUser, temporaryPassword) {
-  if (!currentViewer) throw new Error('You must be signed in.');
-  const token = await currentViewer.getIdToken(true);
-  const res = await fetch(tempPasswordFunctionUrl(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ uid: targetUser.id, email: targetUser.email || '', temporaryPassword })
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Temporary password request failed (${res.status})`);
-  return data;
 }
 
 async function copyText(text) {
@@ -253,6 +229,54 @@ function startListings() {
   });
 }
 
+
+function approvedNonDeletedProfiles() {
+  return userRowsData.filter((user) => user && !user.deletedAtMs && !user.banned && user.accessApproved !== false);
+}
+
+function onlineProfilesNow() {
+  const cutoff = Date.now() - ONLINE_WINDOW_MS;
+  return approvedNonDeletedProfiles()
+    .filter((user) => Number(user.lastSeenAtMs || 0) >= cutoff)
+    .sort((a, b) => Number(b.lastSeenAtMs || 0) - Number(a.lastSeenAtMs || 0));
+}
+
+function fmtLastSeenShort(ms) {
+  const diff = Math.max(0, Date.now() - Number(ms || 0));
+  const mins = Math.floor(diff / 60000);
+  if (mins <= 0) return 'Active now';
+  if (mins === 1) return 'Active 1 min ago';
+  if (mins < 60) return `Active ${mins} mins ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs === 1) return 'Active 1 hour ago';
+  return `Active ${hrs} hours ago`;
+}
+
+function renderOnlinePeople() {
+  const wrap = $('adminOnlinePeople');
+  const countEl = $('adminOnlineCount');
+  if (!wrap || !countEl) return;
+
+  const online = onlineProfilesNow();
+  countEl.textContent = `${online.length} online`;
+
+  if (!online.length) {
+    wrap.innerHTML = '<div class="note">No one online right now.</div>';
+    return;
+  }
+
+  wrap.innerHTML = online.map((user) => {
+    const shownName = user.displayName || user.pendingName || user.requestedName || (user.email || 'Unknown User').split('@')[0];
+    return `
+      <div class="admin-online-card">
+        <div class="admin-online-name">${esc(shownName)}</div>
+        <div class="admin-online-email">${esc(user.email || '—')}</div>
+        <div class="admin-online-meta">${esc(fmtLastSeenShort(user.lastSeenAtMs))}</div>
+      </div>
+    `;
+  }).join('');
+}
+
 function duplicateMeta(rows) {
   const groups = new Map();
   for (const row of rows) {
@@ -324,7 +348,6 @@ function buildUserActionButtons(user, dup, protectedUser) {
 
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
-  if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
   if (isCoreAdminViewer() && (!protectedUser || selfRow)) buttons.push(`<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">Delete Account</button>`);
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
@@ -342,8 +365,9 @@ function buildUserActionButtons(user, dup, protectedUser) {
 function renderUserRows() {
   if (!$('userRows')) return;
   const { filtered, dmeta } = applyUserFilters(userRowsData);
-  if ($('adminUserCount')) $('adminUserCount').textContent = `${userRowsData.length} total • ${userRowsData.filter((u) => isUserOnline(u)).length} online`;
+  if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter((u) => !u.deletedAtMs && userPending(u)).length} pending`;
+  renderOnlinePeople();
 
   $('userRows').innerHTML = filtered.map((user) => {
     const protectedUser = isProtectedCoreAdmin(user.email);
@@ -369,7 +393,6 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Online</span><span class="user-status-value ${isUserOnline(user) ? 'ok' : 'pending'}">${isUserOnline(user) ? `Online ${esc(fmtDate(user.lastSeenAtMs || Date.now()))}` : 'Offline'}</span></div>
             <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${user.termsAccepted ? `Agreed ${esc(fmtDate(user.termsAcceptedAt || Date.now()))}` : 'Not yet agreed'}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
           </div>
@@ -405,29 +428,6 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
-    if (role === 'setTempPassword') {
-      const suggested = `Regal!${Math.floor(1000 + Math.random() * 9000)}${Math.random().toString(36).slice(-4)}`;
-      const temporaryPassword = window.prompt(`Set a temporary password for ${user.email}. They will be forced to change it after login.`, suggested);
-      if (temporaryPassword === null) return;
-      if (String(temporaryPassword).trim().length < 8) {
-        alert('Temporary password must be at least 8 characters.');
-        return;
-      }
-      const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
-      await updateDoc(ref, {
-        mustChangePassword: true,
-        tempPasswordActive: true,
-        accessApproved: true,
-        accessManuallyDenied: false,
-        banned: false,
-        deletedAtMs: null,
-        updatedAt: Date.now()
-      });
-      const copied = await copyText(String(temporaryPassword).trim());
-      alert(`${result?.message || 'Temporary password saved.'}${copied ? ' Password copied to clipboard.' : ''}`);
-      return;
-    }
-
     if (role === 'deleteAccount') {
       const confirmWord = window.prompt(`Type DELETE to move ${user.email || 'this account'} into Deleted.`, '');
       if (confirmWord !== 'DELETE') return;
@@ -472,6 +472,7 @@ function startUsers() {
     const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     userRowsData = rows;
     renderUserRows();
+    renderOnlinePeople();
   });
 }
 

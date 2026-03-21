@@ -49,6 +49,19 @@
         <section class="panel" style="background:rgba(8,16,30,.52)">
           <div class="panel-h"><div><div class="panel-title">User Access</div><div class="meta">Search users, review full names, approve pending manual access, and clean up duplicate profile rows. Manual-only approval does not prove mailbox ownership, so unverified users are flagged as Not Proven.</div></div></div>
           <div class="panel-b">
+
+            <div class="admin-online-panel">
+              <div class="admin-online-head">
+                <div class="panel-title">People Online Now</div>
+                <div class="meta">Live employee presence based on recent marketplace activity.</div>
+              </div>
+              <div class="admin-online-summary">
+                <span class="pill" id="adminOnlineCount">0 online</span>
+              </div>
+              <div id="adminOnlinePeople" class="admin-online-people">
+                <div class="note">No one online right now.</div>
+              </div>
+            </div>
             <div class="admin-tools">
               <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
               <select id="userFilter" class="adminFilter">
