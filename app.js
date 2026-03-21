@@ -1409,41 +1409,7 @@ async function handleSendReply() {
 }
 
 
-// ===== PATCH: IMAGE PATH FIX + RSVP FIX =====
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll("*").forEach(el => {
-    const style = window.getComputedStyle(el);
-    const bg = style.backgroundImage;
-    if (bg && bg.includes("Images/") && !bg.includes("/Images/")) {
-      el.style.backgroundImage = bg.replace(/Images\//g, "/Images/");
-    }
-  });
-
-  document.querySelectorAll("img").forEach(img => {
-    if (img.src.includes("Images/") && !img.src.includes("/Images/")) {
-      img.src = img.src.replace(/Images\//g, "/Images/");
-    }
-  });
-});
-
-document.addEventListener("click", function (e) {
-  if (!e.target.classList.contains("rsvp-btn")) return;
-  const container = e.target.closest(".rsvp-container");
-  if (!container) return;
-
-  const buttons = container.querySelectorAll(".rsvp-btn");
-
-  if (e.target.classList.contains("active")) {
-    e.target.classList.remove("active");
-    return;
-  }
-
-  buttons.forEach(btn => btn.classList.remove("active"));
-  e.target.classList.add("active");
-});
-
-
-// ===== SAFE ENTER KEY SUPPORT =====
+// ===== ENTER KEY SUPPORT =====
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
 
