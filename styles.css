@@ -29,9 +29,9 @@ input,textarea,select,button{font:inherit}
 a{color:inherit}
 .site-bg{position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none}
 .market-bg{position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transform:scale(1.06); will-change:opacity,transform}
-.market-bg1{background-image:url("/Images/background1.jpg"); animation:marketRotate 24s infinite}
-.market-bg2{background-image:url("/Images/background2.jpg"); animation:marketRotate 24s infinite 8s}
-.market-bg3{background-image:url("/Images/background3.jpg"); animation:marketRotate 24s infinite 16s}
+.market-bg1{background-image:url("./Images/background1.jpg"); animation:marketRotate 24s infinite}
+.market-bg2{background-image:url("./Images/background2.jpg"); animation:marketRotate 24s infinite 8s}
+.market-bg3{background-image:url("./Images/background3.jpg"); animation:marketRotate 24s infinite 16s}
 .market-bg-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(5,10,18,.08), rgba(5,10,18,.22) 35%, rgba(5,10,18,.42) 100%)}
 @keyframes marketRotate{
   0%{opacity:0; transform:scale(1.06)}
@@ -48,7 +48,7 @@ a{color:inherit}
 .login-overlay{padding:0; background:rgba(3,8,14,.62)}
 .login-shell{width:min(1240px,100%); min-height:100%; display:grid; grid-template-columns:1.15fr .85fr; gap:28px; padding:28px}
 .login-promo{position:relative; min-height:620px; overflow:hidden; border-radius:28px; border:1px solid var(--border); box-shadow:var(--shadow)}
-.login-hero-image{position:absolute; inset:0; background:url("/Images/background4.jpg") center/cover no-repeat; transform:scale(1.03)}
+.login-hero-image{position:absolute; inset:0; background:url("./Images/background4.jpg") center/cover no-repeat; transform:scale(1.03)}
 .login-hero-shade{position:absolute; inset:0; background:linear-gradient(180deg, rgba(6,12,22,.16), rgba(6,12,22,.36) 45%, rgba(6,12,22,.84) 100%)}
 .login-copy{position:absolute; left:34px; right:34px; bottom:34px; z-index:1}
 .promo-kicker{font-size:13px; text-transform:uppercase; letter-spacing:.16em; color:#d8e5f6; font-weight:900}

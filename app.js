@@ -123,7 +123,7 @@ const FEATURED_EVENT = {
   subtitle: 'Dinner, drinks & live entertainment',
   dateLine: 'May 15th • 6:30 PM',
   locationLine: 'Haus 820 • 820 Massachusetts Ave, Lakeland, FL',
-  imageUrl: '/Images/background5.jpg'
+  imageUrl: './Images/background5.jpg'
 };
 
 const RSVP_LABELS = {
@@ -838,16 +838,7 @@ function updateHeroPeopleStats() {
 }
 
 function featuredEventResponses() {
-  const deduped = new Map();
-  eventResponses.forEach((item) => {
-    if (!item || item.eventId !== FEATURED_EVENT.id) return;
-    const key = item.uid || item.userEmail || item.id;
-    const prev = deduped.get(key);
-    const prevMs = Number(prev?.updatedAtMs || 0);
-    const nextMs = Number(item.updatedAtMs || 0);
-    if (!prev || nextMs >= prevMs) deduped.set(key, item);
-  });
-  return Array.from(deduped.values());
+  return eventResponses.filter((item) => item && item.eventId === FEATURED_EVENT.id);
 }
 
 function featuredEventCounts() {
@@ -918,36 +909,48 @@ async function handleEventRsvp(status) {
     alert('Your account is not ready to RSVP yet. Please refresh and try again.');
     return;
   }
+  if (window.__eventRsvpBusy) return;
+  window.__eventRsvpBusy = true;
+  ['btnEventAttend','btnEventMaybe','btnEventCant'].forEach((id) => {
+    const btn = $(id);
+    if (btn) btn.disabled = true;
+  });
+
   try {
     const responseId = `${FEATURED_EVENT.id}__${currentUser.uid}`;
     const responseRef = doc(db, 'eventResponses', responseId);
-    const existingIndex = eventResponses.findIndex((item) => item.id === responseId);
-    const existing = existingIndex >= 0 ? eventResponses[existingIndex] : null;
+    const existing = currentUserEventResponse();
+
+    if ($('eventStatusText')) $('eventStatusText').textContent = 'Saving your response...';
 
     if (existing?.status === status) {
       await deleteDoc(responseRef);
-      if (existingIndex >= 0) eventResponses.splice(existingIndex, 1);
-      renderEventSpotlight();
       if ($('eventStatusText')) $('eventStatusText').textContent = 'Your response was cleared.';
-      return;
+    } else {
+      const payload = {
+        eventId: FEATURED_EVENT.id,
+        eventTitle: FEATURED_EVENT.title,
+        uid: currentUser.uid,
+        userEmail: currentUser.email || '',
+        displayName: currentProfile.displayName || currentProfile.pendingName || currentUser.email || '',
+        status,
+        updatedAt: serverTimestamp(),
+        updatedAtMs: Date.now()
+      };
+      await setDoc(responseRef, payload, { merge: true });
+      if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
     }
-
-    const payload = {
-      eventId: FEATURED_EVENT.id,
-      eventTitle: FEATURED_EVENT.title,
-      uid: currentUser.uid,
-      userEmail: currentUser.email || '',
-      displayName: currentProfile.displayName || currentProfile.pendingName || currentUser.email || '',
-      status,
-      updatedAt: serverTimestamp(),
-      updatedAtMs: Date.now()
-    };
-    await setDoc(responseRef, payload, { merge: true });
-    if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
   } catch (err) {
     console.error(err);
     if ($('eventStatusText')) $('eventStatusText').textContent = err?.message || 'Unable to save your RSVP right now.';
     alert(err?.message || 'Unable to save your RSVP right now.');
+  } finally {
+    window.__eventRsvpBusy = false;
+    ['btnEventAttend','btnEventMaybe','btnEventCant'].forEach((id) => {
+      const btn = $(id);
+      if (btn) btn.disabled = !canUseEventRsvp();
+    });
+    renderEventSpotlight();
   }
 }
 
