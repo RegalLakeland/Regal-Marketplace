@@ -877,11 +877,11 @@ function renderEventSpotlight() {
   ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
     const btn = document.querySelector(`[data-rsvp="${status}"]`);
     if (!btn) return;
-    btn.classList.remove('primary', 'active-rsvp');
-    btn.classList.add('ghost');
+    btn.classList.remove('primary', 'active-rsvp', 'ghost');
     if (mine?.status === status) {
-      btn.classList.remove('ghost');
       btn.classList.add('primary', 'active-rsvp');
+    } else {
+      btn.classList.add('ghost');
     }
     btn.setAttribute('aria-pressed', mine?.status === status ? 'true' : 'false');
     btn.disabled = !canRsvp;
