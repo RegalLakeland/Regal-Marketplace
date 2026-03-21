@@ -230,51 +230,36 @@ function startListings() {
 }
 
 
-function approvedNonDeletedProfiles() {
-  return userRowsData.filter((user) => user && !user.deletedAtMs && !user.banned && user.accessApproved !== false);
+function approvedVisibleUsers() {
+  return userRowsData.filter((u) => u && !u.deletedAtMs && !u.banned && u.accessApproved !== false);
 }
 
-function onlineProfilesNow() {
+function onlineUsers() {
   const cutoff = Date.now() - ONLINE_WINDOW_MS;
-  return approvedNonDeletedProfiles()
-    .filter((user) => Number(user.lastSeenAtMs || 0) >= cutoff)
+  return approvedVisibleUsers()
+    .filter((u) => Number(u.lastSeenAtMs || 0) >= cutoff)
     .sort((a, b) => Number(b.lastSeenAtMs || 0) - Number(a.lastSeenAtMs || 0));
 }
 
-function fmtLastSeenShort(ms) {
-  const diff = Math.max(0, Date.now() - Number(ms || 0));
-  const mins = Math.floor(diff / 60000);
-  if (mins <= 0) return 'Active now';
-  if (mins === 1) return 'Active 1 min ago';
-  if (mins < 60) return `Active ${mins} mins ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs === 1) return 'Active 1 hour ago';
-  return `Active ${hrs} hours ago`;
-}
-
-function renderOnlinePeople() {
-  const wrap = $('adminOnlinePeople');
+function renderOnlineNames() {
   const countEl = $('adminOnlineCount');
-  if (!wrap || !countEl) return;
+  const lineEl = $('adminOnlineNames');
+  if (!countEl || !lineEl) return;
 
-  const online = onlineProfilesNow();
+  const online = onlineUsers();
   countEl.textContent = `${online.length} online`;
 
   if (!online.length) {
-    wrap.innerHTML = '<div class="note">No one online right now.</div>';
+    lineEl.textContent = 'No one online right now.';
     return;
   }
 
-  wrap.innerHTML = online.map((user) => {
-    const shownName = user.displayName || user.pendingName || user.requestedName || (user.email || 'Unknown User').split('@')[0];
-    return `
-      <div class="admin-online-card">
-        <div class="admin-online-name">${esc(shownName)}</div>
-        <div class="admin-online-email">${esc(user.email || '—')}</div>
-        <div class="admin-online-meta">${esc(fmtLastSeenShort(user.lastSeenAtMs))}</div>
-      </div>
-    `;
-  }).join('');
+  const names = online.map((u) => {
+    const shownName = (u.displayName || u.pendingName || u.requestedName || '').trim();
+    return shownName || String(u.email || '').split('@')[0] || 'Unknown';
+  });
+
+  lineEl.textContent = names.join(', ');
 }
 
 function duplicateMeta(rows) {
@@ -367,7 +352,7 @@ function renderUserRows() {
   const { filtered, dmeta } = applyUserFilters(userRowsData);
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter((u) => !u.deletedAtMs && userPending(u)).length} pending`;
-  renderOnlinePeople();
+  renderOnlineNames();
 
   $('userRows').innerHTML = filtered.map((user) => {
     const protectedUser = isProtectedCoreAdmin(user.email);
@@ -472,7 +457,6 @@ function startUsers() {
     const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     userRowsData = rows;
     renderUserRows();
-    renderOnlinePeople();
   });
 }
 
