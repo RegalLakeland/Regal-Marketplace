@@ -13,6 +13,11 @@ const CORE_ADMIN_EMAILS = [
   'janni.r@regallakeland.com'
 ];
 const autoGrantSyncIds = new Set();
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
+function isUserOnline(user) {
+  return !user?.deletedAtMs && !user?.banned && Number(user?.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS);
+}
 
 function verificationFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/resendVerificationEmail`;
@@ -337,7 +342,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
 function renderUserRows() {
   if (!$('userRows')) return;
   const { filtered, dmeta } = applyUserFilters(userRowsData);
-  if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
+  if ($('adminUserCount')) $('adminUserCount').textContent = `${userRowsData.length} total • ${userRowsData.filter((u) => isUserOnline(u)).length} online`;
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter((u) => !u.deletedAtMs && userPending(u)).length} pending`;
 
   $('userRows').innerHTML = filtered.map((user) => {
@@ -364,6 +369,7 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Online</span><span class="user-status-value ${isUserOnline(user) ? 'ok' : 'pending'}">${isUserOnline(user) ? `Online ${esc(fmtDate(user.lastSeenAtMs || Date.now()))}` : 'Offline'}</span></div>
             <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${user.termsAccepted ? `Agreed ${esc(fmtDate(user.termsAcceptedAt || Date.now()))}` : 'Not yet agreed'}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
           </div>

@@ -79,6 +79,13 @@ function applyAuthLanguage() {
   } catch (_) {}
 }
 
+function clearTempLoginContext() {
+  try {
+    sessionStorage.removeItem('marketplace_temp_login_email');
+    sessionStorage.removeItem('marketplace_temp_login_password');
+  } catch (_) {}
+}
+
 async function getFreshProfileSnapshot(uid) {
   const profileRef = doc(db, 'profiles', uid);
   try {
@@ -678,10 +685,20 @@ function startMarketplaceForApprovedUser() {
   touchPresence();
   if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
 
-  if (!currentProfile?.displayName) {
+  const fallbackName = currentProfile?.displayName || currentProfile?.pendingName || currentProfile?.requestedName || '';
+  if (!fallbackName) {
     $('displayNameInput').value = currentUser?.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
     show('nameOverlay');
     return;
+  }
+  if (!currentProfile?.displayName && fallbackName) {
+    currentProfile.displayName = fallbackName;
+    updateDoc(doc(db, 'profiles', currentUser.uid), {
+      displayName: fallbackName,
+      pendingName: fallbackName,
+      requestedName: fallbackName,
+      updatedAt: serverTimestamp()
+    }).catch(() => {});
   }
 
   renderListings();
@@ -731,6 +748,10 @@ async function ensureProfile(user) {
     if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
+    if (!String(currentProfile.displayName || '').trim()) {
+      const fallbackName = String(currentProfile.pendingName || currentProfile.requestedName || '').trim();
+      if (fallbackName) updates.displayName = fallbackName;
+    }
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
       updates.emailVerified = true;
@@ -757,7 +778,7 @@ function updateAuthUI() {
 
   if ($('pillUser')) {
     $('pillUser').textContent = loggedIn
-      ? (currentProfile.displayName || currentUser.email)
+      ? (currentProfile.displayName || currentProfile.pendingName || currentProfile.requestedName || currentUser.email)
       : 'Not signed in';
   }
 
@@ -860,7 +881,7 @@ async function handleForgotPassword() {
 }
 
 async function handleSignup() {
-  const fullName = $('signupFullName')?.value.trim() || $('signupName')?.value.trim() || '';
+  const fullName = ($('signupFullName')?.value || $('signupName')?.value || '').trim();
   const email = $('signupEmail')?.value.trim().toLowerCase();
   const password = $('signupPassword')?.value || '';
   const password2 = $('signupPassword2')?.value || '';
