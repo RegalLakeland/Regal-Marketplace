@@ -7,8 +7,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
-  onAuthStateChanged,
-  updatePassword
+  onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import {
   getFirestore,
@@ -16,7 +15,6 @@ import {
   addDoc,
   doc,
   getDoc,
-  getDocFromServer,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -79,78 +77,6 @@ function applyAuthLanguage() {
   } catch (_) {}
 }
 
-function clearTempLoginContext() {
-  try {
-    sessionStorage.removeItem('marketplace_temp_login_email');
-    sessionStorage.removeItem('marketplace_temp_login_password');
-  } catch (_) {}
-}
-
-async function getFreshProfileSnapshot(uid) {
-  const profileRef = doc(db, 'profiles', uid);
-  try {
-    return await getDocFromServer(profileRef);
-  } catch (_) {
-    return await getDoc(profileRef);
-  }
-}
-
-async function getFreshApprovedProfileWithRetry(uid, attempts = 6, delayMs = 500) {
-  let lastSnap = null;
-  for (let i = 0; i < attempts; i += 1) {
-    lastSnap = await getFreshProfileSnapshot(uid).catch(() => null);
-    const data = lastSnap?.exists?.() ? lastSnap.data() : null;
-    if (data?.accessApproved === true && data?.banned !== true && !data?.deletedAtMs) {
-      return lastSnap;
-    }
-    if (i < attempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
-  return lastSnap;
-}
-
-let selfProfileUnsub = null;
-function startSelfProfileListener(uid) {
-  if (selfProfileUnsub) {
-    selfProfileUnsub();
-    selfProfileUnsub = null;
-  }
-  selfProfileUnsub = onSnapshot(doc(db, 'profiles', uid), async (snap) => {
-    if (!snap.exists()) return;
-    const data = { id: snap.id, ...snap.data() };
-    currentProfile = data;
-    if (data.deletedAtMs || data.banned) {
-      stopListeners();
-      hidePendingApprovalOverlay();
-      hideTermsOverlay();
-      alert('Your marketplace access has been disabled. Contact an admin.');
-      await signOut(auth).catch(() => {});
-      return;
-    }
-  }, (err) => console.error('Self profile lock failed', err));
-}
-
-async function requireActiveProfileOrSignOut() {
-  if (!currentUser) return null;
-  const snap = await getFreshProfileSnapshot(currentUser.uid).catch(() => null);
-  const data = snap?.exists?.() ? { id: snap.id, ...snap.data() } : null;
-  if (!data) {
-    await signOut(auth).catch(() => {});
-    alert('Your account record could not be found. Contact an admin.');
-    return null;
-  }
-  currentProfile = data;
-  if (data.deletedAtMs || data.banned || data.accessApproved === false) {
-    stopListeners();
-    await signOut(auth).catch(() => {});
-    alert('Your marketplace access is no longer active. Contact an admin.');
-    return null;
-  }
-  return data;
-}
-
-
 const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -180,130 +106,6 @@ const RSVP_LABELS = {
   MAYBE: 'Maybe',
   CANT: "Can't Attend"
 };
-
-const TERMS_VERSION = '2026-03-19';
-const TERMS_HTML = `
-  <div class="modal" style="max-width:760px;width:min(96vw,760px);max-height:min(88vh,900px);overflow:auto">
-    <div class="modal-h"><strong>Regal Lakeland Employee Marketplace Rules</strong></div>
-    <div class="modal-b" style="display:grid;gap:12px">
-      <div class="note" style="display:block">
-        You must review and accept these rules before accessing the marketplace.
-      </div>
-      <div style="display:grid;gap:10px;font-size:14px;line-height:1.45">
-        <div><strong>1. Employee use only.</strong> This marketplace is only for current Regal Lakeland employees using their own approved account.</div>
-        <div><strong>2. Professional conduct required.</strong> Be respectful in all listings, messages, and interactions. Harassment, threats, discrimination, profanity, or inappropriate conduct are not allowed.</div>
-        <div><strong>3. Accurate listings only.</strong> You are responsible for the accuracy, condition, pricing, and description of any item or service you post.</div>
-        <div><strong>4. Prohibited items.</strong> Do not post illegal items, weapons, drugs, stolen property, explicit material, unsafe products, or anything that violates company policy or law.</div>
-        <div><strong>5. Personal transactions only.</strong> All deals are strictly between employees. Regal Lakeland is not responsible for payment disputes, item condition, delivery, loss, damages, warranties, or refunds.</div>
-        <div><strong>6. No spam or abuse.</strong> Do not flood the marketplace, post misleading listings, impersonate another user, or use the platform for unauthorized business promotion.</div>
-        <div><strong>7. Protect privacy.</strong> Do not post confidential company information, customer data, sensitive employee information, or private contact details you do not have permission to share.</div>
-        <div><strong>8. Admin enforcement.</strong> Marketplace admins may approve, deny, remove, edit, restrict, suspend, or delete access, listings, or content at any time to keep the platform safe and professional.</div>
-        <div><strong>9. Policy violations.</strong> Violations may result in marketplace removal and may be escalated to management when appropriate.</div>
-      </div>
-      <label style="display:flex;gap:10px;align-items:flex-start">
-        <input id="termsAgreeCheckbox" type="checkbox" />
-        <span>I have read and agree to follow the Regal Lakeland Employee Marketplace rules.</span>
-      </label>
-      <div class="note" style="display:block">
-        By continuing, your agreement timestamp will be saved to your employee marketplace profile.
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn ghost" id="btnTermsLogout" type="button">Log Out</button>
-      <button class="btn primary" id="btnAcceptTerms" type="button">I Agree</button>
-    </div>
-  </div>
-`;
-
-function ensureTermsOverlay() {
-  let wrap = document.getElementById('termsOverlay');
-  if (!wrap) {
-    wrap = document.createElement('div');
-    wrap.id = 'termsOverlay';
-    wrap.className = 'overlay';
-    wrap.style.zIndex = '70';
-    wrap.innerHTML = TERMS_HTML;
-    document.body.appendChild(wrap);
-    wrap.querySelector('#btnTermsLogout')?.addEventListener('click', async () => {
-      await signOut(auth).catch(() => {});
-    });
-    wrap.querySelector('#btnAcceptTerms')?.addEventListener('click', handleAcceptTerms);
-  }
-  return wrap;
-}
-
-function showTermsOverlay() {
-  const wrap = ensureTermsOverlay();
-  const checkbox = document.getElementById('termsAgreeCheckbox');
-  if (checkbox) checkbox.checked = false;
-  wrap.style.display = 'flex';
-  document.body.classList.add('modal-open');
-  document.body.style.overflow = 'hidden';
-  document.documentElement.style.overflow = 'hidden';
-}
-
-function hideTermsOverlay() {
-  const wrap = document.getElementById('termsOverlay');
-  if (wrap) wrap.style.display = 'none';
-  document.body.classList.remove('modal-open');
-  document.body.style.overflow = '';
-  document.documentElement.style.overflow = '';
-}
-
-function openForcePasswordOverlay() {
-  const gate = $('passwordGateOverlay');
-  if (!gate) return;
-  if ($('newPasswordInput')) $('newPasswordInput').value = '';
-  if ($('confirmNewPasswordInput')) $('confirmNewPasswordInput').value = '';
-  if ($('passwordGateMsg')) {
-    $('passwordGateMsg').style.display = 'none';
-    $('passwordGateMsg').textContent = '';
-    $('passwordGateMsg').dataset.state = '';
-  }
-  gate.style.display = 'flex';
-  document.body.classList.add('modal-open');
-  document.body.style.overflow = 'hidden';
-  document.documentElement.style.overflow = 'hidden';
-}
-
-function hideForcePasswordOverlay() {
-  const gate = $('passwordGateOverlay');
-  if (gate) gate.style.display = 'none';
-  document.body.classList.remove('modal-open');
-  document.body.style.overflow = '';
-  document.documentElement.style.overflow = '';
-}
-
-async function handleAcceptTerms() {
-  const checkbox = document.getElementById('termsAgreeCheckbox');
-  if (!checkbox?.checked) {
-    alert('You must agree to the marketplace rules to continue.');
-    return;
-  }
-  if (!currentUser) {
-    alert('Please log in again.');
-    return;
-  }
-  try {
-    const stamp = Date.now();
-    await updateDoc(doc(db, 'profiles', currentUser.uid), {
-      termsAccepted: true,
-      termsAcceptedAt: stamp,
-      termsVersion: TERMS_VERSION,
-      updatedAt: serverTimestamp()
-    });
-    if (currentProfile) {
-      currentProfile.termsAccepted = true;
-      currentProfile.termsAcceptedAt = stamp;
-      currentProfile.termsVersion = TERMS_VERSION;
-    }
-    hideTermsOverlay();
-    startMarketplaceForApprovedUser();
-  } catch (err) {
-    console.error(err);
-    alert(err?.message || 'Unable to save your agreement right now.');
-  }
-}
 
 let currentUser = null;
 let currentProfile = null;
@@ -369,7 +171,6 @@ function watchPendingApproval(uid) {
     currentProfile = { id: uid, ...data };
     if (data.deletedAtMs || data.banned) {
       hidePendingApprovalOverlay();
-      clearTempLoginContext();
       await signOut(auth).catch(() => {});
       alert('Your marketplace access has been disabled. Contact an admin.');
       return;
@@ -444,46 +245,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
-      const freshSnap = await getFreshApprovedProfileWithRetry(user.uid, 6, 500).catch(() => null);
-      const freshData = freshSnap?.exists?.() ? freshSnap.data() : null;
-      if (freshData?.accessApproved === true && freshData?.banned !== true && !freshData?.deletedAtMs) {
-        currentProfile = { id: user.uid, ...freshData };
-      } else {
-        const pendingEmail = user.email || '';
-        await signOut(auth).catch(() => {});
-        currentUser = null;
-        currentProfile = null;
-        stopListeners();
-        hidePendingApprovalOverlay();
-        hideTermsOverlay();
-        updateAuthUI();
-        showPane('login');
-        if ($('loginEmail')) $('loginEmail').value = pendingEmail;
-        if ($('verifyNote')) {
-          $('verifyNote').textContent = 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you created.';
-          $('verifyNote').style.display = 'block';
-        }
-        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-        return;
+      if ($('verifyNote')) {
+        $('verifyNote').textContent = 'Your account has been created and is waiting for manual admin approval.';
+        $('verifyNote').style.display = 'block';
       }
-    }
-
-    startSelfProfileListener(user.uid);
-
-    if (currentProfile?.mustChangePassword || currentProfile?.tempPasswordActive) {
+      if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
       updateAuthUI();
-      openForcePasswordOverlay();
+      showPendingApprovalOverlay('Your account is waiting for manual admin approval. Leave this page open and you will unlock automatically when approved.');
+      watchPendingApproval(user.uid);
       return;
     }
 
-    if (!currentProfile?.termsAccepted && !isProtectedCoreAdmin(user.email)) {
-      updateAuthUI();
-      showTermsOverlay();
-      return;
-    }
+    hidePendingApprovalOverlay();
+    lastUnverifiedEmail = '';
+    if ($('verifyNote')) $('verifyNote').style.display = 'none';
+    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
-    hideForcePasswordOverlay();
-    startMarketplaceForApprovedUser();
+    updateAuthUI();
+    startListingsListener();
+    startProfilesListener();
+    startEventResponsesListener();
+    touchPresence();
+    if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
+
+    if (!currentProfile.displayName) {
+      $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+      show('nameOverlay');
+    }
   } catch (err) {
     console.error(err);
     alert(`auth_error — ${err?.message || err}`);
@@ -501,7 +289,6 @@ function bindStaticEvents() {
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
-  $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -536,15 +323,6 @@ function bindStaticEvents() {
   $('q')?.addEventListener('input', renderListings);
   $('st')?.addEventListener('change', renderListings);
   $('sort')?.addEventListener('change', renderListings);
-
-  ['loginEmail', 'loginPassword'].forEach((id) => {
-    $(id)?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleLogin();
-      }
-    });
-  });
 
   document.body.addEventListener('click', async (e) => {
     const actionEl = e.target.closest('[data-action]');
@@ -595,12 +373,8 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'termsOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
-  if (!stillOpen) {
-    document.body.classList.remove('modal-open');
-    document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
-  }
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
 function isAllowedEmail(email) {
@@ -648,10 +422,6 @@ function stopListeners() {
     profilesUnsub();
     profilesUnsub = null;
   }
-  if (selfProfileUnsub) {
-    selfProfileUnsub();
-    selfProfileUnsub = null;
-  }
   if (eventResponsesUnsub) {
     eventResponsesUnsub();
     eventResponsesUnsub = null;
@@ -670,43 +440,9 @@ function stopListeners() {
   renderListings();
 }
 
-function startMarketplaceForApprovedUser() {
-  hidePendingApprovalOverlay();
-  hideTermsOverlay();
-  hideForcePasswordOverlay();
-  lastUnverifiedEmail = '';
-  if ($('verifyNote')) $('verifyNote').style.display = 'none';
-  if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
-  updateAuthUI();
-  startListingsListener();
-  startProfilesListener();
-  startEventResponsesListener();
-  touchPresence();
-  if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
-
-  const fallbackName = currentProfile?.displayName || currentProfile?.pendingName || currentProfile?.requestedName || '';
-  if (!fallbackName) {
-    $('displayNameInput').value = currentUser?.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
-    show('nameOverlay');
-    return;
-  }
-  if (!currentProfile?.displayName && fallbackName) {
-    currentProfile.displayName = fallbackName;
-    updateDoc(doc(db, 'profiles', currentUser.uid), {
-      displayName: fallbackName,
-      pendingName: fallbackName,
-      requestedName: fallbackName,
-      updatedAt: serverTimestamp()
-    }).catch(() => {});
-  }
-
-  renderListings();
-}
-
 async function ensureProfile(user) {
   const profileRef = doc(db, 'profiles', user.uid);
-  const snap = await getFreshProfileSnapshot(user.uid);
+  const snap = await getDoc(profileRef);
 
   const baseProfile = {
     uid: user.uid,
@@ -720,8 +456,6 @@ async function ensureProfile(user) {
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
-    mustChangePassword: false,
-    tempPasswordActive: false,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -745,13 +479,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
-    if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
-    if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
-    if (!String(currentProfile.displayName || '').trim()) {
-      const fallbackName = String(currentProfile.pendingName || currentProfile.requestedName || '').trim();
-      if (fallbackName) updates.displayName = fallbackName;
-    }
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
       updates.emailVerified = true;
@@ -778,7 +506,7 @@ function updateAuthUI() {
 
   if ($('pillUser')) {
     $('pillUser').textContent = loggedIn
-      ? (currentProfile.displayName || currentProfile.pendingName || currentProfile.requestedName || currentUser.email)
+      ? (currentProfile.displayName || currentUser.email)
       : 'Not signed in';
   }
 
@@ -803,16 +531,9 @@ async function handleLogin() {
   }
 
   try {
-    if ($('verifyNote')) $('verifyNote').style.display = 'none';
-    hidePendingApprovalOverlay();
-    hideTermsOverlay();
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
     console.error(err);
-    if (err?.code === 'auth/invalid-credential') {
-      alert('Incorrect email or password.');
-      return;
-    }
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
   }
 }
@@ -881,7 +602,7 @@ async function handleForgotPassword() {
 }
 
 async function handleSignup() {
-  const fullName = ($('signupFullName')?.value || $('signupName')?.value || '').trim();
+  const fullName = $('signupFullName')?.value.trim() || $('signupName')?.value.trim() || '';
   const email = $('signupEmail')?.value.trim().toLowerCase();
   const password = $('signupPassword')?.value || '';
   const password2 = $('signupPassword2')?.value || '';
@@ -916,7 +637,6 @@ async function handleSignup() {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
-
     await setDoc(doc(db, 'profiles', cred.user.uid), {
       uid: cred.user.uid,
       email,
@@ -930,37 +650,36 @@ async function handleSignup() {
       emailVerified: !!cred.user.emailVerified,
       accessApproved: elevated,
       accessManuallyDenied: false,
-      termsAccepted: false,
-      termsAcceptedAt: null,
-      termsVersion: TERMS_VERSION,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    await signOut(auth).catch(() => {});
-    currentUser = null;
-    currentProfile = null;
-    stopListeners();
-    hidePendingApprovalOverlay();
-    hideTermsOverlay();
+    currentUser = cred.user;
+    await ensureProfile(cred.user);
     updateAuthUI();
-    showPane('login');
-    if ($('loginEmail')) $('loginEmail').value = email;
-    if ($('loginPassword')) $('loginPassword').value = '';
-    if ($('verifyNote')) {
-      $('verifyNote').textContent = elevated
-        ? 'Account created. You can log in now.'
-        : 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you created.';
-      $('verifyNote').style.display = 'block';
+
+    if (elevated) {
+      hidePendingApprovalOverlay();
+      if (msg) {
+        msg.textContent = 'Account created. You can sign in now.';
+        msg.style.display = 'block';
+      }
+      showPane('login');
+      alert('Account created. You can sign in now.');
+      return;
     }
-    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+
     if (msg) {
-      msg.textContent = elevated
-        ? 'Account created. You can log in now.'
-        : 'Account created successfully. Waiting for admin approval.';
+      msg.textContent = 'Account created. Waiting for manual admin approval.';
       msg.style.display = 'block';
     }
+    if ($('verifyNote')) {
+      $('verifyNote').textContent = 'Your account has been created and is waiting for manual admin approval.';
+      $('verifyNote').style.display = 'block';
+    }
+    showPendingApprovalOverlay('Account created. Waiting for manual admin approval. Leave this page open and you will unlock automatically when approved.');
+    watchPendingApproval(cred.user.uid);
   } catch (err) {
     console.error(err);
     if (err?.code === 'auth/email-already-in-use') {
@@ -979,25 +698,18 @@ async function handleSignup() {
           emailVerified: !!cred.user.emailVerified,
           accessApproved: false,
           accessManuallyDenied: false,
-          termsAccepted: false,
-          termsAcceptedAt: null,
-          termsVersion: TERMS_VERSION,
           updatedAt: serverTimestamp(),
           createdAtMs: Date.now()
         }, { merge: true });
-        await signOut(auth).catch(() => {});
-        currentUser = null;
-        currentProfile = null;
-        stopListeners();
-        hidePendingApprovalOverlay();
-        hideTermsOverlay();
+        currentUser = cred.user;
+        await ensureProfile(cred.user);
         updateAuthUI();
-        showPane('login');
-        if ($('loginEmail')) $('loginEmail').value = email;
         if ($('verifyNote')) {
-          $('verifyNote').textContent = 'Account repaired successfully. Waiting for admin approval. Once approved, log in with the password you created.';
+          $('verifyNote').textContent = 'Your account is waiting for manual admin approval.';
           $('verifyNote').style.display = 'block';
         }
+        showPendingApprovalOverlay('Your account is waiting for manual admin approval. Leave this page open and you will unlock automatically when approved.');
+        watchPendingApproval(cred.user.uid);
         return;
       } catch (_) {
         alert('That email is already registered. Use Login instead.');
@@ -1014,78 +726,6 @@ async function handleResendVerification() {
   alert('Verification links are disabled in this build. New accounts are approved manually by admin after review.');
 }
 
-
-
-async function handleForcePasswordChange() {
-  const password = $('newPasswordInput')?.value || '';
-  const password2 = $('confirmNewPasswordInput')?.value || '';
-  const msg = $('passwordGateMsg');
-
-  if (msg) {
-    msg.style.display = 'none';
-    msg.textContent = '';
-    msg.dataset.state = '';
-  }
-
-  if (!currentUser) {
-    alert('Please log in again.');
-    return;
-  }
-  if (!password || !password2) {
-    if (msg) {
-      msg.textContent = 'Enter and confirm your new password.';
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-    return;
-  }
-  if (password.length < 8) {
-    if (msg) {
-      msg.textContent = 'Use at least 8 characters for your new password.';
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-    return;
-  }
-  if (password !== password2) {
-    if (msg) {
-      msg.textContent = 'The passwords do not match.';
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-    return;
-  }
-
-  try {
-    await updatePassword(auth.currentUser || currentUser, password);
-    await updateDoc(doc(db, 'profiles', currentUser.uid), {
-      mustChangePassword: false,
-      tempPasswordActive: false,
-      passwordChangedAtMs: Date.now(),
-      updatedAt: serverTimestamp()
-    });
-    if (currentProfile) {
-      currentProfile.mustChangePassword = false;
-      currentProfile.tempPasswordActive = false;
-      currentProfile.passwordChangedAtMs = Date.now();
-    }
-    clearTempLoginContext();
-    hideForcePasswordOverlay();
-    if (msg) {
-      msg.textContent = 'Password updated successfully.';
-      msg.dataset.state = 'success';
-      msg.style.display = 'block';
-    }
-    startMarketplaceForApprovedUser();
-  } catch (err) {
-    console.error(err);
-    if (msg) {
-      msg.textContent = `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
-  }
-}
 
 async function handleSaveName() {
   const name = $('displayNameInput')?.value.trim();
@@ -1108,12 +748,8 @@ async function handleSaveName() {
   currentProfile.displayName = name;
   updateAuthUI();
   hide('nameOverlay');
-  document.body.style.overflow = '';
-  document.documentElement.style.overflow = '';
 }
 
-
-window.handleSaveName = handleSaveName;
 
 async function touchPresence() {
   if (!currentUser) return;
@@ -1173,27 +809,41 @@ function renderEventSpotlight() {
   const counts = featuredEventCounts();
   const mine = currentUserEventResponse();
   const canRsvp = canUseEventRsvp();
+  const buttonLabels = {
+    ATTENDING: 'Attending',
+    MAYBE: 'Maybe',
+    CANT: "Can't Attend"
+  };
+
   if ($('eventImage')) $('eventImage').src = FEATURED_EVENT.imageUrl;
   if ($('eventAttendCount')) $('eventAttendCount').textContent = String(counts.ATTENDING || 0);
   if ($('eventMaybeCount')) $('eventMaybeCount').textContent = String(counts.MAYBE || 0);
   if ($('eventCantCount')) $('eventCantCount').textContent = String(counts.CANT || 0);
+
   if ($('eventStatusText')) {
     if (mine) {
-      $('eventStatusText').textContent = `Your current response: ${RSVP_LABELS[mine.status] || mine.status}`;
+      $('eventStatusText').textContent = `You selected: ${RSVP_LABELS[mine.status] || mine.status}`;
     } else if (!currentUser) {
       $('eventStatusText').textContent = 'Log in with your Regal Lakeland email to RSVP.';
     } else if (!canRsvp) {
       $('eventStatusText').textContent = 'Your account can see the event, but RSVP is not ready until your employee profile finishes loading.';
     } else {
-      $('eventStatusText').textContent = 'Choose your response below.';
+      $('eventStatusText').textContent = 'Select one response below.';
     }
   }
+
   ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
     const btn = document.querySelector(`[data-rsvp="${status}"]`);
     if (!btn) return;
-    btn.classList.toggle('active-rsvp', mine?.status === status);
+
+    const isActive = !!mine && mine.status === status;
+    btn.classList.remove('active-rsvp');
+    if (isActive) btn.classList.add('active-rsvp');
+
     btn.disabled = !canRsvp;
     btn.title = canRsvp ? '' : 'Log in with your Regal Lakeland account to RSVP';
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    btn.textContent = isActive ? `✓ ${buttonLabels[status]}` : buttonLabels[status];
   });
 }
 
@@ -1230,7 +880,7 @@ async function handleEventRsvp(status) {
       eventResponses.unshift(optimistic);
     }
     renderEventSpotlight();
-    if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
+    if ($('eventStatusText')) $('eventStatusText').textContent = `Saved — ${RSVP_LABELS[status] || status}`;
   } catch (err) {
     console.error(err);
     if ($('eventStatusText')) $('eventStatusText').textContent = err?.message || 'Unable to save your RSVP right now.';
@@ -1495,8 +1145,6 @@ async function handleSavePost() {
     alert('Please log in first.');
     return;
   }
-  const activeProfile = await requireActiveProfileOrSignOut();
-  if (!activeProfile) return;
 
   const title = $('fTitle')?.value.trim();
   const description = $('fDesc')?.value.trim();
@@ -1670,8 +1318,6 @@ async function handleSendReply() {
     alert('Open a thread first.');
     return;
   }
-  const activeProfile = await requireActiveProfileOrSignOut();
-  if (!activeProfile) return;
 
   const text = $('replyText')?.value.trim();
   if (!text) {
