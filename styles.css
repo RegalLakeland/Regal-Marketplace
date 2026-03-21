@@ -29,9 +29,9 @@ input,textarea,select,button{font:inherit}
 a{color:inherit}
 .site-bg{position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none}
 .market-bg{position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transform:scale(1.06); will-change:opacity,transform}
-.market-bg1{background-image:url("/Images/background1.jpg"); animation:marketRotate 24s infinite}
-.market-bg2{background-image:url("/Images/background2.jpg"); animation:marketRotate 24s infinite 8s}
-.market-bg3{background-image:url("/Images/background3.jpg"); animation:marketRotate 24s infinite 16s}
+.market-bg1{background-image:url("./background1.jpg"); animation:marketRotate 24s infinite}
+.market-bg2{background-image:url("./background2.jpg"); animation:marketRotate 24s infinite 8s}
+.market-bg3{background-image:url("./background3.jpg"); animation:marketRotate 24s infinite 16s}
 .market-bg-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(5,10,18,.08), rgba(5,10,18,.22) 35%, rgba(5,10,18,.42) 100%)}
 @keyframes marketRotate{
   0%{opacity:0; transform:scale(1.06)}
@@ -48,7 +48,7 @@ a{color:inherit}
 .login-overlay{padding:0; background:rgba(3,8,14,.62)}
 .login-shell{width:min(1240px,100%); min-height:100%; display:grid; grid-template-columns:1.15fr .85fr; gap:28px; padding:28px}
 .login-promo{position:relative; min-height:620px; overflow:hidden; border-radius:28px; border:1px solid var(--border); box-shadow:var(--shadow)}
-.login-hero-image{position:absolute; inset:0; background:url("/Images/background4.jpg") center/cover no-repeat; transform:scale(1.03)}
+.login-hero-image{position:absolute; inset:0; background:url("Images/background4.jpg") center/cover no-repeat; transform:scale(1.03)}
 .login-hero-shade{position:absolute; inset:0; background:linear-gradient(180deg, rgba(6,12,22,.16), rgba(6,12,22,.36) 45%, rgba(6,12,22,.84) 100%)}
 .login-copy{position:absolute; left:34px; right:34px; bottom:34px; z-index:1}
 .promo-kicker{font-size:13px; text-transform:uppercase; letter-spacing:.16em; color:#d8e5f6; font-weight:900}
@@ -283,3 +283,96 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 #forgotPasswordMsg{margin-top:6px}
 #forgotPasswordMsg[data-state="error"]{color:#fecaca}
 #forgotPasswordMsg[data-state="success"]{color:#bbf7d0}
+
+
+/* Professional RSVP button states */
+[data-rsvp],
+#btnEventAttend,
+#btnEventMaybe,
+#btnEventCant {
+  min-width: 132px;
+  justify-content: center;
+  font-weight: 700;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+[data-rsvp].ghost,
+#btnEventAttend.ghost,
+#btnEventMaybe.ghost,
+#btnEventCant.ghost {
+  background: rgba(255,255,255,0.06) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+[data-rsvp].ghost:hover,
+#btnEventAttend.ghost:hover,
+#btnEventMaybe.ghost:hover,
+#btnEventCant.ghost:hover {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.26) !important;
+}
+
+[data-rsvp].primary,
+[data-rsvp].active-rsvp,
+#btnEventAttend.primary,
+#btnEventAttend.active-rsvp,
+#btnEventMaybe.primary,
+#btnEventMaybe.active-rsvp,
+#btnEventCant.primary,
+#btnEventCant.active-rsvp {
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(34,197,94,0.92) !important;
+  box-shadow: 0 10px 24px rgba(22,163,74,0.24), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+}
+
+[data-rsvp].primary:hover,
+[data-rsvp].active-rsvp:hover,
+#btnEventAttend.primary:hover,
+#btnEventAttend.active-rsvp:hover,
+#btnEventMaybe.primary:hover,
+#btnEventMaybe.active-rsvp:hover,
+#btnEventCant.primary:hover,
+#btnEventCant.active-rsvp:hover {
+  background: linear-gradient(180deg, #2dd46f 0%, #16a34a 100%) !important;
+  border-color: rgba(45,212,111,0.95) !important;
+}
+
+[data-rsvp][aria-pressed="true"] {
+  transform: translateY(-1px);
+}
+
+
+/* V2 polish layer */
+:root{
+  --v2-shadow-lg:0 24px 60px rgba(2,6,23,.34);
+  --v2-shadow-md:0 16px 36px rgba(2,6,23,.24);
+  --v2-ring:0 0 0 3px rgba(96,165,250,.22);
+}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(circle at top, rgba(37,99,235,.10), transparent 34%), var(--bg)}
+.topbar,.glass,.panel,.topicRow,.modal,.hero-side,.eventSpotlight,.boardBtn{backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px)}
+.topbar{box-shadow:var(--v2-shadow-md); border-color:rgba(255,255,255,.10)}
+.heroBanner,.eventSpotlight,.panel,.topicRow,.modal,.boardBtn{box-shadow:var(--v2-shadow-lg)}
+.heroBanner{position:relative; overflow:hidden}
+.heroBanner::after{content:''; position:absolute; inset:auto -10% -45% auto; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle, rgba(59,130,246,.18), transparent 68%); pointer-events:none}
+.topicRow,.boardBtn,.btn,.pill,.eventCounter,.hero-stat,.topicThumb,.thread-card-image{transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease, background-color .22s ease, opacity .22s ease}
+.topicRow:hover,.boardBtn:hover,.topicThumb:hover,.thread-card-image:hover{transform:translateY(-2px)}
+.topicRow:hover,.boardBtn:hover{box-shadow:0 22px 48px rgba(2,6,23,.34)}
+.btn{font-weight:900; letter-spacing:.01em}
+.btn.primary{box-shadow:0 12px 26px rgba(34,197,94,.22)}
+.btn:focus-visible,.boardBtn:focus-visible,.tabBtn:focus-visible,.field input:focus-visible,.field textarea:focus-visible,.field select:focus-visible{outline:none; box-shadow:var(--v2-ring)}
+.field input,.field textarea,.field select{transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:rgba(96,165,250,.52); box-shadow:var(--v2-ring); background:rgba(7,16,30,.92)}
+.login-card{position:relative; overflow:hidden}
+.login-card::before{content:''; position:absolute; inset:0 0 auto 0; height:4px; background:linear-gradient(90deg, rgba(34,197,94,.95), rgba(96,165,250,.95), rgba(34,197,94,.95))}
+.pill{border-color:rgba(255,255,255,.14)}
+.hero-stat,.eventCounter{box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.topicTitle,.panel-title,.section-title,.brand-title{letter-spacing:-.02em}
+.topicThumb,.thread-card-image,.eventSpotlight-art{box-shadow:0 16px 38px rgba(2,6,23,.28)}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none !important; transition:none !important}
+}
