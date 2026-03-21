@@ -83,14 +83,65 @@ async function getFreshProfileSnapshot(uid) {
   try {
     return await getDocFromServer(profileRef);
   } catch (_) {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return await getDocFromServer(profileRef);
-    } catch (_) {
-      return await getDoc(profileRef);
-    }
+    return await getDoc(profileRef);
   }
 }
+
+async function getFreshApprovedProfileWithRetry(uid, attempts = 6, delayMs = 500) {
+  let lastSnap = null;
+  for (let i = 0; i < attempts; i += 1) {
+    lastSnap = await getFreshProfileSnapshot(uid).catch(() => null);
+    const data = lastSnap?.exists?.() ? lastSnap.data() : null;
+    if (data?.accessApproved === true && data?.banned !== true && !data?.deletedAtMs) {
+      return lastSnap;
+    }
+    if (i < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return lastSnap;
+}
+
+let selfProfileUnsub = null;
+function startSelfProfileListener(uid) {
+  if (selfProfileUnsub) {
+    selfProfileUnsub();
+    selfProfileUnsub = null;
+  }
+  selfProfileUnsub = onSnapshot(doc(db, 'profiles', uid), async (snap) => {
+    if (!snap.exists()) return;
+    const data = { id: snap.id, ...snap.data() };
+    currentProfile = data;
+    if (data.deletedAtMs || data.banned) {
+      stopListeners();
+      hidePendingApprovalOverlay();
+      hideTermsOverlay();
+      alert('Your marketplace access has been disabled. Contact an admin.');
+      await signOut(auth).catch(() => {});
+      return;
+    }
+  }, (err) => console.error('Self profile lock failed', err));
+}
+
+async function requireActiveProfileOrSignOut() {
+  if (!currentUser) return null;
+  const snap = await getFreshProfileSnapshot(currentUser.uid).catch(() => null);
+  const data = snap?.exists?.() ? { id: snap.id, ...snap.data() } : null;
+  if (!data) {
+    await signOut(auth).catch(() => {});
+    alert('Your account record could not be found. Contact an admin.');
+    return null;
+  }
+  currentProfile = data;
+  if (data.deletedAtMs || data.banned || data.accessApproved === false) {
+    stopListeners();
+    await signOut(auth).catch(() => {});
+    alert('Your marketplace access is no longer active. Contact an admin.');
+    return null;
+  }
+  return data;
+}
+
 
 const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
@@ -215,7 +266,6 @@ async function handleAcceptTerms() {
       currentProfile.termsVersion = TERMS_VERSION;
     }
     hideTermsOverlay();
-    clearLoginApprovalIntent();
     startMarketplaceForApprovedUser();
   } catch (err) {
     console.error(err);
@@ -234,19 +284,9 @@ let presenceTimer = null;
 let profiles = [];
 let eventResponses = [];
 let eventResponsesUnsub = null;
-let selfProfileUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
-let loginApprovalCheckUid = '';
-
-function setLoginApprovalIntent(uid) {
-  loginApprovalCheckUid = uid || '';
-}
-
-function clearLoginApprovalIntent() {
-  loginApprovalCheckUid = '';
-}
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
@@ -283,9 +323,6 @@ function showPendingApprovalOverlay(message = 'Your account is pending admin app
 function hidePendingApprovalOverlay() {
   const wrap = document.getElementById('pendingApprovalOverlay');
   if (wrap) wrap.style.display = 'none';
-  document.body.classList.remove('modal-open');
-  document.body.style.overflow = '';
-  document.documentElement.style.overflow = '';
 }
 
 let pendingApprovalUnsub = null;
@@ -348,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
       currentUser = null;
       currentProfile = null;
       stopListeners();
-      clearLoginApprovalIntent();
       updateAuthUI();
       return;
     }
@@ -375,16 +411,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
-      let freshSnap = await getFreshProfileSnapshot(user.uid).catch(() => null);
-      let freshData = freshSnap?.exists?.() ? freshSnap.data() : null;
-
-      if (loginApprovalCheckUid === user.uid && freshData?.accessApproved !== true) {
-        await new Promise((resolve) => setTimeout(resolve, 700));
-        freshSnap = await getFreshProfileSnapshot(user.uid).catch(() => freshSnap);
-        freshData = freshSnap?.exists?.() ? freshSnap.data() : freshData;
-      }
-
-      if (freshData?.accessApproved === true) {
+      const freshSnap = await getFreshApprovedProfileWithRetry(user.uid, 6, 500).catch(() => null);
+      const freshData = freshSnap?.exists?.() ? freshSnap.data() : null;
+      if (freshData?.accessApproved === true && freshData?.banned !== true && !freshData?.deletedAtMs) {
         currentProfile = { id: user.uid, ...freshData };
       } else {
         const pendingEmail = user.email || '';
@@ -405,6 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
     }
+
+    startSelfProfileListener(user.uid);
 
     if (!currentProfile?.termsAccepted && !isProtectedCoreAdmin(user.email)) {
       updateAuthUI();
@@ -567,13 +598,13 @@ function stopListeners() {
     profilesUnsub();
     profilesUnsub = null;
   }
-  if (eventResponsesUnsub) {
-    eventResponsesUnsub();
-    eventResponsesUnsub = null;
-  }
   if (selfProfileUnsub) {
     selfProfileUnsub();
     selfProfileUnsub = null;
+  }
+  if (eventResponsesUnsub) {
+    eventResponsesUnsub();
+    eventResponsesUnsub = null;
   }
   if (presenceTimer) {
     clearInterval(presenceTimer);
@@ -597,7 +628,6 @@ function startMarketplaceForApprovedUser() {
   if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
   updateAuthUI();
-  startSelfProfileListener();
   startListingsListener();
   startProfilesListener();
   startEventResponsesListener();
@@ -611,45 +641,6 @@ function startMarketplaceForApprovedUser() {
   }
 
   renderListings();
-}
-
-
-function startSelfProfileListener() {
-  if (!currentUser) return;
-  if (selfProfileUnsub) {
-    selfProfileUnsub();
-    selfProfileUnsub = null;
-  }
-  selfProfileUnsub = onSnapshot(doc(db, 'profiles', currentUser.uid), async (snap) => {
-    if (!snap.exists()) return;
-    const latest = { id: snap.id, ...snap.data() };
-    currentProfile = latest;
-
-    if (latest.deletedAtMs || latest.banned) {
-      stopListeners();
-      hidePendingApprovalOverlay();
-      hideTermsOverlay();
-      alert('Your marketplace access has been disabled. Contact an admin.');
-      await signOut(auth).catch(() => {});
-      return;
-    }
-
-    if (latest.accessApproved === false && !isProtectedCoreAdmin(currentUser?.email)) {
-      stopListeners();
-      hideTermsOverlay();
-      updateAuthUI();
-      await signOut(auth).catch(() => {});
-      if ($('verifyNote')) {
-        $('verifyNote').textContent = 'Your account is waiting for admin approval.';
-        $('verifyNote').style.display = 'block';
-      }
-      return;
-    }
-
-    renderListings();
-    renderEventSpotlight();
-    updateHeroPeopleStats();
-  }, (err) => console.error('Self profile watch failed', err));
 }
 
 async function ensureProfile(user) {
@@ -746,26 +737,7 @@ async function handleLogin() {
     if ($('verifyNote')) $('verifyNote').style.display = 'none';
     hidePendingApprovalOverlay();
     hideTermsOverlay();
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    setLoginApprovalIntent(cred.user.uid);
-
-    const freshSnap = await getFreshProfileSnapshot(cred.user.uid);
-    if (freshSnap.exists()) {
-      const freshProfile = { id: freshSnap.id, ...freshSnap.data() };
-      if ((freshProfile.deletedAtMs || freshProfile.banned) && !isProtectedCoreAdmin(email)) {
-        await signOut(auth).catch(() => {});
-        alert('Your marketplace access has been disabled. Contact an admin.');
-        return;
-      }
-      if (!freshProfile.accessApproved && !isProtectedCoreAdmin(email)) {
-        await signOut(auth).catch(() => {});
-        if ($('verifyNote')) {
-          $('verifyNote').textContent = 'Account created successfully. Waiting for admin approval. Once approved, log in with the password you created.';
-          $('verifyNote').style.display = 'block';
-        }
-        return;
-      }
-    }
+    await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
     console.error(err);
     if (err?.code === 'auth/invalid-credential') {
@@ -1382,20 +1354,8 @@ async function handleSavePost() {
     alert('Please log in first.');
     return;
   }
-
-  try {
-    const freshSnap = await getFreshProfileSnapshot(currentUser.uid);
-    if (freshSnap.exists()) {
-      currentProfile = { id: freshSnap.id, ...freshSnap.data() };
-    }
-    if (!currentProfile?.accessApproved || currentProfile?.banned || currentProfile?.deletedAtMs) {
-      alert('Your account does not currently have permission to post. Contact an admin.');
-      await signOut(auth).catch(() => {});
-      return;
-    }
-  } catch (err) {
-    console.error('fresh profile check failed before post save', err);
-  }
+  const activeProfile = await requireActiveProfileOrSignOut();
+  if (!activeProfile) return;
 
   const title = $('fTitle')?.value.trim();
   const description = $('fDesc')?.value.trim();
@@ -1569,20 +1529,8 @@ async function handleSendReply() {
     alert('Open a thread first.');
     return;
   }
-
-  try {
-    const freshSnap = await getFreshProfileSnapshot(currentUser.uid);
-    if (freshSnap.exists()) {
-      currentProfile = { id: freshSnap.id, ...freshSnap.data() };
-    }
-    if (!currentProfile?.accessApproved || currentProfile?.banned || currentProfile?.deletedAtMs) {
-      alert('Your account does not currently have permission to reply. Contact an admin.');
-      await signOut(auth).catch(() => {});
-      return;
-    }
-  } catch (err) {
-    console.error('fresh profile check failed before reply save', err);
-  }
+  const activeProfile = await requireActiveProfileOrSignOut();
+  if (!activeProfile) return;
 
   const text = $('replyText')?.value.trim();
   if (!text) {
