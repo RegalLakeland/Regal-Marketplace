@@ -266,6 +266,16 @@ function bindStaticEvents() {
   $('tabLogin')?.addEventListener('click', () => showPane('login'));
   $('tabSignup')?.addEventListener('click', () => showPane('signup'));
 
+  // Instantly auto-populates @regallakeland.com when the user tabs or clicks away
+  ['loginEmail', 'signupEmail'].forEach(id => {
+    $(id)?.addEventListener('blur', (e) => {
+      let val = e.target.value.trim().toLowerCase();
+      if (val && !val.includes('@')) {
+        e.target.value = val + '@regallakeland.com';
+      }
+    });
+  });
+
   $('btnLogin')?.addEventListener('click', handleLogin);
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
@@ -526,7 +536,11 @@ function updateAuthUI() {
 }
 
 async function handleLogin() {
-  const email = $('loginEmail')?.value.trim().toLowerCase();
+  const emailInput = $('loginEmail')?.value.trim().toLowerCase() || '';
+  const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
+  
+  if ($('loginEmail') && email) $('loginEmail').value = email;
+  
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
@@ -707,9 +721,10 @@ async function handleSignup() {
     $('signupName')?.value.trim() ||
     '';
 
-  const email =
-    $('signupEmail')?.value.trim().toLowerCase() ||
-    '';
+  const emailInput = $('signupEmail')?.value.trim().toLowerCase() || '';
+  const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
+  
+  if ($('signupEmail') && email) $('signupEmail').value = email;
 
   const password =
     $('signupPassword')?.value ||
@@ -786,6 +801,13 @@ async function handleSignup() {
         ? 'Account created. You can sign in now.'
         : 'Account created. An admin must manually approve your account before you can sign in.';
       msg.style.display = 'block';
+    }
+
+    if ($('verifyNote')) {
+      $('verifyNote').textContent = elevated
+        ? 'Account created successfully! You can sign in now.'
+        : 'Account created successfully! An admin must manually approve your account before you can sign in.';
+      $('verifyNote').style.display = 'block';
     }
 
     if ($('loginEmail')) $('loginEmail').value = email;
