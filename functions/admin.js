@@ -96,6 +96,7 @@ function shouldAutoGrantAccess(user) {
 }
 
 function accessStatusMeta(user) {
+  if (user?.deleted) return { label: 'Deleted', tone: 'bad' };
   if (user?.banned) return { label: 'Blocked', tone: 'bad' };
   if (user?.accessApproved) return { label: 'Granted', tone: 'ok' };
   if (user?.accessManuallyDenied) return { label: 'Denied', tone: 'bad' };
@@ -160,6 +161,43 @@ onAuthStateChanged(auth, async (user) => {
     userFilterValue = String(e.target.value || 'ALL');
     renderUserRows();
   });
+
+  const uf = $('userFilter');
+  if (uf && !uf.querySelector('option[value="DELETED"]')) {
+    const opt = document.createElement('option');
+    opt.value = 'DELETED';
+    opt.textContent = 'Deleted Users';
+    uf.appendChild(opt);
+  }
+
+  // Great Addition: Export Users to CSV capability for easy auditing
+  const searchWrap = $('userSearch')?.parentElement;
+  if (searchWrap && !document.getElementById('exportUsersBtn')) {
+    const btn = document.createElement('button');
+    btn.id = 'exportUsersBtn';
+    btn.className = 'btn ghost';
+    btn.style.marginLeft = '1rem';
+    btn.textContent = 'Export CSV';
+    btn.onclick = () => {
+      const headers = ['Email', 'Name', 'Role', 'Status', 'Created'];
+      const csvRows = [headers.join(',')];
+      userRowsData.forEach(u => {
+        const role = u.isAdmin ? 'Admin' : (u.isModerator ? 'Moderator' : 'User');
+        const status = u.banned ? 'Banned' : (u.deleted ? 'Deleted' : (u.accessApproved ? 'Active' : 'Pending'));
+        const row = [`"${u.email || ''}"`, `"${u.displayName || u.pendingName || ''}"`, `"${role}"`, `"${status}"`, `"${fmtDate(u.createdAtMs)}"`];
+        csvRows.push(row.join(','));
+      });
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'marketplace_users.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    searchWrap.appendChild(btn);
+  }
+
   startListings();
   startUsers();
   startEventResponses();
@@ -271,11 +309,16 @@ function applyUserFilters(rows) {
       return hay.includes(userSearchTerm);
     });
   }
-  if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
-  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
-  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
-  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
-  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
+  if (userFilterValue === 'DELETED') {
+    filtered = filtered.filter((u) => !!u.deleted);
+  } else {
+    filtered = filtered.filter((u) => !u.deleted);
+    if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
+    if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
+    if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
+    if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
+    if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
+  }
   filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
   return { filtered, dmeta };
 }
@@ -283,6 +326,14 @@ function applyUserFilters(rows) {
 function buildUserActionButtons(user, dup, protectedUser) {
   const buttons = [];
   const selfRow = isSelfRow(user);
+
+  if (user.deleted) {
+    buttons.push(`<button class="btn ghost" data-role="restoreUser" data-id="${esc(user.id)}" type="button">Restore User</button>`);
+    if (isProtectedCoreAdmin(currentViewer?.email) && !selfRow) {
+      buttons.push(`<button class="btn danger" data-role="permanentDelete" data-id="${esc(user.id)}" type="button">Delete Permanently</button>`);
+    }
+    return buttons.join('');
+  }
 
   if (!user.isModerator) buttons.push(`<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>`);
   if (user.isModerator && !protectedUser) buttons.push(`<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>`);
@@ -297,6 +348,10 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
 
   if (dup.isDuplicate && !dup.isPrimary && !protectedUser) buttons.push(`<button class="btn danger" data-role="deleteDuplicate" data-id="${esc(user.id)}" type="button">Delete Duplicate</button>`);
+
+  if (!protectedUser && !selfRow) {
+    buttons.push(`<button class="btn danger" data-role="softDelete" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
+  }
 
   if (!buttons.length && protectedUser && !selfRow) {
     buttons.push('<span class="pill">Protected</span>');
@@ -372,6 +427,22 @@ function renderUserRows() {
     if (role === 'deleteDuplicate') {
       if (!confirm(`Delete duplicate profile row for ${user.email}? This removes only the extra profile document.`)) return;
       await deleteDoc(ref);
+    }
+    if (role === 'softDelete') {
+      if (!confirm(`Soft delete ${user.email}? They will be moved to the Deleted Users filter.`)) return;
+      await updateDoc(ref, { deleted: true, deletedAt: Date.now(), updatedAt: Date.now() });
+    }
+    if (role === 'restoreUser') {
+      await updateDoc(ref, { deleted: false, updatedAt: Date.now() });
+    }
+    if (role === 'permanentDelete') {
+      if (!isProtectedCoreAdmin(currentViewer?.email)) return;
+      if (!confirm(`PERMANENTLY delete ${user.email}? This uses the Cloud Function to delete their Auth account and all data.`)) return;
+      try {
+        await callDeleteMarketplaceAccount(user);
+      } catch (e) {
+        alert(e.message);
+      }
     }
   });
 }

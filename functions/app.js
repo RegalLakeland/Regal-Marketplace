@@ -4,11 +4,10 @@ import {
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updatePassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signOut,
-  onAuthStateChanged,
-  EmailAuthProvider,
-  reauthenticateWithCredential
+  onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import {
   getFirestore,
@@ -37,6 +36,7 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 const AUTH_FUNCTION_REGION = 'us-central1';
+let authUtilityMode = '';
 
 function verificationFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/resendVerificationEmail`;
@@ -77,31 +77,6 @@ function applyAuthLanguage() {
   } catch (_) {}
 }
 
-function setTempLoginContext(email, password) {
-  try {
-    sessionStorage.setItem('marketplace_temp_login_email', String(email || '').toLowerCase());
-    sessionStorage.setItem('marketplace_temp_login_password', String(password || ''));
-  } catch (_) {}
-}
-
-function getTempLoginPasswordForCurrentUser() {
-  try {
-    const storedEmail = sessionStorage.getItem('marketplace_temp_login_email') || '';
-    const storedPassword = sessionStorage.getItem('marketplace_temp_login_password') || '';
-    const activeEmail = String(currentUser?.email || '').toLowerCase();
-    return storedEmail && activeEmail && storedEmail === activeEmail ? storedPassword : '';
-  } catch (_) {
-    return '';
-  }
-}
-
-function clearTempLoginContext() {
-  try {
-    sessionStorage.removeItem('marketplace_temp_login_email');
-    sessionStorage.removeItem('marketplace_temp_login_password');
-  } catch (_) {}
-}
-
 const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -123,7 +98,7 @@ const FEATURED_EVENT = {
   subtitle: 'Dinner, drinks & live entertainment',
   dateLine: 'May 15th • 6:30 PM',
   locationLine: 'Haus 820 • 820 Massachusetts Ave, Lakeland, FL',
-  imageUrl: '../Images/background5.jpg'
+  imageUrl: 'Images/background5.jpg'
 };
 
 const RSVP_LABELS = {
@@ -171,13 +146,6 @@ window.addEventListener('error', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-rsvp]').forEach((btn) => {
-    btn.classList.remove('primary', 'active-rsvp');
-    btn.classList.add('ghost');
-    btn.setAttribute('aria-pressed', 'false');
-  });
-
-  removeLegacyForgotPasswordUI();
   bindStaticEvents();
   renderBoards();
   renderListings();
@@ -187,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!user) {
       currentUser = null;
       currentProfile = null;
-      clearTempLoginContext();
       stopListeners();
       updateAuthUI();
       return;
@@ -236,12 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
     touchPresence();
     if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
 
-    if (currentProfile?.mustChangePassword || currentProfile?.tempPasswordActive) {
-      showPasswordGate();
-      return;
-    }
-
-    hidePasswordGate();
     if (!currentProfile.displayName) {
       $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
       show('nameOverlay');
@@ -253,31 +214,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-
-function removeLegacyForgotPasswordUI() {
-  ['btnForgotPassword', 'forgotPasswordBtn', 'forgotPasswordLink', 'resetPasswordBtn', 'resetPasswordLink', 'forgotPasswordOverlay', 'resetPasswordOverlay'].forEach((id) => {
-    const el = $(id);
-    if (el) el.remove();
-  });
-
-  document.querySelectorAll('button, a').forEach((el) => {
-    const text = (el.textContent || '').trim().toLowerCase();
-    if (text === 'forgot password?' || text === 'forgot password' || text === 'reset password') {
-      el.remove();
-    }
-  });
-}
-
 function bindStaticEvents() {
   $('tabLogin')?.addEventListener('click', () => showPane('login'));
   $('tabSignup')?.addEventListener('click', () => showPane('signup'));
 
   $('btnLogin')?.addEventListener('click', handleLogin);
+  $('btnForgotPassword')?.addEventListener('click', openForgotPasswordModal);
+  $('btnSendPasswordReset')?.addEventListener('click', handleForgotPassword);
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
-  $('btnChangeTempPassword')?.addEventListener('click', handleForcePasswordChange);
-  $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -362,7 +308,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay', 'passwordGateOverlay', 'passwordGate'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -445,8 +391,6 @@ async function ensureProfile(user) {
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
-    tempPasswordActive: false,
-    mustChangePassword: false,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -470,8 +414,6 @@ async function ensureProfile(user) {
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
-    if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
-    if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -508,13 +450,6 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
-  if (!loggedIn) hidePasswordGate();
-
-  if (loggedIn) {
-    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay'];
-    const hasVisibleModal = visibleOverlayIds.some((overlayId) => $(overlayId)?.style.display !== 'none');
-    if (!hasVisibleModal) document.body.classList.remove('modal-open');
-  }
 }
 
 async function handleLogin() {
@@ -531,75 +466,31 @@ async function handleLogin() {
   }
 
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
-    const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
-    const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
-    const banned = profileData?.banned === true;
-
-    if (profileData?.mustChangePassword || profileData?.tempPasswordActive) {
-      setTempLoginContext(email, password);
-    } else {
-      clearTempLoginContext();
-    }
-
-    if (banned) {
-      clearTempLoginContext();
-      await signOut(auth).catch(() => {});
-      alert('Your marketplace access has been disabled. Contact an admin.');
-      return;
-    }
-
-    if (!approved) {
-      clearTempLoginContext();
-      await signOut(auth).catch(() => {});
-      if ($('verifyNote')) {
-        $('verifyNote').textContent = 'Your account exists but is still waiting for manual admin approval.';
-        $('verifyNote').style.display = 'block';
-      }
-      alert('Your account is still waiting for manual admin approval.');
-      return;
-    }
+    await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
     console.error(err);
-    if (err?.code === 'auth/invalid-credential') {
-      alert('That email/password combination was rejected by Firebase. If you just set a temporary password, copy it exactly as shown and make sure you are signing in with the exact approved email address. If it still fails, set a new temporary password from the admin panel and try again.');
-      return;
-    }
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
   }
 }
 
 
-function showPasswordGate() {
-  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
+function openForgotPasswordModal() {
+  const loginEmail = $('loginEmail')?.value.trim().toLowerCase() || '';
+  const forgotEmail = $('forgotEmail');
+  const msg = $('forgotPasswordMsg');
+  if (forgotEmail) forgotEmail.value = loginEmail;
   if (msg) {
     msg.style.display = 'none';
     msg.textContent = '';
     msg.dataset.state = '';
   }
-  const passwordInput = $('forcePassword') || $('newPasswordInput');
-  const confirmInput = $('forcePassword2') || $('confirmNewPasswordInput');
-  if (passwordInput) passwordInput.value = '';
-  if (confirmInput) confirmInput.value = '';
-  const gate = $('passwordGate') || $('passwordGateOverlay');
-  if (gate) gate.style.display = 'block';
-  document.body.classList.remove('modal-open');
-  setTimeout(() => {
-    gate?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    (passwordInput || $('forcePassword') || $('newPasswordInput'))?.focus();
-  }, 20);
+  show('forgotPasswordOverlay');
+  setTimeout(() => forgotEmail?.focus(), 20);
 }
 
-function hidePasswordGate() {
-  const gate = $('passwordGate') || $('passwordGateOverlay');
-  if (gate) gate.style.display = 'none';
-}
-
-async function handleForcePasswordChange() {
-  const password = ($('forcePassword') || $('newPasswordInput'))?.value || '';
-  const password2 = ($('forcePassword2') || $('confirmNewPasswordInput'))?.value || '';
-  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
+async function handleForgotPassword() {
+  const email = $('forgotEmail')?.value.trim().toLowerCase();
+  const msg = $('forgotPasswordMsg');
 
   if (msg) {
     msg.style.display = 'none';
@@ -607,147 +498,49 @@ async function handleForcePasswordChange() {
     msg.dataset.state = '';
   }
 
-  if (!currentUser) {
-    alert('Please log in again.');
-    return;
-  }
-
-  if (!password || !password2) {
+  if (!email) {
     if (msg) {
-      msg.textContent = 'Enter and confirm your new password.';
+      msg.textContent = 'Enter your Regal Lakeland work email.';
       msg.dataset.state = 'error';
       msg.style.display = 'block';
     }
+    $('forgotEmail')?.focus();
     return;
   }
-
-  if (password.length < 8) {
+  if (!isAllowedEmail(email)) {
     if (msg) {
-      msg.textContent = 'Use at least 8 characters for your new password.';
+      msg.textContent = 'Use your @regallakeland.com email.';
       msg.dataset.state = 'error';
       msg.style.display = 'block';
     }
-    return;
-  }
-
-  if (password !== password2) {
-    if (msg) {
-      msg.textContent = 'The passwords do not match.';
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
-    }
+    $('forgotEmail')?.focus();
     return;
   }
 
   try {
-    const recentTempPassword = getTempLoginPasswordForCurrentUser();
-    if (recentTempPassword && currentUser?.email) {
-      const credential = EmailAuthProvider.credential(currentUser.email, recentTempPassword);
-      await reauthenticateWithCredential(currentUser, credential);
-    }
-
-    await updatePassword(currentUser, password);
-    await updateDoc(doc(db, 'profiles', currentUser.uid), {
-      mustChangePassword: false,
-      tempPasswordActive: false,
-      passwordChangedAtMs: Date.now(),
-      updatedAt: serverTimestamp()
-    });
-
-    if (currentProfile) {
-      currentProfile.mustChangePassword = false;
-      currentProfile.tempPasswordActive = false;
-      currentProfile.passwordChangedAtMs = Date.now();
-    }
-
-    clearTempLoginContext();
-
+    applyAuthLanguage();
+    await sendPasswordResetEmail(auth, email);
+    if ($('loginEmail')) $('loginEmail').value = email;
     if (msg) {
-      msg.textContent = 'Password updated successfully.';
+      msg.textContent = 'Password reset email sent. Check your inbox and spam folder.';
       msg.dataset.state = 'success';
       msg.style.display = 'block';
     }
-
-    setTimeout(() => {
-      hidePasswordGate();
-      document.body.classList.remove('modal-open');
-      if (currentProfile) currentProfile.tempPasswordActive = false;
-      renderListings();
-      if (currentProfile && !currentProfile.displayName) {
-        $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
-        show('nameOverlay');
-      }
-    }, 500);
   } catch (err) {
     console.error(err);
-    const code = String(err?.code || '');
     if (msg) {
-      msg.textContent = code === 'auth/requires-recent-login'
-        ? 'Your login session is no longer fresh enough to change the password. Log out, log back in with the temporary password, and try again immediately.'
-        : `${err?.code || 'password_change_error'} — ${err?.message || 'Could not change password.'}`;
+      msg.textContent = `${err?.code || 'reset_error'} — ${err?.message || 'Could not send password reset email.'}`;
       msg.dataset.state = 'error';
       msg.style.display = 'block';
-    }
-    if (code === 'auth/requires-recent-login') {
-      await signOut(auth).catch(() => {});
     }
   }
 }
 
-async function finalizePendingSignupProfile(user, fullName, email) {
-  const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
-
-  await setDoc(doc(db, 'profiles', user.uid), {
-    uid: user.uid,
-    email,
-    displayName: fullName,
-    pendingName: fullName,
-    requestedName: fullName,
-    isAdmin: isAdmin(email),
-    isModerator: false,
-    banned: false,
-    manualVerified: elevated,
-    emailVerified: !!user.emailVerified,
-    accessApproved: elevated,
-    accessManuallyDenied: false,
-    tempPasswordActive: false,
-    mustChangePassword: false,
-    createdAt: serverTimestamp(),
-    createdAtMs: Date.now(),
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-
-  await signOut(auth).catch(() => {});
-  currentUser = null;
-  currentProfile = null;
-  updateAuthUI();
-
-  if ($('loginEmail')) $('loginEmail').value = email;
-  if ($('loginPassword')) $('loginPassword').value = '';
-  if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
-  return elevated;
-}
-
 async function handleSignup() {
-  const fullName =
-    $('signupFullName')?.value.trim() ||
-    $('signupName')?.value.trim() ||
-    '';
-
-  const email =
-    $('signupEmail')?.value.trim().toLowerCase() ||
-    '';
-
-  const password =
-    $('signupPassword')?.value ||
-    '';
-
-  const password2 =
-    $('signupConfirmPassword')?.value ||
-    $('signupPassword2')?.value ||
-    '';
-
+  const fullName = $('signupName')?.value.trim() || '';
+  const email = $('signupEmail')?.value.trim().toLowerCase();
+  const password = $('signupPassword')?.value || '';
+  const password2 = $('signupPassword2')?.value || '';
   const msg = $('signupMsg');
 
   if (msg) {
@@ -759,22 +552,18 @@ async function handleSignup() {
     alert('Complete all signup fields.');
     return;
   }
-
   if (fullName.split(/\s+/).length < 2) {
     alert('Enter first and last name.');
     return;
   }
-
   if (!isAllowedEmail(email)) {
     alert('Use your @regallakeland.com email.');
     return;
   }
-
   if (password.length < 6) {
     alert('Password must be at least 6 characters.');
     return;
   }
-
   if (password !== password2) {
     alert('Passwords do not match.');
     return;
@@ -782,7 +571,26 @@ async function handleSignup() {
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const elevated = await finalizePendingSignupProfile(cred.user, fullName, email);
+    const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
+    await setDoc(doc(db, 'profiles', cred.user.uid), {
+      uid: cred.user.uid,
+      email,
+      displayName: fullName,
+      pendingName: fullName,
+      requestedName: fullName,
+      isAdmin: isAdmin(email),
+      isModerator: false,
+      banned: false,
+      manualVerified: elevated,
+      emailVerified: !!cred.user.emailVerified,
+      accessApproved: elevated,
+      accessManuallyDenied: false,
+      createdAt: serverTimestamp(),
+      createdAtMs: Date.now(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    await signOut(auth);
 
     if (msg) {
       msg.textContent = elevated
@@ -791,37 +599,16 @@ async function handleSignup() {
       msg.style.display = 'block';
     }
 
+    if ($('loginEmail')) $('loginEmail').value = email;
+    if ($('loginPassword')) $('loginPassword').value = '';
+    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+
     showPane('login');
     alert(elevated
       ? 'Account created. You can sign in now.'
       : 'Account created. An admin must manually approve your account before you can sign in.');
   } catch (err) {
     console.error(err);
-
-    if (err?.code === 'auth/email-already-in-use') {
-      try {
-        const existingCred = await signInWithEmailAndPassword(auth, email, password);
-        const elevated = await finalizePendingSignupProfile(existingCred.user, fullName, email);
-
-        if (msg) {
-          msg.textContent = elevated
-            ? 'This account already existed and has been repaired. You can sign in now.'
-            : 'This account already existed and has been repaired. It is now waiting for admin approval.';
-          msg.style.display = 'block';
-        }
-
-        showPane('login');
-        alert(elevated
-          ? 'This account already existed and has been repaired. You can sign in now.'
-          : 'This account already existed and has been repaired. It is now waiting for admin approval.');
-        return;
-      } catch (repairErr) {
-        console.error(repairErr);
-        alert('That email already exists. If the first signup attempt looked successful but did not show in Pending Approval, use the same password and this repair pass should recreate the missing profile. If that still fails, an admin needs to delete the orphaned auth user before trying again.');
-        return;
-      }
-    }
-
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
   }
 }
@@ -932,13 +719,7 @@ function renderEventSpotlight() {
   ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
     const btn = document.querySelector(`[data-rsvp="${status}"]`);
     if (!btn) return;
-    btn.classList.remove('primary', 'active-rsvp', 'ghost');
-    if (mine?.status === status) {
-      btn.classList.add('primary', 'active-rsvp');
-    } else {
-      btn.classList.add('ghost');
-    }
-    btn.setAttribute('aria-pressed', mine?.status === status ? 'true' : 'false');
+    btn.classList.toggle('active-rsvp', mine?.status === status);
     btn.disabled = !canRsvp;
     btn.title = canRsvp ? '' : 'Log in with your Regal Lakeland account to RSVP';
   });
@@ -956,48 +737,32 @@ async function handleEventRsvp(status) {
     alert('Your account is not ready to RSVP yet. Please refresh and try again.');
     return;
   }
-  if (window.__eventRsvpBusy) return;
-  window.__eventRsvpBusy = true;
-  ['btnEventAttend','btnEventMaybe','btnEventCant'].forEach((id) => {
-    const btn = $(id);
-    if (btn) btn.disabled = true;
-  });
-
   try {
-    const responseId = `${FEATURED_EVENT.id}__${currentUser.uid}`;
-    const responseRef = doc(db, 'eventResponses', responseId);
-    const existing = currentUserEventResponse();
-
-    if ($('eventStatusText')) $('eventStatusText').textContent = 'Saving your response...';
-
-    if (existing?.status === status) {
-      await deleteDoc(responseRef);
-      if ($('eventStatusText')) $('eventStatusText').textContent = 'Your response was cleared.';
+    const responseRef = doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`);
+    const payload = {
+      eventId: FEATURED_EVENT.id,
+      eventTitle: FEATURED_EVENT.title,
+      uid: currentUser.uid,
+      userEmail: currentUser.email || '',
+      displayName: currentProfile.displayName || currentProfile.pendingName || currentUser.email || '',
+      status,
+      updatedAt: serverTimestamp(),
+      updatedAtMs: Date.now()
+    };
+    await setDoc(responseRef, payload, { merge: true });
+    const existingIndex = eventResponses.findIndex((item) => item.id === `${FEATURED_EVENT.id}__${currentUser.uid}`);
+    const optimistic = { id: `${FEATURED_EVENT.id}__${currentUser.uid}`, ...payload };
+    if (existingIndex >= 0) {
+      eventResponses[existingIndex] = { ...eventResponses[existingIndex], ...optimistic };
     } else {
-      const payload = {
-        eventId: FEATURED_EVENT.id,
-        eventTitle: FEATURED_EVENT.title,
-        uid: currentUser.uid,
-        userEmail: currentUser.email || '',
-        displayName: currentProfile.displayName || currentProfile.pendingName || currentUser.email || '',
-        status,
-        updatedAt: serverTimestamp(),
-        updatedAtMs: Date.now()
-      };
-      await setDoc(responseRef, payload, { merge: true });
-      if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
+      eventResponses.unshift(optimistic);
     }
+    renderEventSpotlight();
+    if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
   } catch (err) {
     console.error(err);
     if ($('eventStatusText')) $('eventStatusText').textContent = err?.message || 'Unable to save your RSVP right now.';
     alert(err?.message || 'Unable to save your RSVP right now.');
-  } finally {
-    window.__eventRsvpBusy = false;
-    ['btnEventAttend','btnEventMaybe','btnEventCant'].forEach((id) => {
-      const btn = $(id);
-      if (btn) btn.disabled = !canUseEventRsvp();
-    });
-    renderEventSpotlight();
   }
 }
 
@@ -1240,7 +1005,7 @@ function renderListings() {
         <div class="topicSide">
           <div class="topicSideTop">
             <div class="price">${esc(formatPrice(item.price))}</div>
-            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
+            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
           </div>
           <div class="topicMeta topicMetaRight">
             <span>${esc(item.location || 'No location')}</span>
@@ -1392,7 +1157,7 @@ async function openThread(id) {
   if ($('threadBody')) {
     $('threadBody').innerHTML = `
       <div class="thread-body-grid">
-        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
+        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
         <div>${esc(item.description || '')}</div>
         <div class="topicMeta">
           <span>${esc(item.location || 'No location')}</span>
@@ -1459,41 +1224,3 @@ async function handleSendReply() {
     alert(err?.message || 'Unable to send reply.');
   }
 }
-
-
-// ===== ENTER KEY SUPPORT =====
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-
-  const target = e.target;
-  const id = target?.id || '';
-
-  if (id === 'loginEmail' || id === 'loginPassword') {
-    e.preventDefault();
-    handleLogin();
-    return;
-  }
-
-  if (['signupName', 'signupFullName', 'signupEmail', 'signupPassword', 'signupPassword2'].includes(id)) {
-    e.preventDefault();
-    handleSignup();
-    return;
-  }
-
-  if (['forcePassword', 'forcePassword2', 'newPasswordInput', 'confirmNewPasswordInput'].includes(id)) {
-    e.preventDefault();
-    handleForcePasswordChange();
-    return;
-  }
-
-  if (id === 'displayNameInput') {
-    e.preventDefault();
-    handleSaveName();
-    return;
-  }
-
-  if (id === 'replyText' && !e.shiftKey) {
-    e.preventDefault();
-    handleSendReply();
-  }
-});
