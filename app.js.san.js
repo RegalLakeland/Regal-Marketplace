@@ -1,3 +1,32 @@
+import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updatePassword,
+  signOut,
+  onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -427,7 +456,8 @@ function updateAuthUI() {
 }
 
 async function handleLogin() {
-  const email = $('loginEmail')?.value.trim().toLowerCase();
+  const emailInput = $('loginEmail')?.value.trim().toLowerCase() || '';
+  const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
@@ -568,7 +598,8 @@ async function handleForcePasswordChange() {
 
 async function handleSignup() {
   const fullName = $('signupName')?.value.trim() || '';
-  const email = $('signupEmail')?.value.trim().toLowerCase();
+  const emailInput = $('signupEmail')?.value.trim().toLowerCase() || '';
+  const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
   const password = $('signupPassword')?.value || '';
   const password2 = $('signupPassword2')?.value || '';
   const msg = $('signupMsg');
@@ -632,7 +663,14 @@ async function handleSignup() {
       msg.style.display = 'block';
     }
 
-    if ($('loginEmail')) $('loginEmail').value = email;
+    if ($('verifyNote')) {
+      $('verifyNote').textContent = elevated
+        ? 'Account created successfully! You can sign in now.'
+        : 'Account created successfully! An admin must manually approve your account before you can sign in.';
+      $('verifyNote').style.display = 'block';
+    }
+
+    if ($('loginEmail')) $('loginEmail').value = emailInput;
     if ($('loginPassword')) $('loginPassword').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
