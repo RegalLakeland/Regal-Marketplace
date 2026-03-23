@@ -12,6 +12,7 @@ const CORE_ADMIN_EMAILS = [
   'michael.h@regallakeland.com',
   'janni.r@regallakeland.com'
 ];
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const autoGrantSyncIds = new Set();
 
 function verificationFunctionUrl() {
@@ -20,6 +21,10 @@ function verificationFunctionUrl() {
 
 function deleteAccountFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/deleteMarketplaceAccount`;
+}
+
+function tempPasswordFunctionUrl() {
+  return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/setMarketplaceTemporaryPassword`;
 }
 
 async function callAdminVerificationResend(email) {
@@ -51,6 +56,22 @@ async function callDeleteMarketplaceAccount(targetUser) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || `Account delete request failed (${res.status})`);
+  return data;
+}
+
+async function callSetMarketplaceTempPassword(targetUser, temporaryPassword) {
+  if (!currentViewer) throw new Error('You must be signed in.');
+  const token = await currentViewer.getIdToken(true);
+  const res = await fetch(tempPasswordFunctionUrl(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ uid: targetUser.id, email: targetUser.email || '', temporaryPassword })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `Temporary password request failed (${res.status})`);
   return data;
 }
 
@@ -95,10 +116,15 @@ function shouldAutoGrantAccess(user) {
   return emailApproved && !user?.banned && !user?.accessApproved && !user?.accessManuallyDenied;
 }
 
+function generateTempPassword() {
+  const digits = String(Math.floor(1000 + Math.random() * 9000));
+  const tail = Math.random().toString(36).slice(-4);
+  return `Regal!${digits}${tail}`;
+}
+
 function accessStatusMeta(user) {
-  if (user?.deleted) return { label: 'Deleted', tone: 'bad' };
   if (user?.banned) return { label: 'Blocked', tone: 'bad' };
-  if (user?.accessApproved || user?.manualVerified) return { label: 'Granted', tone: 'ok' };
+  if (user?.accessApproved) return { label: 'Granted', tone: 'ok' };
   if (user?.accessManuallyDenied) return { label: 'Denied', tone: 'bad' };
   return { label: 'Pending', tone: 'pending' };
 }
@@ -122,6 +148,7 @@ function flagSummary(user, dup) {
   if (dup?.isDuplicate) flags.push(`Duplicate x${dup.count}`);
   if (!user?.emailVerified) flags.push('Manual-only email');
   if (!user?.displayName && !user?.pendingName && !user?.requestedName) flags.push('Name missing');
+  if (user?.mustChangePassword) flags.push('Temp password active');
   return flags.length ? flags.join(' • ') : '—';
 }
 
@@ -133,17 +160,7 @@ let userRowsData = [];
 let eventRowsData = [];
 let adminEditingId = null;
 let userSearchTerm = '';
-let userFilterValue = 'ALL';
-let listingSearchTerm = '';
-let userPage = 1;
-const usersPerPage = 25;
-
-function forceClearOverlays() {
-  document.body.className = '';
-  document.querySelectorAll('.overlay').forEach(el => {
-    if (el.id !== 'adminEditOverlay') el.style.display = 'none';
-  });
-}
+let userFilterValue = 'PENDING';
 
 onAuthStateChanged(auth, async (user) => {
   authResolved = true;
@@ -162,57 +179,15 @@ onAuthStateChanged(auth, async (user) => {
     location.href = 'index.html';
     return;
   }
-
-  forceClearOverlays();
-
   if ($('adminUser')) $('adminUser').textContent = user.email;
   $('userSearch')?.addEventListener('input', (e) => {
     userSearchTerm = String(e.target.value || '').trim().toLowerCase();
-    userPage = 1;
     renderUserRows();
   });
   $('userFilter')?.addEventListener('change', (e) => {
-    userFilterValue = String(e.target.value || 'ALL').toUpperCase();
-    userPage = 1;
+    userFilterValue = String(e.target.value || 'ALL');
     renderUserRows();
   });
-
-  const uf = $('userFilter');
-  if (uf && !uf.querySelector('option[value="DELETED"]')) {
-    const opt = document.createElement('option');
-    opt.value = 'DELETED';
-    opt.textContent = 'Deleted Users';
-    uf.appendChild(opt);
-  }
-
-  // Great Addition: Export Users to CSV capability for easy auditing
-  const searchWrap = $('userSearch')?.parentElement;
-  if (searchWrap && !document.getElementById('exportUsersBtn')) {
-    const btn = document.createElement('button');
-    btn.id = 'exportUsersBtn';
-    btn.className = 'btn ghost';
-    btn.style.marginLeft = '1rem';
-    btn.textContent = 'Export CSV';
-    btn.onclick = () => {
-      const headers = ['Email', 'Name', 'Role', 'Status', 'Created'];
-      const csvRows = [headers.join(',')];
-      userRowsData.forEach(u => {
-        const role = u.isAdmin ? 'Admin' : (u.isModerator ? 'Moderator' : 'User');
-        const status = u.banned ? 'Banned' : (u.deleted ? 'Deleted' : (u.accessApproved ? 'Active' : 'Pending'));
-        const row = [`"${u.email || ''}"`, `"${u.displayName || u.pendingName || ''}"`, `"${role}"`, `"${status}"`, `"${fmtDate(u.createdAtMs)}"`];
-        csvRows.push(row.join(','));
-      });
-      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'marketplace_users.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-    searchWrap.appendChild(btn);
-  }
-
   startListings();
   startUsers();
   startEventResponses();
@@ -225,34 +200,8 @@ function startListings() {
     listingRowsData = rows;
     if ($('adminListingCount')) $('adminListingCount').textContent = String(rows.length);
     if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter((r) => r.reactivationRequested).length);
-    renderListingRows();
-  });
-}
-
-function renderListingRows() {
     if (!$('listingRows')) return;
-
-    const listingHeader = $('adminListingCount')?.parentElement;
-    if (listingHeader && !document.getElementById('listingSearchInput')) {
-       const sWrap = document.createElement('div');
-       sWrap.style.marginTop = '10px';
-       sWrap.innerHTML = `<input type="text" id="listingSearchInput" placeholder="Search by poster, email, or title..." style="padding:0.5rem; width:100%; max-width:300px; border-radius:4px; border:1px solid #ccc;">`;
-       listingHeader.appendChild(sWrap);
-       $('listingSearchInput').addEventListener('input', (e) => {
-           listingSearchTerm = e.target.value.toLowerCase();
-           renderListingRows();
-       });
-    }
-
-    let filtered = listingRowsData.slice();
-    if (listingSearchTerm) {
-      filtered = filtered.filter(item => {
-        const hay = [item.title, item.authorName, item.displayName, item.authorEmail, item.userEmail, item.description, item.desc].join(' ').toLowerCase();
-        return hay.includes(listingSearchTerm);
-      });
-    }
-
-    $('listingRows').innerHTML = filtered.map((item) => {
+    $('listingRows').innerHTML = rows.map((item) => {
       const board = item.board || item.category || 'BUYSELL';
       const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
       const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
@@ -307,6 +256,7 @@ function renderListingRows() {
       if (!confirm('Delete this post permanently?')) return;
       await deleteDoc(doc(db, 'listings', btn.dataset.delete));
     });
+  });
 }
 
 function duplicateMeta(rows) {
@@ -337,7 +287,7 @@ function duplicateMeta(rows) {
 }
 
 function userPending(user) {
-  return !user.accessApproved && !user.manualVerified && !user.banned && !user.deleted;
+  return !user.accessApproved || (!user.emailVerified && !user.manualVerified);
 }
 
 function applyUserFilters(rows) {
@@ -349,31 +299,25 @@ function applyUserFilters(rows) {
       return hay.includes(userSearchTerm);
     });
   }
-  if (userFilterValue === 'DELETED') {
-    filtered = filtered.filter((u) => !!u.deleted);
+  if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
+  if (userFilterValue === 'ONLINE') filtered = filtered.filter((u) => u.accessApproved && !u.banned && Number(u.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS));
+  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
+  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
+  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
+  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
+  if (userFilterValue === 'DELETED') filtered = filtered.filter((u) => !!u.deleted);
+  
+  if (userFilterValue === 'ONLINE') {
+    filtered.sort((a, b) => Number(b.lastSeenAtMs || 0) - Number(a.lastSeenAtMs || 0));
   } else {
-    filtered = filtered.filter((u) => !u.deleted);
-    if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
-    if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
-    if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
-    if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
-    if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
+    filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
   }
-  filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
   return { filtered, dmeta };
 }
 
 function buildUserActionButtons(user, dup, protectedUser) {
   const buttons = [];
   const selfRow = isSelfRow(user);
-
-  if (user.deleted) {
-    buttons.push(`<button class="btn ghost" data-role="restoreUser" data-id="${esc(user.id)}" type="button">Restore User</button>`);
-    if (isProtectedCoreAdmin(currentViewer?.email) && !selfRow) {
-      buttons.push(`<button class="btn danger" data-role="permanentDelete" data-id="${esc(user.id)}" type="button">Delete Permanently</button>`);
-    }
-    return buttons.join('');
-  }
 
   if (!user.isModerator) buttons.push(`<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>`);
   if (user.isModerator && !protectedUser) buttons.push(`<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>`);
@@ -384,15 +328,16 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
 
+  if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
+  if (isCoreAdminViewer() && (!protectedUser || selfRow)) {
+    if (!user.deleted) buttons.push(`<button class="btn danger" data-role="softDeleteAccount" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
+    buttons.push(`<button class="btn danger" data-role="hardDeleteAccount" data-id="${esc(user.id)}" style="background:transparent; border-color:#ef4444; color:#ef4444;" type="button">Perm Delete</button>`);
+  }
+
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
 
   if (dup.isDuplicate && !dup.isPrimary && !protectedUser) buttons.push(`<button class="btn danger" data-role="deleteDuplicate" data-id="${esc(user.id)}" type="button">Delete Duplicate</button>`);
-
-  if (!protectedUser && !selfRow) {
-    buttons.push(`<button class="btn danger" data-role="softDelete" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
-  }
-  if (user.agreedToTerms && !protectedUser) buttons.push(`<button class="btn ghost" data-role="forceRules" data-id="${esc(user.id)}" type="button">Force Re-Read Rules</button>`);
 
   if (!buttons.length && protectedUser && !selfRow) {
     buttons.push('<span class="pill">Protected</span>');
@@ -404,23 +349,30 @@ function buildUserActionButtons(user, dup, protectedUser) {
 function renderUserRows() {
   if (!$('userRows')) return;
   const { filtered, dmeta } = applyUserFilters(userRowsData);
+
+  const onlineUsers = userRowsData.filter((u) => u.accessApproved && !u.banned && Number(u.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS));
+  if ($('adminOnlineCount')) $('adminOnlineCount').textContent = `${onlineUsers.length} online`;
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
 
-  const totalPages = Math.ceil(filtered.length / usersPerPage);
-  if (userPage > totalPages && totalPages > 0) userPage = totalPages;
+  if ($('adminOnlineNames')) {
+    if (onlineUsers.length > 0) {
+      const names = onlineUsers.map((u) => esc(u.displayName || u.pendingName || u.requestedName || u.email));
+      $('adminOnlineNames').innerHTML = `<div style="border: 1px solid #22c55e; border-radius: 16px; padding: 10px; background: rgba(34,197,94,0.1); color:#bbf7d0;"><strong>Online Now:</strong> ${names.join(', ')}</div>`;
+    } else {
+      $('adminOnlineNames').innerHTML = '<span class="note" style="margin-left: 4px;">No users currently online.</span>';
+    }
+  }
 
-  const startIndex = (userPage - 1) * usersPerPage;
-  const paginated = filtered.slice(startIndex, startIndex + usersPerPage);
-
-  $('userRows').innerHTML = paginated.map((user) => {
+  $('userRows').innerHTML = filtered.map((user) => {
     const protectedUser = isProtectedCoreAdmin(user.email);
     const dup = dmeta.get(user.id) || { isDuplicate:false, isPrimary:true, count:1 };
     const emailState = emailStatusMeta(user);
     const accessState = accessStatusMeta(user);
-    const rulesState = user.agreedToTerms ? { label: `Accepted ${fmtDate(user.agreedToTermsAt)} (Signed: ${user.agreedToTermsSignature || 'Yes'})`, tone: 'ok' } : { label: 'Pending', tone: 'pending' };
     const actions = buildUserActionButtons(user, dup, protectedUser);
     const shownName = user.displayName || user.pendingName || user.requestedName || '—';
+    const isOnline = user.accessApproved && !user.banned && Number(user.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS);
+    const onlineDot = isOnline ? `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-left:8px; box-shadow:0 0 6px #22c55e;" title="Online Now"></span>` : '';
 
     return `
       <tr>
@@ -429,7 +381,8 @@ function renderUserRows() {
           <div class="note user-id">UID: ${esc(user.uid || user.id)}</div>
         </td>
         <td>
-          <div class="user-main">${esc(shownName)}</div>
+          <div class="user-main" style="display:flex; align-items:center;">${esc(shownName)}${onlineDot}</div>
+          <div class="note">Last seen: ${user.lastSeenAtMs ? esc(fmtDate(user.lastSeenAtMs)) : 'Never'}</div>
           <div class="note">Created / updated: ${esc(fmtDate(user.createdAtMs || user.emailVerifiedAt || Date.now()))}</div>
         </td>
         <td>
@@ -438,8 +391,8 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Password</span><span class="user-status-meta">${esc(user.mustChangePassword ? 'Temporary password active' : 'Normal sign-in')}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-value ${rulesState.tone}">${esc(rulesState.label)}</span></div>
           </div>
         </td>
         <td>
@@ -448,35 +401,13 @@ function renderUserRows() {
       </tr>`;
   }).join('');
 
-  let pageControls = $('userPaginationControls');
-  if (!pageControls) {
-    pageControls = document.createElement('div');
-    pageControls.id = 'userPaginationControls';
-    pageControls.style.display = 'flex';
-    pageControls.style.gap = '10px';
-    pageControls.style.marginTop = '15px';
-    pageControls.style.alignItems = 'center';
-    pageControls.style.justifyContent = 'center';
-    const tableWrap = $('userRows').closest('table')?.parentElement;
-    if (tableWrap) tableWrap.appendChild(pageControls);
-  }
-  if (pageControls) {
-    pageControls.innerHTML = `
-      <button class="btn ghost" id="btnPrevPage" ${userPage === 1 ? 'disabled' : ''}>Previous</button>
-      <span style="font-size: 0.9rem; font-weight: 600;">Page ${userPage} of ${totalPages || 1}</span>
-      <button class="btn ghost" id="btnNextPage" ${userPage >= totalPages ? 'disabled' : ''}>Next</button>
-    `;
-    $('btnPrevPage')?.addEventListener('click', () => { if (userPage > 1) { userPage--; renderUserRows(); } });
-    $('btnNextPage')?.addEventListener('click', () => { if (userPage < totalPages) { userPage++; renderUserRows(); } });
-  }
-
   document.querySelectorAll('[data-role]').forEach((btn) => btn.onclick = async () => {
     const user = userRowsData.find((x) => x.id === btn.dataset.id);
     if (!user) return;
 
     const role = btn.dataset.role;
     const protectedUser = isProtectedCoreAdmin(user.email);
-    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate'].includes(role)) {
+    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate', 'softDeleteAccount', 'hardDeleteAccount'].includes(role)) {
       alert('This core admin account cannot be modified.');
       return;
     }
@@ -495,29 +426,59 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
+    if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, updatedAt: Date.now() });
+    if (role === 'setTempPassword') {
+      const suggested = generateTempPassword();
+      const temporaryPassword = window.prompt(`Set a temporary password for ${user.email}. Share it with the user and they will be forced to change it after login.`, suggested);
+      if (temporaryPassword === null) return;
+      if (String(temporaryPassword).trim().length < 8) {
+        alert('Temporary password must be at least 8 characters.');
+        return;
+      }
+      try {
+        const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
+        const copied = await copyText(String(temporaryPassword).trim());
+        alert(`${result?.message || 'Temporary password saved.'}${result?.note ? ` ${result.note}` : ''}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
+      } catch (err) {
+        alert(err.message);
+      }
+      return;
+    }
+    if (role === 'softDeleteAccount') {
+      const selfRow = isSelfRow(user);
+      if (!confirm(`Are you sure you want to delete ${user.email || 'this account'}? They will be moved to the Deleted Accounts list.`)) return;
+      await updateDoc(ref, {
+        deleted: true,
+        accessApproved: false,
+        banned: true,
+        updatedAt: Date.now()
+      });
+      alert('Account moved to Deleted Accounts.');
+      if (selfRow) {
+        await signOut(auth).catch(() => {});
+        window.location.href = 'index.html';
+      }
+      return;
+    }
+    if (role === 'hardDeleteAccount') {
+      try {
+        const selfRow = isSelfRow(user);
+        const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, listings, and RSVP responses.${selfRow ? ' You are deleting your own account.' : ''}`, '');
+        if (confirmWord !== 'DELETE') return;
+        const result = await callDeleteMarketplaceAccount(user);
+        alert(result?.message || 'Account permanently deleted.');
+        if (selfRow) {
+          await signOut(auth).catch(() => {});
+          window.location.href = 'index.html';
+        }
+      } catch (err) {
+        alert(err.message);
+      }
+      return;
+    }
     if (role === 'deleteDuplicate') {
       if (!confirm(`Delete duplicate profile row for ${user.email}? This removes only the extra profile document.`)) return;
       await deleteDoc(ref);
-    }
-    if (role === 'softDelete') {
-      if (!confirm(`Soft delete ${user.email}? They will be moved to the Deleted Users filter.`)) return;
-      await updateDoc(ref, { deleted: true, deletedAt: Date.now(), updatedAt: Date.now() });
-    }
-    if (role === 'restoreUser') {
-      await updateDoc(ref, { deleted: false, updatedAt: Date.now() });
-    }
-    if (role === 'forceRules') {
-      if (!confirm(`Require ${user.email} to re-accept the marketplace rules on their next login?`)) return;
-      await updateDoc(ref, { agreedToTerms: false, updatedAt: Date.now() });
-    }
-    if (role === 'permanentDelete') {
-      if (!isProtectedCoreAdmin(currentViewer?.email)) return;
-      if (!confirm(`PERMANENTLY delete ${user.email}? This uses the Cloud Function to delete their Auth account and all data.`)) return;
-      try {
-        await callDeleteMarketplaceAccount(user);
-      } catch (e) {
-        alert(e.message);
-      }
     }
   });
 }
