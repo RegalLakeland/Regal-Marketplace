@@ -268,6 +268,14 @@ function bindStaticEvents() {
 
   $('btnLogin')?.addEventListener('click', handleLogin);
   $('btnSignup')?.addEventListener('click', handleSignup);
+  $('signupEmail')?.addEventListener('focus', moveSignupCursorBeforeDomain);
+  $('signupEmail')?.addEventListener('click', moveSignupCursorBeforeDomain);
+  $('signupEmail')?.addEventListener('blur', () => {
+    const input = $('signupEmail');
+    if (!input) return;
+    const normalized = normalizeWorkEmail(input.value);
+    input.value = normalized || WORK_EMAIL_DOMAIN;
+  });
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
   $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
@@ -338,11 +346,14 @@ function showPane(which) {
     signupPane.style.display = 'none';
     tabLogin.classList.add('active');
     tabSignup.classList.remove('active');
+    restoreRememberedLoginEmail();
   } else {
     loginPane.style.display = 'none';
     signupPane.style.display = 'block';
     tabSignup.classList.add('active');
     tabLogin.classList.remove('active');
+    seedSignupEmailField();
+    setTimeout(moveSignupCursorBeforeDomain, 0);
   }
 }
 
@@ -359,8 +370,50 @@ function hide(id) {
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
+const WORK_EMAIL_DOMAIN = '@regallakeland.com';
+
+function normalizeWorkEmail(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value || value == WORK_EMAIL_DOMAIN) return '';
+  if (!value.includes('@')) return `${value}${WORK_EMAIL_DOMAIN}`;
+  return value;
+}
+
 function isAllowedEmail(email) {
-  return String(email || '').trim().toLowerCase().endsWith('@regallakeland.com');
+  return String(email || '').trim().toLowerCase().endsWith(WORK_EMAIL_DOMAIN);
+}
+
+function seedSignupEmailField() {
+  const input = $('signupEmail');
+  if (!input) return;
+  if (!String(input.value || '').trim()) input.value = WORK_EMAIL_DOMAIN;
+}
+
+function moveSignupCursorBeforeDomain() {
+  const input = $('signupEmail');
+  if (!input) return;
+  if (String(input.value || '').trim().toLowerCase() !== WORK_EMAIL_DOMAIN) return;
+  try {
+    input.setSelectionRange(0, 0);
+  } catch (_) {}
+}
+
+function rememberLoginEmail(email) {
+  const normalized = normalizeWorkEmail(email);
+  if (!normalized) return;
+  if ($('loginEmail')) $('loginEmail').value = normalized;
+  try {
+    localStorage.setItem('marketplace_last_login_email', normalized);
+  } catch (_) {}
+}
+
+function restoreRememberedLoginEmail() {
+  const currentValue = String($('loginEmail')?.value || '').trim();
+  if (currentValue) return;
+  try {
+    const saved = localStorage.getItem('marketplace_last_login_email') || '';
+    if (saved && $('loginEmail')) $('loginEmail').value = saved;
+  } catch (_) {}
 }
 
 const PROTECTED_CORE_ADMINS = new Set([
@@ -511,7 +564,7 @@ function updateAuthUI() {
 }
 
 async function handleLogin() {
-  const email = $('loginEmail')?.value.trim().toLowerCase();
+  const email = normalizeWorkEmail($('loginEmail')?.value);
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
@@ -525,6 +578,7 @@ async function handleLogin() {
 
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    rememberLoginEmail(email);
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
     const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
@@ -693,7 +747,7 @@ async function handleSignup() {
     '';
 
   const email =
-    $('signupEmail')?.value.trim().toLowerCase() ||
+    normalizeWorkEmail($('signupEmail')?.value) ||
     '';
 
   const password =
@@ -773,8 +827,9 @@ async function handleSignup() {
       msg.style.display = 'block';
     }
 
-    if ($('loginEmail')) $('loginEmail').value = email;
+    rememberLoginEmail(email);
     if ($('loginPassword')) $('loginPassword').value = '';
+    if ($('signupEmail')) $('signupEmail').value = WORK_EMAIL_DOMAIN;
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
@@ -788,60 +843,8 @@ async function handleSignup() {
     console.error(err);
 
     if (err?.code === 'auth/email-already-in-use') {
-      try {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
-
-        await setDoc(doc(db, 'profiles', cred.user.uid), {
-          uid: cred.user.uid,
-          email,
-          displayName: fullName,
-          pendingName: fullName,
-          requestedName: fullName,
-          isAdmin: isAdmin(email),
-          isModerator: false,
-          banned: false,
-          manualVerified: elevated,
-          emailVerified: !!cred.user.emailVerified,
-          accessApproved: elevated,
-          accessManuallyDenied: false,
-          tempPasswordActive: false,
-          mustChangePassword: false,
-          repairedAfterDuplicate: true,
-          repairedAtMs: Date.now(),
-          createdAtMs: Date.now(),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-
-        await signOut(auth).catch(() => {});
-        currentUser = null;
-        currentProfile = null;
-        updateAuthUI();
-
-        if (msg) {
-          msg.textContent = elevated
-            ? 'Account already existed and was repaired. You can sign in now.'
-            : 'Account already existed and is now waiting for manual admin approval.';
-          msg.style.display = 'block';
-        }
-
-        if ($('loginEmail')) $('loginEmail').value = email;
-        if ($('loginPassword')) $('loginPassword').value = '';
-        if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
-        showPane('login');
-
-        alert(
-          elevated
-            ? 'Account already existed and was repaired. You can sign in now.'
-            : 'Account already existed and is now waiting for manual admin approval.'
-        );
-        return;
-      } catch (repairErr) {
-        console.error(repairErr);
-        alert('That email already exists in Authentication. Use the SAME password from the first signup attempt and press Create Account again after this file is replaced. If you do not know the first password, delete that Auth user in Firebase Authentication and sign up again.');
-        return;
-      }
+      alert('That email is already registered.');
+      return;
     }
 
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
