@@ -61,6 +61,114 @@ async function callVerificationEmailFunction(user, email) {
 
 const $ = (id) => document.getElementById(id);
 
+const WORK_EMAIL_DOMAIN = '@regallakeland.com';
+
+function normalizeWorkEmailInput(value) {
+  let raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  if (raw === WORK_EMAIL_DOMAIN) return raw;
+  if (!raw.includes('@')) return `${raw}${WORK_EMAIL_DOMAIN}`;
+  const local = raw.split('@')[0].trim();
+  return local ? `${local}${WORK_EMAIL_DOMAIN}` : WORK_EMAIL_DOMAIN;
+}
+
+function setEmailInputCaretBeforeDomain(input) {
+  if (!input) return;
+  const domainIndex = String(input.value || '').toLowerCase().indexOf(WORK_EMAIL_DOMAIN);
+  const caretPos = domainIndex >= 0 ? domainIndex : 0;
+  try {
+    input.setSelectionRange(caretPos, caretPos);
+  } catch (_) {}
+}
+
+function primeWorkEmailField(input) {
+  if (!input) return;
+  const current = String(input.value || '').trim();
+  if (!current) {
+    input.value = WORK_EMAIL_DOMAIN;
+    setEmailInputCaretBeforeDomain(input);
+    return;
+  }
+  input.value = normalizeWorkEmailInput(current);
+}
+
+function installWorkEmailBehavior(inputId) {
+  const input = $(inputId);
+  if (!input) return;
+
+  input.addEventListener('focus', () => {
+    if (!String(input.value || '').trim()) {
+      input.value = WORK_EMAIL_DOMAIN;
+      setEmailInputCaretBeforeDomain(input);
+    } else if (String(input.value || '').toLowerCase() === WORK_EMAIL_DOMAIN) {
+      setEmailInputCaretBeforeDomain(input);
+    }
+  });
+
+  input.addEventListener('click', () => {
+    if (String(input.value || '').toLowerCase() === WORK_EMAIL_DOMAIN) {
+      setEmailInputCaretBeforeDomain(input);
+    }
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const val = String(input.value || '').toLowerCase();
+    const domainIndex = val.indexOf(WORK_EMAIL_DOMAIN);
+    if (domainIndex < 0) return;
+
+    const start = input.selectionStart ?? 0;
+    const end = input.selectionEnd ?? 0;
+
+    if ((e.key === 'Backspace' && start > domainIndex) || (e.key === 'Delete' && start >= domainIndex)) {
+      e.preventDefault();
+      setEmailInputCaretBeforeDomain(input);
+    }
+    if ((e.key === 'ArrowRight' || e.key === 'End') && start >= domainIndex) {
+      e.preventDefault();
+      setEmailInputCaretBeforeDomain(input);
+    }
+  });
+
+  input.addEventListener('input', () => {
+    const normalized = normalizeWorkEmailInput(input.value);
+    if (!normalized) return;
+    const oldStart = input.selectionStart ?? 0;
+    const oldVal = String(input.value || '');
+    const oldDomainIndex = oldVal.toLowerCase().indexOf(WORK_EMAIL_DOMAIN);
+    input.value = normalized;
+    const newDomainIndex = normalized.indexOf(WORK_EMAIL_DOMAIN);
+    let nextPos = oldStart;
+    if (oldDomainIndex >= 0 && oldStart > oldDomainIndex) nextPos = newDomainIndex;
+    if (nextPos > newDomainIndex) nextPos = newDomainIndex;
+    try {
+      input.setSelectionRange(nextPos, nextPos);
+    } catch (_) {}
+  });
+
+  input.addEventListener('blur', () => {
+    const normalized = normalizeWorkEmailInput(input.value);
+    input.value = normalized || '';
+  });
+}
+
+function rememberLastLoginEmail(email) {
+  try {
+    localStorage.setItem('marketplace_last_login_email', normalizeEmail(email));
+  } catch (_) {}
+}
+
+function applyRememberedLoginEmail() {
+  const loginInput = $('loginEmail');
+  if (!loginInput) return;
+  try {
+    const remembered = localStorage.getItem('marketplace_last_login_email') || '';
+    if (remembered) {
+      loginInput.value = remembered;
+    }
+  } catch (_) {}
+}
+
+
 function getVerifyActionCodeSettings() {
   const url = `${window.location.origin}${window.location.pathname}`;
   return {
@@ -172,7 +280,10 @@ window.addEventListener('error', (e) => {
 
 document.addEventListener('DOMContentLoaded', () => {
   removeLegacyForgotPasswordUI();
+  applyRememberedLoginEmail();
   bindStaticEvents();
+  installWorkEmailBehavior('signupEmail');
+  installWorkEmailBehavior('loginEmail');
   renderBoards();
   renderListings();
 
@@ -268,14 +379,6 @@ function bindStaticEvents() {
 
   $('btnLogin')?.addEventListener('click', handleLogin);
   $('btnSignup')?.addEventListener('click', handleSignup);
-  $('signupEmail')?.addEventListener('focus', moveSignupCursorBeforeDomain);
-  $('signupEmail')?.addEventListener('click', moveSignupCursorBeforeDomain);
-  $('signupEmail')?.addEventListener('blur', () => {
-    const input = $('signupEmail');
-    if (!input) return;
-    const normalized = normalizeWorkEmail(input.value);
-    input.value = normalized || WORK_EMAIL_DOMAIN;
-  });
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
   $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
@@ -346,14 +449,11 @@ function showPane(which) {
     signupPane.style.display = 'none';
     tabLogin.classList.add('active');
     tabSignup.classList.remove('active');
-    restoreRememberedLoginEmail();
   } else {
     loginPane.style.display = 'none';
     signupPane.style.display = 'block';
     tabSignup.classList.add('active');
     tabLogin.classList.remove('active');
-    seedSignupEmailField();
-    setTimeout(moveSignupCursorBeforeDomain, 0);
   }
 }
 
@@ -370,50 +470,8 @@ function hide(id) {
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
-const WORK_EMAIL_DOMAIN = '@regallakeland.com';
-
-function normalizeWorkEmail(raw) {
-  const value = String(raw || '').trim().toLowerCase();
-  if (!value || value == WORK_EMAIL_DOMAIN) return '';
-  if (!value.includes('@')) return `${value}${WORK_EMAIL_DOMAIN}`;
-  return value;
-}
-
 function isAllowedEmail(email) {
-  return String(email || '').trim().toLowerCase().endsWith(WORK_EMAIL_DOMAIN);
-}
-
-function seedSignupEmailField() {
-  const input = $('signupEmail');
-  if (!input) return;
-  if (!String(input.value || '').trim()) input.value = WORK_EMAIL_DOMAIN;
-}
-
-function moveSignupCursorBeforeDomain() {
-  const input = $('signupEmail');
-  if (!input) return;
-  if (String(input.value || '').trim().toLowerCase() !== WORK_EMAIL_DOMAIN) return;
-  try {
-    input.setSelectionRange(0, 0);
-  } catch (_) {}
-}
-
-function rememberLoginEmail(email) {
-  const normalized = normalizeWorkEmail(email);
-  if (!normalized) return;
-  if ($('loginEmail')) $('loginEmail').value = normalized;
-  try {
-    localStorage.setItem('marketplace_last_login_email', normalized);
-  } catch (_) {}
-}
-
-function restoreRememberedLoginEmail() {
-  const currentValue = String($('loginEmail')?.value || '').trim();
-  if (currentValue) return;
-  try {
-    const saved = localStorage.getItem('marketplace_last_login_email') || '';
-    if (saved && $('loginEmail')) $('loginEmail').value = saved;
-  } catch (_) {}
+  return String(email || '').trim().toLowerCase().endsWith('@regallakeland.com');
 }
 
 const PROTECTED_CORE_ADMINS = new Set([
@@ -564,7 +622,7 @@ function updateAuthUI() {
 }
 
 async function handleLogin() {
-  const email = normalizeWorkEmail($('loginEmail')?.value);
+  const email = normalizeWorkEmailInput($('loginEmail')?.value);
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
@@ -577,8 +635,8 @@ async function handleLogin() {
   }
 
   try {
+    rememberLastLoginEmail(email);
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    rememberLoginEmail(email);
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
     const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
@@ -746,9 +804,7 @@ async function handleSignup() {
     $('signupName')?.value.trim() ||
     '';
 
-  const email =
-    normalizeWorkEmail($('signupEmail')?.value) ||
-    '';
+  const email = normalizeWorkEmailInput($('signupEmail')?.value);
 
   const password =
     $('signupPassword')?.value ||
@@ -827,12 +883,13 @@ async function handleSignup() {
       msg.style.display = 'block';
     }
 
-    rememberLoginEmail(email);
+    if ($('loginEmail')) $('loginEmail').value = email;
+    rememberLastLoginEmail(email);
     if ($('loginPassword')) $('loginPassword').value = '';
-    if ($('signupEmail')) $('signupEmail').value = WORK_EMAIL_DOMAIN;
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
+    setTimeout(() => $('loginPassword')?.focus(), 50);
 
     alert(
       elevated
