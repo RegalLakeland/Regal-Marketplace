@@ -98,7 +98,7 @@ function shouldAutoGrantAccess(user) {
 function accessStatusMeta(user) {
   if (user?.deleted) return { label: 'Deleted', tone: 'bad' };
   if (user?.banned) return { label: 'Blocked', tone: 'bad' };
-  if (user?.accessApproved) return { label: 'Granted', tone: 'ok' };
+  if (user?.accessApproved || user?.manualVerified) return { label: 'Granted', tone: 'ok' };
   if (user?.accessManuallyDenied) return { label: 'Denied', tone: 'bad' };
   return { label: 'Pending', tone: 'pending' };
 }
@@ -297,7 +297,7 @@ function duplicateMeta(rows) {
 }
 
 function userPending(user) {
-  return !user.accessApproved || (!user.emailVerified && !user.manualVerified);
+  return !user.accessApproved && !user.manualVerified;
 }
 
 function applyUserFilters(rows) {

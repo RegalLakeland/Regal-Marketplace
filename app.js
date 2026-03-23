@@ -196,17 +196,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if ($('verifyNote')) $('verifyNote').style.display = 'none';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
-    if (!currentProfile.agreedToTerms) {
-      showRulesGate();
-      return;
-    }
-
     updateAuthUI();
+
     startListingsListener();
     startProfilesListener();
     startEventResponsesListener();
     touchPresence();
     if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
+
+    if (!currentProfile.agreedToTerms) {
+      showRulesGate();
+      return;
+    }
 
     if (!currentProfile.displayName) {
       $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
@@ -419,7 +420,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.banned !== 'boolean') updates.banned = false;
     if (typeof currentProfile.manualVerified !== 'boolean') updates.manualVerified = false;
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
-    if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
+    if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email) || currentProfile.manualVerified === true;
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
     if (typeof currentProfile.agreedToTerms !== 'boolean') updates.agreedToTerms = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
@@ -461,6 +462,10 @@ function updateAuthUI() {
 }
 
 function showRulesGate() {
+  // Double-ensure login visuals are hidden so background filters don't stack
+  if ($('loginOverlay')) $('loginOverlay').style.display = 'none';
+  document.body.classList.remove('auth-open');
+
   let gate = $('rulesGateOverlay');
   if (!gate) {
     gate = document.createElement('div');
