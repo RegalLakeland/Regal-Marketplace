@@ -196,6 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if ($('verifyNote')) $('verifyNote').style.display = 'none';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
+    if (!currentProfile.agreedToTerms) {
+      showRulesGate();
+      return;
+    }
+
     updateAuthUI();
     startListingsListener();
     startProfilesListener();
@@ -308,7 +313,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'rulesGateOverlay'].some((overlayId) => $(overlayId)?.style.display !== 'none');
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -391,6 +396,8 @@ async function ensureProfile(user) {
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
+    agreedToTerms: false,
+    agreedToTermsAt: null,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -414,6 +421,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
+    if (typeof currentProfile.agreedToTerms !== 'boolean') updates.agreedToTerms = false;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -450,6 +458,75 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
+}
+
+function showRulesGate() {
+  let gate = $('rulesGateOverlay');
+  if (!gate) {
+    gate = document.createElement('div');
+    gate.id = 'rulesGateOverlay';
+    gate.className = 'overlay';
+    gate.style.zIndex = '9999';
+    gate.innerHTML = `
+      <div class="modal wide modal-scroll">
+        <div class="modal-h sticky-head">
+          <strong>Employee Marketplace Rules & Terms</strong>
+        </div>
+        <div class="modal-b" style="line-height: 1.6; font-size: 0.95rem;">
+          <p>Welcome to the Regal Lakeland Employee Marketplace. Before continuing to your account, please read and agree to our rules:</p>
+          <ol style="margin: 1rem 0; padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+            <li><strong>Respect & Courtesy:</strong> Respect all fellow employees and treat everyone with courtesy.</li>
+            <li><strong>Professionalism:</strong> Keep all marketplace listings, communications, and interactions professional.</li>
+            <li><strong>Legal Ownership:</strong> Items listed must be legally yours to sell. No stolen or illicit goods.</li>
+            <li><strong>Content Standards:</strong> No inappropriate, offensive, or discriminatory content is permitted.</li>
+            <li><strong>Intended Audience:</strong> The marketplace is solely for employee-to-employee transactions and approved local services.</li>
+            <li><strong>Company Time:</strong> Do not abuse company time for personal marketplace browsing or transactions.</li>
+            <li><strong>Dispute Resolution:</strong> Any disputes between users regarding a transaction should be handled privately and amicably.</li>
+            <li><strong>Management Rights:</strong> Management reserves the right to remove any post or revoke access at any time without warning.</li>
+            <li><strong>Accurate Information:</strong> Keep your contact information and item descriptions accurate and up to date.</li>
+            <li><strong>Company Policies:</strong> By using this platform, you agree to abide by all standard Regal Lakeland employee handbooks and policies.</li>
+          </ol>
+          <label style="display:flex; align-items:flex-start; gap:0.75rem; margin-top: 1.5rem; cursor:pointer; font-weight:600; padding: 1rem; background: #f8fafc; border-radius: 6px; border: 1px solid #cbd5e1;">
+            <input type="checkbox" id="rulesCheckbox" style="margin-top:0.25rem; transform: scale(1.3);" />
+            I have read, understood, and agree to follow these 10 rules.
+          </label>
+          <div id="rulesErrorMsg" style="color:#ef4444; font-size:0.85rem; margin-top:0.5rem; display:none; font-weight: 500;">You must check the box to agree to the rules before continuing.</div>
+        </div>
+        <div class="modal-actions sticky-actions">
+          <button class="btn primary" id="btnAcceptRules" type="button">Accept & Continue</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(gate);
+
+    $('btnAcceptRules').addEventListener('click', async () => {
+      if (!$('rulesCheckbox').checked) {
+        $('rulesErrorMsg').style.display = 'block';
+        return;
+      }
+      $('rulesErrorMsg').style.display = 'none';
+      try {
+        await updateDoc(doc(db, 'profiles', currentUser.uid), { agreedToTerms: true, agreedToTermsAt: Date.now(), updatedAt: serverTimestamp() });
+        if (currentProfile) { currentProfile.agreedToTerms = true; currentProfile.agreedToTermsAt = Date.now(); }
+        hideRulesGate();
+        updateAuthUI();
+        startListingsListener();
+        startProfilesListener();
+        startEventResponsesListener();
+        touchPresence();
+        if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
+        if (!currentProfile.displayName) { $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || ''; show('nameOverlay'); }
+      } catch (e) { alert('Failed to save agreement. Try again.'); }
+    });
+  }
+  gate.style.display = 'flex';
+  document.body.classList.add('modal-open');
+}
+
+function hideRulesGate() {
+  const gate = $('rulesGateOverlay');
+  if (gate) gate.style.display = 'none';
+  document.body.classList.remove('modal-open');
 }
 
 async function handleLogin() {
@@ -541,12 +618,6 @@ async function handleSignup() {
   const email = $('signupEmail')?.value.trim().toLowerCase();
   const password = $('signupPassword')?.value || '';
   const password2 = $('signupPassword2')?.value || '';
-  const msg = $('signupMsg');
-
-  if (msg) {
-    msg.style.display = 'none';
-    msg.textContent = '';
-  }
 
   if (!fullName || !email || !password || !password2) {
     alert('Complete all signup fields.');
@@ -585,6 +656,8 @@ async function handleSignup() {
       emailVerified: !!cred.user.emailVerified,
       accessApproved: elevated,
       accessManuallyDenied: false,
+      agreedToTerms: false,
+      agreedToTermsAt: null,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -592,21 +665,14 @@ async function handleSignup() {
 
     await signOut(auth);
 
-    if (msg) {
-      msg.textContent = elevated
-        ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.';
-      msg.style.display = 'block';
-    }
-
     if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-    alert(elevated
-      ? 'Account created. You can sign in now.'
-      : 'Account created. An admin must manually approve your account before you can sign in.');
+    setTimeout(() => {
+      if ($('loginPassword')) $('loginPassword').focus();
+    }, 100);
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);

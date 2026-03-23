@@ -352,6 +352,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (!protectedUser && !selfRow) {
     buttons.push(`<button class="btn danger" data-role="softDelete" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
   }
+  if (user.agreedToTerms && !protectedUser) buttons.push(`<button class="btn ghost" data-role="forceRules" data-id="${esc(user.id)}" type="button">Force Re-Read Rules</button>`);
 
   if (!buttons.length && protectedUser && !selfRow) {
     buttons.push('<span class="pill">Protected</span>');
@@ -371,6 +372,7 @@ function renderUserRows() {
     const dup = dmeta.get(user.id) || { isDuplicate:false, isPrimary:true, count:1 };
     const emailState = emailStatusMeta(user);
     const accessState = accessStatusMeta(user);
+    const rulesState = user.agreedToTerms ? { label: `Accepted ${fmtDate(user.agreedToTermsAt)}`, tone: 'ok' } : { label: 'Pending', tone: 'pending' };
     const actions = buildUserActionButtons(user, dup, protectedUser);
     const shownName = user.displayName || user.pendingName || user.requestedName || '—';
 
@@ -391,6 +393,7 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-value ${rulesState.tone}">${esc(rulesState.label)}</span></div>
           </div>
         </td>
         <td>
@@ -434,6 +437,10 @@ function renderUserRows() {
     }
     if (role === 'restoreUser') {
       await updateDoc(ref, { deleted: false, updatedAt: Date.now() });
+    }
+    if (role === 'forceRules') {
+      if (!confirm(`Require ${user.email} to re-accept the marketplace rules on their next login?`)) return;
+      await updateDoc(ref, { agreedToTerms: false, updatedAt: Date.now() });
     }
     if (role === 'permanentDelete') {
       if (!isProtectedCoreAdmin(currentViewer?.email)) return;
