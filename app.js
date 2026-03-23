@@ -176,6 +176,11 @@ document.addEventListener('DOMContentLoaded', () => {
   renderBoards();
   renderListings();
 
+  const savedEmail = localStorage.getItem('regal_saved_email');
+  if (savedEmail && $('loginEmail')) {
+    $('loginEmail').value = savedEmail;
+  }
+
   onAuthStateChanged(auth, async (user) => {
   try {
     if (!user) {
@@ -272,6 +277,16 @@ function bindStaticEvents() {
       let val = e.target.value.trim().toLowerCase();
       if (val && !val.includes('@')) {
         e.target.value = val + '@regallakeland.com';
+      }
+    });
+  });
+
+  // Allow pressing Enter to login
+  ['loginEmail', 'loginPassword'].forEach(id => {
+    $(id)?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleLogin();
       }
     });
   });
@@ -552,6 +567,8 @@ async function handleLogin() {
     return;
   }
 
+  localStorage.setItem('regal_saved_email', email);
+
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
@@ -767,9 +784,11 @@ async function handleSignup() {
     return;
   }
 
+  localStorage.setItem('regal_saved_email', email);
+
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
+    const elevated = isProtectedCoreAdmin(email);
 
     await setDoc(doc(db, 'profiles', cred.user.uid), {
       uid: cred.user.uid,
@@ -777,7 +796,7 @@ async function handleSignup() {
       displayName: fullName,
       pendingName: fullName,
       requestedName: fullName,
-      isAdmin: isAdmin(email),
+      isAdmin: elevated,
       isModerator: false,
       banned: false,
       manualVerified: elevated,
@@ -1469,7 +1488,14 @@ class HeroSlider extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this.images = JSON.parse(this.getAttribute('images') || '[]');
+    let imgs = [];
+    try {
+      imgs = JSON.parse(this.getAttribute('images') || '[]');
+    } catch (e) {}
+    if (!imgs || imgs.length === 0) {
+      imgs = ['Images/background1.jpg', 'Images/background2.jpg', 'Images/background3.jpg', 'Images/background4.jpg'];
+    }
+    this.images = imgs;
     this.currentIndex = 0;
   }
 

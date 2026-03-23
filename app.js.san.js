@@ -458,6 +458,9 @@ function updateAuthUI() {
 async function handleLogin() {
   const emailInput = $('loginEmail')?.value.trim().toLowerCase() || '';
   const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
+  
+  if ($('loginEmail') && email) $('loginEmail').value = email;
+  
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
@@ -670,7 +673,7 @@ async function handleSignup() {
       $('verifyNote').style.display = 'block';
     }
 
-    if ($('loginEmail')) $('loginEmail').value = emailInput;
+    if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 

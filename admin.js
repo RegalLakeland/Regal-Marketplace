@@ -439,9 +439,13 @@ function renderUserRows() {
         alert('Temporary password must be at least 8 characters.');
         return;
       }
-      const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
-      const copied = await copyText(String(temporaryPassword).trim());
-      alert(`${result?.message || 'Temporary password saved.'}${result?.note ? ` ${result.note}` : ''}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
+      try {
+        const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
+        const copied = await copyText(String(temporaryPassword).trim());
+        alert(`${result?.message || 'Temporary password saved.'}${result?.note ? ` ${result.note}` : ''}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
+      } catch (err) {
+        alert(err.message);
+      }
       return;
     }
     if (role === 'softDeleteAccount') {
@@ -461,14 +465,18 @@ function renderUserRows() {
       return;
     }
     if (role === 'hardDeleteAccount') {
-      const selfRow = isSelfRow(user);
-      const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, listings, and RSVP responses.${selfRow ? ' You are deleting your own account.' : ''}`, '');
-      if (confirmWord !== 'DELETE') return;
-      const result = await callDeleteMarketplaceAccount(user);
-      alert(result?.message || 'Account permanently deleted.');
-      if (selfRow) {
-        await signOut(auth).catch(() => {});
-        window.location.href = 'index.html';
+      try {
+        const selfRow = isSelfRow(user);
+        const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, listings, and RSVP responses.${selfRow ? ' You are deleting your own account.' : ''}`, '');
+        if (confirmWord !== 'DELETE') return;
+        const result = await callDeleteMarketplaceAccount(user);
+        alert(result?.message || 'Account permanently deleted.');
+        if (selfRow) {
+          await signOut(auth).catch(() => {});
+          window.location.href = 'index.html';
+        }
+      } catch (err) {
+        alert(err.message);
       }
       return;
     }

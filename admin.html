@@ -5,15 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marketplace Admin</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <style>
-    body.admin-page::before{content:"";position:fixed;inset:0;background:rgba(4,10,18,.34);pointer-events:none;z-index:0}
-    body.admin-page .topbar, body.admin-page .admin-wrap{position:relative;z-index:1}
-    body.admin-page .panel{background:rgba(8,16,30,.68)}
-  </style>
-
 </head>
-<body class="admin-page">
+<body>
   <!-- WOW FACTOR BACKGROUND SLIDER -->
   <hero-slider aria-hidden="true" images='[
     "Images/background1.jpg", 
@@ -43,7 +36,7 @@
         <div class="meta">Mark sold removes items from normal employee view. Admin can mark items active again, feature posts, hide posts, or approve/deny reactivation requests.</div>
       </div>
       <div class="panel-b admin-grid">
-        <section class="panel" style="background:rgba(8,16,30,.68)">
+        <section class="panel" style="background:rgba(8,16,30,.52)">
           <div class="panel-h"><div class="panel-title">Listings</div></div>
           <div class="panel-b table-scroll">
             <table class="adminTable">
@@ -54,7 +47,7 @@
             </table>
           </div>
         </section>
-        <section class="panel" style="background:rgba(8,16,30,.68)">
+        <section class="panel" style="background:rgba(8,16,30,.52)">
           <div class="panel-h"><div><div class="panel-title">User Access</div><div class="meta">Search users, review full names, approve pending manual access, reset passwords, delete accounts, and clean up duplicate profile rows. Manual-only approval does not prove mailbox ownership, so unverified users are flagged as Not Proven.</div></div></div>
           <div class="panel-b">
             <div class="admin-tools">
@@ -86,7 +79,7 @@
           </div>
           </div>
         </section>
-        <section class="panel admin-rsvp-panel" style="background:rgba(8,16,30,.68)">
+        <section class="panel admin-rsvp-panel" style="background:rgba(8,16,30,.52)">
           <div class="panel-h">
             <div>
               <div class="panel-title">May Event RSVP</div>

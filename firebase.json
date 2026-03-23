@@ -1,6 +1,7 @@
 {
   "hosting": {
     "public": ".",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -11,14 +12,8 @@
       "*.md",
       "*.txt",
       "firestore.rules",
-      "storage.rules"
-    ],
-    "cleanUrls": true,
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
+      "storage.rules",
+      "*.san.js"
     ],
     "headers": [
       {
