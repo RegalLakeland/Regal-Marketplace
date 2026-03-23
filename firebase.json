@@ -1,19 +1,21 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "functions",
     "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "functions/**",
       "gopath/**",
       "*.zip",
       "*.md",
       "*.txt",
       "firestore.rules",
       "storage.rules",
-      "*.san.js"
+      "*.san.js",
+      "index.js",
+      "package.json",
+      "package-lock.json"
     ],
     "headers": [
       {
@@ -23,8 +25,3 @@
         ]
       }
     ]
-  },
-  "functions": {
-    "source": "functions"
-  }
-}
