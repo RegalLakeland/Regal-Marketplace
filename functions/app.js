@@ -459,6 +459,17 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
+
+  if (loggedIn) {
+    // FOOLPROOF BRUTE FORCE CLEAR OF GREY SCREENS ONCE FULLY LOGGED IN
+    document.body.classList.remove('modal-open');
+    document.body.classList.remove('auth-open');
+    document.querySelectorAll('.overlay').forEach(el => {
+      if (!['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesGateOverlay'].includes(el.id)) {
+        el.style.display = 'none';
+      }
+    });
+  }
 }
 
 function showRulesGate() {
@@ -748,7 +759,7 @@ async function touchPresence() {
 }
 
 function approvedProfiles() {
-  return profiles.filter((profile) => profile && profile.accessApproved !== false && profile.banned !== true);
+  return profiles.filter((profile) => profile && (profile.accessApproved || profile.manualVerified) && !profile.banned && !profile.deleted);
 }
 
 function onlineProfiles() {
@@ -759,6 +770,64 @@ function onlineProfiles() {
 function updateHeroPeopleStats() {
   if ($('heroRegisteredCount')) $('heroRegisteredCount').textContent = String(approvedProfiles().length);
   if ($('heroOnlineCount')) $('heroOnlineCount').textContent = String(onlineProfiles().length);
+
+  if (!document.getElementById('neon-styles')) {
+    const style = document.createElement('style');
+    style.id = 'neon-styles';
+    style.innerHTML = `
+      @keyframes pulse-green {
+        0% { box-shadow: 0 0 8px #10b981, inset 0 0 8px #10b981; }
+        50% { box-shadow: 0 0 16px #10b981, inset 0 0 16px #10b981; }
+        100% { box-shadow: 0 0 8px #10b981, inset 0 0 8px #10b981; }
+      }
+      .neon-name {
+        border: 2px solid #10b981; 
+        color: #10b981; 
+        padding: 0.4rem 1rem; 
+        border-radius: 9999px; 
+        font-weight: bold; 
+        display: inline-block; 
+        animation: pulse-green 2s infinite; 
+        text-shadow: 0 0 5px #10b981; 
+        background: rgba(16, 185, 129, 0.1); 
+        letter-spacing: 1px; 
+        text-transform: uppercase; 
+        font-size: 0.85rem;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const heroEl = document.querySelector('.hero') || document.querySelector('header') || document.body;
+  if (heroEl) {
+     let listWrap = $('heroOnlineUsersList');
+     if (!listWrap) {
+         listWrap = document.createElement('div');
+         listWrap.id = 'heroOnlineUsersList';
+         listWrap.style.marginTop = '2rem';
+         listWrap.style.display = 'flex';
+         listWrap.style.flexWrap = 'wrap';
+         listWrap.style.gap = '1rem';
+         listWrap.style.justifyContent = 'center';
+         
+         const onlineCountEl = $('heroOnlineCount');
+         if (onlineCountEl && onlineCountEl.closest('.stats-row')) {
+             const statsRow = onlineCountEl.closest('.stats-row');
+             statsRow.parentNode.insertBefore(listWrap, statsRow.nextSibling);
+         } else {
+             heroEl.appendChild(listWrap);
+         }
+     }
+     
+     const online = onlineProfiles();
+     if (online.length > 0) {
+       listWrap.innerHTML = online.map(p => 
+         `<span class="neon-name">${esc(p.displayName || p.email.split('@')[0])}</span>`
+       ).join('');
+     } else {
+       listWrap.innerHTML = '';
+     }
+  }
 }
 
 function featuredEventResponses() {
