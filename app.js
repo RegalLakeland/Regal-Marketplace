@@ -66,102 +66,25 @@ const WORK_EMAIL_DOMAIN = '@regallakeland.com';
 function normalizeMarketplaceEmail(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
-  const local = raw.split('@')[0].replace(/[^a-z0-9._-]/g, '');
-  return local ? `${local}${WORK_EMAIL_DOMAIN}` : '';
+  if (!raw.includes('@')) return `${raw}${WORK_EMAIL_DOMAIN}`;
+  const [local, domain] = raw.split('@');
+  if (!local) return '';
+  if (domain === 'regallakeland.com') return `${local}${WORK_EMAIL_DOMAIN}`;
+  return raw;
 }
 
-function setMarketplaceEmailField(input, localPart = '') {
-  if (!input) return;
-  input.value = `${String(localPart || '').toLowerCase()}${WORK_EMAIL_DOMAIN}`;
-  const caret = String(localPart || '').length;
-  try {
-    input.setSelectionRange(caret, caret);
-  } catch (_) {}
-}
-
-function getMarketplaceEmailLocalPart(value) {
-  return String(value || '').toLowerCase().split('@')[0].replace(/[^a-z0-9._-]/g, '');
-}
-
-function installMarketplaceEmailField(inputId, { seedDomain = false } = {}) {
-  const input = $(inputId);
-  if (!input) return;
-
-  if (seedDomain && !String(input.value || '').trim()) {
-    setMarketplaceEmailField(input, '');
-  }
-
-  input.addEventListener('focus', () => {
-    const local = getMarketplaceEmailLocalPart(input.value);
-    setMarketplaceEmailField(input, local);
-  });
-
-  input.addEventListener('click', () => {
-    const local = getMarketplaceEmailLocalPart(input.value);
-    const caret = Math.min(input.selectionStart ?? local.length, local.length);
-    try {
-      input.setSelectionRange(caret, caret);
-    } catch (_) {}
-  });
-
-  input.addEventListener('keydown', (e) => {
-    const local = getMarketplaceEmailLocalPart(input.value);
-    const domainStart = local.length;
-    const start = input.selectionStart ?? 0;
-    const end = input.selectionEnd ?? 0;
-
-    if (['ArrowRight', 'End'].includes(e.key) && start >= domainStart) {
-      e.preventDefault();
-      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
-      return;
-    }
-
-    if (e.key === 'Backspace' && start > domainStart) {
-      e.preventDefault();
-      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
-      return;
-    }
-
-    if (e.key === 'Delete' && start >= domainStart) {
-      e.preventDefault();
-      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
-      return;
-    }
-
-    if (start > domainStart || end > domainStart) {
-      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
-    }
-  });
-
-  input.addEventListener('input', () => {
-    const local = getMarketplaceEmailLocalPart(input.value);
-    setMarketplaceEmailField(input, local);
-  });
-
-  input.addEventListener('paste', (e) => {
-    e.preventDefault();
-    const pasted = (e.clipboardData || window.clipboardData)?.getData('text') || '';
-    setMarketplaceEmailField(input, getMarketplaceEmailLocalPart(pasted));
-  });
-
-  input.addEventListener('blur', () => {
-    const local = getMarketplaceEmailLocalPart(input.value);
-    input.value = local ? `${local}${WORK_EMAIL_DOMAIN}` : '';
-  });
-}
-
-function rememberMarketplaceLoginEmail(email) {
+function rememberLastMarketplaceLoginEmail(email) {
   try {
     localStorage.setItem('marketplace_last_login_email', normalizeMarketplaceEmail(email));
   } catch (_) {}
 }
 
-function restoreMarketplaceLoginEmail() {
-  const input = $('loginEmail');
-  if (!input) return;
+function applyRememberedMarketplaceLoginEmail() {
+  const loginInput = $('loginEmail');
+  if (!loginInput) return;
   try {
-    const email = localStorage.getItem('marketplace_last_login_email') || '';
-    if (email) input.value = email;
+    const saved = localStorage.getItem('marketplace_last_login_email') || '';
+    if (saved) loginInput.value = saved;
   } catch (_) {}
 }
 
@@ -277,9 +200,8 @@ window.addEventListener('error', (e) => {
 
 document.addEventListener('DOMContentLoaded', () => {
   removeLegacyForgotPasswordUI();
-  restoreMarketplaceLoginEmail();
+  applyRememberedMarketplaceLoginEmail();
   bindStaticEvents();
-  installMarketplaceEmailField('signupEmail', { seedDomain: true });
   renderBoards();
   renderListings();
 
@@ -631,7 +553,7 @@ async function handleLogin() {
   }
 
   try {
-    rememberMarketplaceLoginEmail(email);
+    rememberLastMarketplaceLoginEmail(email);
     const cred = await signInWithEmailAndPassword(auth, email, password);
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
@@ -879,40 +801,28 @@ async function handleSignup() {
       msg.style.display = 'block';
     }
 
-    rememberMarketplaceLoginEmail(email);
     if ($('loginEmail')) $('loginEmail').value = email;
+    rememberLastMarketplaceLoginEmail(email);
     if ($('loginPassword')) $('loginPassword').value = '';
-    if ($('signupFullName')) $('signupFullName').value = '';
-    if ($('signupName')) $('signupName').value = '';
-    if ($('signupEmail')) setMarketplaceEmailField($('signupEmail'), '');
-    if ($('signupPassword')) $('signupPassword').value = '';
-    if ($('signupConfirmPassword')) $('signupConfirmPassword').value = '';
-    if ($('signupPassword2')) $('signupPassword2').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-    if ($('verifyNote')) {
-      $('verifyNote').textContent = elevated
+    setTimeout(() => $('loginPassword')?.focus(), 30);
+
+    alert(
+      elevated
         ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.';
-      $('verifyNote').style.display = 'block';
-    }
-    setTimeout(() => {
-      if ($('loginEmail')) $('loginEmail').value = email;
-      $('loginPassword')?.focus();
-    }, 0);
+        : 'Account created. An admin must manually approve your account before you can sign in.'
+    );
   } catch (err) {
     console.error(err);
 
     if (err?.code === 'auth/email-already-in-use') {
-      rememberMarketplaceLoginEmail(email);
       if ($('loginEmail')) $('loginEmail').value = email;
+      rememberLastMarketplaceLoginEmail(email);
       showPane('login');
-      if ($('verifyNote')) {
-        $('verifyNote').textContent = 'That email is already registered. Enter the password to sign in.';
-        $('verifyNote').style.display = 'block';
-      }
-      setTimeout(() => $('loginPassword')?.focus(), 0);
+      setTimeout(() => $('loginPassword')?.focus(), 30);
+      alert('That email is already registered.');
       return;
     }
 

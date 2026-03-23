@@ -330,8 +330,12 @@ function buildUserActionButtons(user, dup, protectedUser) {
 
   if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
   if (isCoreAdminViewer() && (!protectedUser || selfRow)) {
-    if (!user.deleted) buttons.push(`<button class="btn danger" data-role="softDeleteAccount" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
-    buttons.push(`<button class="btn danger" data-role="hardDeleteAccount" data-id="${esc(user.id)}" style="background:transparent; border-color:#ef4444; color:#ef4444;" type="button">Perm Delete</button>`);
+    if (!user.deleted) {
+      buttons.push(`<button class="btn danger" data-role="softDeleteAccount" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
+    }
+    if (user.deleted && userFilterValue === 'DELETED') {
+      buttons.push(`<button class="btn danger" data-role="hardDeleteAccount" data-id="${esc(user.id)}" style="background:transparent; border-color:#ef4444; color:#ef4444;" type="button">Perm Delete</button>`);
+    }
   }
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
@@ -459,6 +463,14 @@ function renderUserRows() {
       return;
     }
     if (role === 'hardDeleteAccount') {
+      if (!isCoreAdminViewer()) {
+        alert('Permanent delete is restricted to protected core admins only.');
+        return;
+      }
+      if (!user.deleted || userFilterValue !== 'DELETED') {
+        alert('Permanent delete is only available from the Deleted Accounts view.');
+        return;
+      }
       const selfRow = isSelfRow(user);
       const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, listings, and RSVP responses.${selfRow ? ' You are deleting your own account.' : ''}`, '');
       if (confirmWord !== 'DELETE') return;
