@@ -1,7 +1,7 @@
 import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import { getFirestore, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { getFirestore, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -12,7 +12,6 @@ const CORE_ADMIN_EMAILS = [
   'michael.h@regallakeland.com',
   'janni.r@regallakeland.com'
 ];
-const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const autoGrantSyncIds = new Set();
 
 function verificationFunctionUrl() {
@@ -21,10 +20,6 @@ function verificationFunctionUrl() {
 
 function deleteAccountFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/deleteMarketplaceAccount`;
-}
-
-function tempPasswordFunctionUrl() {
-  return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/setMarketplaceTemporaryPassword`;
 }
 
 async function callAdminVerificationResend(email) {
@@ -44,35 +39,16 @@ async function callAdminVerificationResend(email) {
 }
 
 async function callDeleteMarketplaceAccount(targetUser) {
-  if (!currentViewer) throw new Error('You must be signed in.');
-  const token = await currentViewer.getIdToken(true);
-  const res = await fetch(deleteAccountFunctionUrl(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ uid: targetUser.id, email: targetUser.email || '' })
+  const ref = doc(db, 'profiles', targetUser.id);
+  await updateDoc(ref, {
+    banned: true,
+    accessApproved: false,
+    accessManuallyDenied: true,
+    deletedAtMs: Date.now(),
+    deletedBy: normalizeEmail(currentViewer?.email),
+    updatedAt: Date.now()
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Account delete request failed (${res.status})`);
-  return data;
-}
-
-async function callSetMarketplaceTempPassword(targetUser, temporaryPassword) {
-  if (!currentViewer) throw new Error('You must be signed in.');
-  const token = await currentViewer.getIdToken(true);
-  const res = await fetch(tempPasswordFunctionUrl(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ uid: targetUser.id, email: targetUser.email || '', temporaryPassword })
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Temporary password request failed (${res.status})`);
-  return data;
+  return { message: 'Account removed from active marketplace view.' };
 }
 
 async function copyText(text) {
@@ -116,12 +92,6 @@ function shouldAutoGrantAccess(user) {
   return emailApproved && !user?.banned && !user?.accessApproved && !user?.accessManuallyDenied;
 }
 
-function generateTempPassword() {
-  const digits = String(Math.floor(1000 + Math.random() * 9000));
-  const tail = Math.random().toString(36).slice(-4);
-  return `Regal!${digits}${tail}`;
-}
-
 function accessStatusMeta(user) {
   if (user?.banned) return { label: 'Blocked', tone: 'bad' };
   if (user?.accessApproved) return { label: 'Granted', tone: 'ok' };
@@ -148,7 +118,6 @@ function flagSummary(user, dup) {
   if (dup?.isDuplicate) flags.push(`Duplicate x${dup.count}`);
   if (!user?.emailVerified) flags.push('Manual-only email');
   if (!user?.displayName && !user?.pendingName && !user?.requestedName) flags.push('Name missing');
-  if (user?.mustChangePassword) flags.push('Temp password active');
   return flags.length ? flags.join(' • ') : '—';
 }
 
@@ -185,7 +154,7 @@ onAuthStateChanged(auth, async (user) => {
     renderUserRows();
   });
   $('userFilter')?.addEventListener('change', (e) => {
-    userFilterValue = String(e.target.value || 'ALL');
+    userFilterValue = String(e.target.value || 'PENDING');
     renderUserRows();
   });
   startListings();
@@ -287,7 +256,7 @@ function duplicateMeta(rows) {
 }
 
 function userPending(user) {
-  if (user?.deleted) return false;
+  if (user?.deletedAtMs) return false;
   return !user.accessApproved || (!user.emailVerified && !user.manualVerified);
 }
 
@@ -300,25 +269,28 @@ function applyUserFilters(rows) {
       return hay.includes(userSearchTerm);
     });
   }
-  if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
-  if (userFilterValue === 'ONLINE') filtered = filtered.filter((u) => u.accessApproved && !u.banned && Number(u.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS));
-  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
-  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
-  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
-  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
-  if (userFilterValue === 'DELETED') filtered = filtered.filter((u) => !!u.deleted);
-  
-  if (userFilterValue === 'ONLINE') {
-    filtered.sort((a, b) => Number(b.lastSeenAtMs || 0) - Number(a.lastSeenAtMs || 0));
-  } else {
-    filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
-  }
+  if (userFilterValue === 'PENDING') filtered = filtered.filter((u) => !u.deletedAtMs && userPending(u));
+  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !u.deletedAtMs && (!!u.isAdmin || isProtectedCoreAdmin(u.email)));
+  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !u.deletedAtMs && !!u.isModerator);
+  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !u.deletedAtMs && !!u.banned);
+  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => !u.deletedAtMs && dmeta.get(u.id)?.isDuplicate);
+  if (userFilterValue === 'DELETED') filtered = filtered.filter((u) => !!u.deletedAtMs);
+  if (userFilterValue === 'ALL') filtered = filtered.filter((u) => !u.deletedAtMs);
+  filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
   return { filtered, dmeta };
 }
 
 function buildUserActionButtons(user, dup, protectedUser) {
   const buttons = [];
   const selfRow = isSelfRow(user);
+
+  if (user?.deletedAtMs) {
+    if (isCoreAdminViewer()) {
+      buttons.push(`<button class="btn primary" data-role="reactivateUser" data-id="${esc(user.id)}" type="button">Reactivate</button>`);
+      buttons.push(`<button class="btn danger" data-role="permanentDeleteUser" data-id="${esc(user.id)}" type="button">Permanent Delete</button>`);
+    }
+    return buttons.join('') || '<span class="pill">Deleted</span>';
+  }
 
   if (!user.isModerator) buttons.push(`<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>`);
   if (user.isModerator && !protectedUser) buttons.push(`<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>`);
@@ -328,16 +300,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
 
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
-
-  if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
-  if (isCoreAdminViewer() && (!protectedUser || selfRow)) {
-    if (!user.deleted) {
-      buttons.push(`<button class="btn danger" data-role="softDeleteAccount" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
-    }
-    if (user.deleted && userFilterValue === 'DELETED') {
-      buttons.push(`<button class="btn danger" data-role="hardDeleteAccount" data-id="${esc(user.id)}" style="background:transparent; border-color:#ef4444; color:#ef4444;" type="button">Perm Delete</button>`);
-    }
-  }
+  if (isCoreAdminViewer() && (!protectedUser || selfRow)) buttons.push(`<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">Delete Account</button>`);
 
   if (!user.banned && !protectedUser) buttons.push(`<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>`);
   if (user.banned && !protectedUser) buttons.push(`<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>`);
@@ -354,22 +317,8 @@ function buildUserActionButtons(user, dup, protectedUser) {
 function renderUserRows() {
   if (!$('userRows')) return;
   const { filtered, dmeta } = applyUserFilters(userRowsData);
-
-  const onlineUsers = userRowsData.filter((u) => u.accessApproved && !u.banned && Number(u.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS));
-  if ($('adminOnlineCount')) $('adminOnlineCount').textContent = `${onlineUsers.length} online`;
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
-  if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
-
-  if ($('adminOnlineNames')) {
-    if (onlineUsers.length > 0) {
-      $('adminOnlineNames').innerHTML = onlineUsers.map((u) => {
-        const name = esc(u.displayName || u.pendingName || u.requestedName || u.email);
-        return `<span class="pill" style="border-color:#22c55e; background:rgba(34,197,94,0.1); color:#bbf7d0; font-weight:800;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:8px; box-shadow:0 0 8px #22c55e;"></span>${name}</span>`;
-      }).join('');
-    } else {
-      $('adminOnlineNames').innerHTML = '<span class="note" style="margin-left: 4px;">No users currently online.</span>';
-    }
-  }
+  if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter((u) => !u.deletedAtMs && userPending(u)).length} pending`;
 
   $('userRows').innerHTML = filtered.map((user) => {
     const protectedUser = isProtectedCoreAdmin(user.email);
@@ -378,8 +327,6 @@ function renderUserRows() {
     const accessState = accessStatusMeta(user);
     const actions = buildUserActionButtons(user, dup, protectedUser);
     const shownName = user.displayName || user.pendingName || user.requestedName || '—';
-    const isOnline = user.accessApproved && !user.banned && Number(user.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS);
-    const onlineDot = isOnline ? `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-left:8px; box-shadow:0 0 6px #22c55e;" title="Online Now"></span>` : '';
 
     return `
       <tr>
@@ -388,8 +335,7 @@ function renderUserRows() {
           <div class="note user-id">UID: ${esc(user.uid || user.id)}</div>
         </td>
         <td>
-          <div class="user-main" style="display:flex; align-items:center;">${esc(shownName)}${onlineDot}</div>
-          <div class="note">Last seen: ${user.lastSeenAtMs ? esc(fmtDate(user.lastSeenAtMs)) : 'Never'}</div>
+          <div class="user-main">${esc(shownName)}</div>
           <div class="note">Created / updated: ${esc(fmtDate(user.createdAtMs || user.emailVerifiedAt || Date.now()))}</div>
         </td>
         <td>
@@ -398,7 +344,7 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Password</span><span class="user-status-meta">${esc(user.mustChangePassword ? 'Temporary password active' : 'Normal sign-in')}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${user.termsAccepted ? `Agreed ${esc(fmtDate(user.termsAcceptedAt || Date.now()))}` : 'Not yet agreed'}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
           </div>
         </td>
@@ -414,7 +360,7 @@ function renderUserRows() {
 
     const role = btn.dataset.role;
     const protectedUser = isProtectedCoreAdmin(user.email);
-    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate', 'softDeleteAccount', 'hardDeleteAccount'].includes(role)) {
+    if (protectedUser && ['removeMod', 'removeAdmin', 'banUser', 'denyAccess', 'deleteDuplicate', 'deleteAccount'].includes(role) && !isSelfRow(user)) {
       alert('This core admin account cannot be modified.');
       return;
     }
@@ -433,54 +379,36 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
-    if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, updatedAt: Date.now() });
-    if (role === 'setTempPassword') {
-      const suggested = generateTempPassword();
-      const temporaryPassword = window.prompt(`Set a temporary password for ${user.email}. Share it with the user and they will be forced to change it after login.`, suggested);
-      if (temporaryPassword === null) return;
-      if (String(temporaryPassword).trim().length < 8) {
-        alert('Temporary password must be at least 8 characters.');
-        return;
-      }
-      const result = await callSetMarketplaceTempPassword(user, String(temporaryPassword).trim());
-      const copied = await copyText(String(temporaryPassword).trim());
-      alert(`${result?.message || 'Temporary password saved.'}${result?.note ? ` ${result.note}` : ''}${copied ? ' The password was also copied to your clipboard.' : ''}${user.accessApproved ? '' : ' This account still needs manual approval before the user can log in.'}`);
-      return;
-    }
-    if (role === 'softDeleteAccount') {
-      const selfRow = isSelfRow(user);
-      if (!confirm(`Are you sure you want to delete ${user.email || 'this account'}? They will be moved to the Deleted Accounts list.`)) return;
+    if (role === 'deleteAccount') {
+      const confirmWord = window.prompt(`Type DELETE to move ${user.email || 'this account'} into Deleted.`, '');
+      if (confirmWord !== 'DELETE') return;
       await updateDoc(ref, {
-        deleted: true,
-        accessApproved: false,
         banned: true,
+        accessApproved: false,
+        accessManuallyDenied: true,
+        deletedAtMs: Date.now(),
+        deletedBy: normalizeEmail(currentViewer?.email),
         updatedAt: Date.now()
       });
-      alert('Account moved to Deleted Accounts.');
-      if (selfRow) {
+      if (isSelfRow(user)) {
         await signOut(auth).catch(() => {});
         window.location.href = 'index.html';
       }
       return;
     }
-    if (role === 'hardDeleteAccount') {
-      if (!isCoreAdminViewer()) {
-        alert('Permanent delete is restricted to Michael and Janni only.');
-        return;
-      }
-      if (!user.deleted || userFilterValue !== 'DELETED') {
-        alert('Permanent delete is only available from the Deleted Accounts filter.');
-        return;
-      }
-      const selfRow = isSelfRow(user);
-      const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, listings, and RSVP responses.${selfRow ? ' You are deleting your own account.' : ''}`, '');
+    if (role === 'reactivateUser') {
+      await updateDoc(ref, { banned: false, accessApproved: true, accessManuallyDenied: false, deletedAtMs: null, deletedBy: null, updatedAt: Date.now() });
+      alert('User reactivated.');
+      return;
+    }
+    if (role === 'permanentDeleteUser') {
+      const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this deleted account'}. This cannot be undone.`, '');
       if (confirmWord !== 'DELETE') return;
-      const result = await callDeleteMarketplaceAccount(user);
-      alert(result?.message || 'Account permanently deleted.');
-      if (selfRow) {
-        await signOut(auth).catch(() => {});
-        window.location.href = 'index.html';
-      }
+      const rsvpSnap = await getDocs(query(collection(db, 'eventResponses'), where('uid', '==', user.id)));
+      for (const d of rsvpSnap.docs) await deleteDoc(d.ref);
+      const listingsSnap = await getDocs(query(collection(db, 'listings'), where('uid', '==', user.id)));
+      for (const d of listingsSnap.docs) await deleteDoc(d.ref);
+      await deleteDoc(ref);
       return;
     }
     if (role === 'deleteDuplicate') {
@@ -613,92 +541,3 @@ async function saveAdminEdit() {
   });
   closeEditModal();
 }
-
-// --- CUSTOM WOW-FACTOR HERO SLIDER COMPONENT ---
-class HeroSlider extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    this.images = JSON.parse(this.getAttribute('images') || '[]');
-    this.currentIndex = 0;
-  }
-
-  connectedCallback() {
-    this.render();
-    this.startSlider();
-  }
-
-  render() {
-    const style = `
-      :host {
-        display: block;
-        position: fixed; /* Ensures it acts as a site-wide background */
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: -100; /* Deep behind all content */
-        overflow: hidden;
-        background-color: #0f172a; /* Deep premium backdrop */
-      }
-      
-      .slide {
-        position: absolute;
-        inset: -5%; /* Slightly oversized to allow for safe zooming without exposing edges */
-        background-size: cover;
-        background-position: center;
-        opacity: 0;
-        transition: opacity 2.5s ease-in-out, transform 12s linear;
-        transform: scale(1);
-        z-index: 1;
-        will-change: transform, opacity;
-      }
-      
-      .slide.active {
-        opacity: 1;
-        transform: scale(1.05); /* Smooth Ken Burns zoom effect */
-        z-index: 2;
-      }
-      
-      .noise-overlay {
-        position: absolute;
-        inset: 0;
-        z-index: 3;
-        pointer-events: none;
-      }
-      
-      .gradient-overlay {
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, rgba(15,23,42,0.8) 0%, rgba(15,23,42,0.3) 50%, rgba(15,23,42,0.8) 100%);
-        z-index: 4;
-        pointer-events: none;
-      }
-    `;
-
-    const slidesHTML = this.images.map((img, index) => 
-      `<div class="slide ${index === 0 ? 'active' : ''}" style="background-image: url('${img}')"></div>`
-    ).join('');
-
-    this.shadowRoot.innerHTML = `
-      <style>${style}</style>
-      ${slidesHTML}
-      <div class="noise-overlay"></div>
-      <div class="gradient-overlay"></div>
-    `;
-  }
-
-  startSlider() {
-    if (this.images.length <= 1) return;
-    
-    setInterval(() => {
-      const slides = this.shadowRoot.querySelectorAll('.slide');
-      if (!slides.length) return;
-      
-      slides[this.currentIndex].classList.remove('active');
-      this.currentIndex = (this.currentIndex + 1) % this.images.length;
-      slides[this.currentIndex].classList.add('active');
-    }, 6000); 
-  }
-}
-
-customElements.define('hero-slider', HeroSlider);
