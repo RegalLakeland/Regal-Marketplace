@@ -5,55 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Lakeland Private Marketplace</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <style>
-    .site-bg{
-      position:fixed;
-      inset:0;
-      z-index:0;
-      overflow:hidden;
-      pointer-events:none;
-      background:#07111d;
-    }
-    .site-bg-slide{
-      position:absolute;
-      inset:0;
-      background-position:center;
-      background-size:cover;
-      background-repeat:no-repeat;
-      opacity:0;
-      transform:scale(1.04);
-      transition:opacity 1.2s ease, transform 8s linear;
-      will-change:opacity,transform;
-    }
-    .site-bg-slide.is-active{
-      opacity:1;
-      transform:scale(1);
-    }
-    .site-bg-shade{
-      position:absolute;
-      inset:0;
-      background:
-        linear-gradient(180deg, rgba(6,12,22,.38), rgba(6,12,22,.56) 45%, rgba(6,12,22,.74) 100%);
-    }
-    .topbar,.pageShell{
-      position:relative;
-      z-index:1;
-    }
-  </style>
-
 </head>
-
 <body class="auth-open">
-  <div class="site-bg" aria-hidden="true">
-    <div class="site-bg-slide is-active" style="background-image:url('Images/background1.jpg')"></div>
-    <div class="site-bg-slide" style="background-image:url('Images/background2.jpg')"></div>
-    <div class="site-bg-slide" style="background-image:url('Images/background3.jpg')"></div>
-    <div class="site-bg-slide" style="background-image:url('Images/background4.jpg')"></div>
-    <div class="site-bg-shade"></div>
-  </div>
+  <!-- WOW FACTOR BACKGROUND SLIDER -->
+  <hero-slider aria-hidden="true" images='[
+    "Images/background1.jpg", 
+    "Images/background2.jpg", 
+    "Images/background3.jpg", 
+    "Images/background4.jpg"
+  ]'></hero-slider>
 
-<div class="overlay login-overlay" id="loginOverlay">
+  <div class="overlay login-overlay" id="loginOverlay">
     <div class="login-shell">
       <section class="login-promo" aria-hidden="true">
         <div class="login-hero-image"></div>
@@ -376,20 +338,6 @@
       </div>
     </div>
   </div>
-
-  
-  <script>
-    (function () {
-      const slides = Array.from(document.querySelectorAll('.site-bg-slide'));
-      if (!slides.length) return;
-      let index = 0;
-      setInterval(() => {
-        slides[index].classList.remove('is-active');
-        index = (index + 1) % slides.length;
-        slides[index].classList.add('is-active');
-      }, 8000);
-    })();
-  </script>
 
   <script type="module" src="app.js?v=2"></script>
 </body>
