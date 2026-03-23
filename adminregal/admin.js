@@ -144,6 +144,7 @@ function renderUsers() {
           <th>Name</th>
           <th>Email</th>
           <th>Admin</th>
+          <th>Rules Accepted</th>
           <th>Banned</th>
           <th>Updated</th>
           <th>Action</th>
@@ -155,11 +156,13 @@ function renderUsers() {
             <td>${esc(u.displayName || u.name || "-")}</td>
             <td>${esc(u.email || "-")}</td>
             <td>${u.isAdmin ? "Yes" : "No"}</td>
+            <td>${u.agreedToTerms ? `Yes (${esc(prettyTime(u.agreedToTermsAt))})` : "No"}</td>
             <td>${u.banned ? "Yes" : "No"}</td>
             <td>${esc(prettyTime(u.updatedAtMs || u.lastSeenAtMs))}</td>
             <td>
               <button class="btn ${u.banned ? "" : "danger"}" data-action="toggleBan">${u.banned ? "Unban" : "Ban"}</button>
               <button class="btn danger" data-action="softDeleteUser">Soft Delete</button>
+              ${u.agreedToTerms ? `<button class="btn ghost" data-action="forceRules">Force Rules</button>` : ""}
             </td>
           </tr>
         `).join("")}
@@ -262,6 +265,11 @@ document.body.addEventListener("click", async (e) => {
   if (action === "softDeleteUser") {
     if (!confirm("Soft delete this user? They will be moved to the Deleted Users list.")) return;
     await updateDoc(doc(db, "profiles", id), { deleted: true, deletedAt: Date.now() });
+  }
+  
+  if (action === "forceRules") {
+    if (!confirm("Force this user to re-read and agree to the rules on next login?")) return;
+    await updateDoc(doc(db, "profiles", id), { agreedToTerms: false });
   }
 
   if (action === "restoreUser") {
