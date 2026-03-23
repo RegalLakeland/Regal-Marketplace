@@ -686,6 +686,41 @@ async function handleForcePasswordChange() {
   }
 }
 
+async function finalizePendingSignupProfile(user, fullName, email) {
+  const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
+
+  await setDoc(doc(db, 'profiles', user.uid), {
+    uid: user.uid,
+    email,
+    displayName: fullName,
+    pendingName: fullName,
+    requestedName: fullName,
+    isAdmin: isAdmin(email),
+    isModerator: false,
+    banned: false,
+    manualVerified: elevated,
+    emailVerified: !!user.emailVerified,
+    accessApproved: elevated,
+    accessManuallyDenied: false,
+    tempPasswordActive: false,
+    mustChangePassword: false,
+    createdAt: serverTimestamp(),
+    createdAtMs: Date.now(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  await signOut(auth).catch(() => {});
+  currentUser = null;
+  currentProfile = null;
+  updateAuthUI();
+
+  if ($('loginEmail')) $('loginEmail').value = email;
+  if ($('loginPassword')) $('loginPassword').value = '';
+  if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+
+  return elevated;
+}
+
 async function handleSignup() {
   const fullName =
     $('signupFullName')?.value.trim() ||
@@ -739,32 +774,7 @@ async function handleSignup() {
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
-
-    await setDoc(doc(db, 'profiles', cred.user.uid), {
-      uid: cred.user.uid,
-      email,
-      displayName: fullName,
-      pendingName: fullName,
-      requestedName: fullName,
-      isAdmin: isAdmin(email),
-      isModerator: false,
-      banned: false,
-      manualVerified: elevated,
-      emailVerified: !!cred.user.emailVerified,
-      accessApproved: elevated,
-      accessManuallyDenied: false,
-      tempPasswordActive: false,
-      mustChangePassword: false,
-      createdAt: serverTimestamp(),
-      createdAtMs: Date.now(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    await signOut(auth).catch(() => {});
-    currentUser = null;
-    currentProfile = null;
-    updateAuthUI();
+    const elevated = await finalizePendingSignupProfile(cred.user, fullName, email);
 
     if (msg) {
       msg.textContent = elevated
@@ -773,23 +783,35 @@ async function handleSignup() {
       msg.style.display = 'block';
     }
 
-    if ($('loginEmail')) $('loginEmail').value = email;
-    if ($('loginPassword')) $('loginPassword').value = '';
-    if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
     showPane('login');
-
-    alert(
-      elevated
-        ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.'
-    );
+    alert(elevated
+      ? 'Account created. You can sign in now.'
+      : 'Account created. An admin must manually approve your account before you can sign in.');
   } catch (err) {
     console.error(err);
 
     if (err?.code === 'auth/email-already-in-use') {
-      alert('That email is already registered.');
-      return;
+      try {
+        const existingCred = await signInWithEmailAndPassword(auth, email, password);
+        const elevated = await finalizePendingSignupProfile(existingCred.user, fullName, email);
+
+        if (msg) {
+          msg.textContent = elevated
+            ? 'This account already existed and has been repaired. You can sign in now.'
+            : 'This account already existed and has been repaired. It is now waiting for admin approval.';
+          msg.style.display = 'block';
+        }
+
+        showPane('login');
+        alert(elevated
+          ? 'This account already existed and has been repaired. You can sign in now.'
+          : 'This account already existed and has been repaired. It is now waiting for admin approval.');
+        return;
+      } catch (repairErr) {
+        console.error(repairErr);
+        alert('That email already exists. If the first signup attempt looked successful but did not show in Pending Approval, use the same password and this repair pass should recreate the missing profile. If that still fails, an admin needs to delete the orphaned auth user before trying again.');
+        return;
+      }
     }
 
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
