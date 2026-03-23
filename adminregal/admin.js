@@ -136,7 +136,29 @@ function renderUsers() {
 
   if ($("userCountLine")) $("userCountLine").textContent = `${users.length} active users`;
 
+  let statsHTML = `
+    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; background: #f8fafc; padding: 1.25rem; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+      <div style="flex: 1; text-align: center;">
+        <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Active Users</span><br/>
+        <strong style="font-size: 1.5rem; color: #0f172a;">${users.filter(u => u.accessApproved).length}</strong>
+      </div>
+      <div style="flex: 1; text-align: center;">
+        <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Pending Approvals</span><br/>
+        <strong style="font-size: 1.5rem; color: #eab308;">${users.filter(u => !u.accessApproved).length}</strong>
+      </div>
+      <div style="flex: 1; text-align: center;">
+        <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Banned</span><br/>
+        <strong style="font-size: 1.5rem; color: #ef4444;">${users.filter(u => u.banned).length}</strong>
+      </div>
+      <div style="flex: 1; text-align: center;">
+        <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Deleted</span><br/>
+        <strong style="font-size: 1.5rem; color: #3b82f6;">${deletedUsers.length}</strong>
+      </div>
+    </div>
+  `;
+
   wrap.innerHTML = `
+    ${statsHTML}
     <h3>Active Users</h3>
     <table class="adminTable">
       <thead>
@@ -144,7 +166,7 @@ function renderUsers() {
           <th>Name</th>
           <th>Email</th>
           <th>Admin</th>
-          <th>Rules Accepted</th>
+          <th>Rules Accepted & Signature</th>
           <th>Banned</th>
           <th>Updated</th>
           <th>Action</th>
@@ -156,10 +178,11 @@ function renderUsers() {
             <td>${esc(u.displayName || u.name || "-")}</td>
             <td>${esc(u.email || "-")}</td>
             <td>${u.isAdmin ? "Yes" : "No"}</td>
-            <td>${u.agreedToTerms ? `Yes (${esc(prettyTime(u.agreedToTermsAt))})` : "No"}</td>
+            <td>${u.agreedToTerms ? `<span style="color: #10b981; font-weight: bold;">Yes</span><br/><small style="color:#64748b;">Signed: ${esc(u.agreedToTermsSignature || "N/A")}</small><br/><small style="color:#64748b;">${esc(prettyTime(u.agreedToTermsAt))}</small>` : "<span style='color: #ef4444;'>No</span>"}</td>
             <td>${u.banned ? "Yes" : "No"}</td>
             <td>${esc(prettyTime(u.updatedAtMs || u.lastSeenAtMs))}</td>
             <td>
+              <button class="btn ${u.accessApproved ? "ghost" : "primary"}" data-action="toggleApproval" style="margin-bottom: 0.25rem;">${u.accessApproved ? "Revoke Access" : "Approve User"}</button>
               <button class="btn ${u.banned ? "" : "danger"}" data-action="toggleBan">${u.banned ? "Unban" : "Ban"}</button>
               <button class="btn danger" data-action="softDeleteUser">Soft Delete</button>
               ${u.agreedToTerms ? `<button class="btn ghost" data-action="forceRules">Force Rules</button>` : ""}
@@ -252,6 +275,14 @@ document.body.addEventListener("click", async (e) => {
 
   if (action === "markSold") {
     await updateDoc(doc(db, "listings", id), { status: "SOLD" });
+  }
+
+  if (action === "toggleApproval") {
+    const ref = doc(db, "profiles", id);
+    const snap = await getDoc(ref);
+    const existing = snap.exists() ? snap.data() : {};
+    const nextState = !existing.accessApproved;
+    await setDoc(ref, { accessApproved: nextState }, { merge: true });
   }
 
   if (action === "toggleBan") {
