@@ -125,9 +125,43 @@ function renderUsers() {
   }
   if (!wrap) return;
 
+  // INJECT STATUS FILTER
+  let filterSelect = $("userStatusFilter");
+  if (!filterSelect && wrap) {
+    const searchBox = $("uq");
+    if (searchBox && searchBox.parentNode) {
+      filterSelect = document.createElement("select");
+      filterSelect.id = "userStatusFilter";
+      filterSelect.className = "input";
+      filterSelect.style.marginLeft = "1rem";
+      filterSelect.style.padding = "0.5rem 1rem";
+      filterSelect.style.borderRadius = "6px";
+      filterSelect.style.border = "1px solid #cbd5e1";
+      filterSelect.style.fontWeight = "bold";
+      filterSelect.innerHTML = `
+        <option value="ALL">All Active Users</option>
+        <option value="PENDING">Pending Approvals</option>
+        <option value="APPROVED">Approved Users</option>
+        <option value="BANNED">Banned Users</option>
+      `;
+      filterSelect.addEventListener("change", renderUsers);
+      searchBox.parentNode.insertBefore(filterSelect, searchBox.nextSibling);
+    }
+  }
+
   const qText = ($("uq")?.value || "").trim().toLowerCase();
+  const filterVal = filterSelect ? filterSelect.value : "ALL";
+
   let users = allUsers.slice().filter(u => !u.deleted);
   let deletedUsers = allUsers.slice().filter(u => u.deleted);
+
+  if (filterVal === "PENDING") {
+    users = users.filter(u => !u.accessApproved && !u.manualVerified && !u.banned);
+  } else if (filterVal === "APPROVED") {
+    users = users.filter(u => (u.accessApproved || u.manualVerified) && !u.banned);
+  } else if (filterVal === "BANNED") {
+    users = users.filter(u => u.banned);
+  }
 
   if (qText) {
     users = users.filter(u => `${u.displayName || ""} ${u.name || ""} ${u.email || ""}`.toLowerCase().includes(qText));
@@ -140,15 +174,15 @@ function renderUsers() {
     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; background: #f8fafc; padding: 1.25rem; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
       <div style="flex: 1; text-align: center;">
         <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Active Users</span><br/>
-        <strong style="font-size: 1.5rem; color: #0f172a;">${users.filter(u => u.accessApproved || u.manualVerified).length}</strong>
+        <strong style="font-size: 1.5rem; color: #0f172a;">${allUsers.filter(u => (u.accessApproved || u.manualVerified) && !u.banned && !u.deleted).length}</strong>
       </div>
       <div style="flex: 1; text-align: center;">
         <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Pending Approvals</span><br/>
-        <strong style="font-size: 1.5rem; color: #eab308;">${users.filter(u => !u.accessApproved && !u.manualVerified).length}</strong>
+        <strong style="font-size: 1.5rem; color: #eab308;">${allUsers.filter(u => !u.accessApproved && !u.manualVerified && !u.banned && !u.deleted).length}</strong>
       </div>
       <div style="flex: 1; text-align: center;">
         <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Banned</span><br/>
-        <strong style="font-size: 1.5rem; color: #ef4444;">${users.filter(u => u.banned).length}</strong>
+        <strong style="font-size: 1.5rem; color: #ef4444;">${allUsers.filter(u => u.banned && !u.deleted).length}</strong>
       </div>
       <div style="flex: 1; text-align: center;">
         <span style="font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Deleted</span><br/>
@@ -335,5 +369,10 @@ onAuthStateChanged(auth, async (u) => {
 
   if ($("pillUser")) $("pillUser").textContent = user.email || "Admin";
   if ($("adminLoginOverlay")) $("adminLoginOverlay").style.display = "none";
+  
+  // FOOLPROOF BRUTE FORCE REMOVE ANY GREY BACKGROUNDS
+  document.body.classList.remove('modal-open');
+  document.body.classList.remove('auth-open');
+  
   startAdminListeners();
 });
