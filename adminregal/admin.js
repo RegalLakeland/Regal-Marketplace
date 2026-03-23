@@ -1,378 +1,300 @@
-import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import { getFirestore, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  updateDoc,
+  getDoc,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
+const esc = (s) => String(s ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-function fmtDate(ms){ try{ return new Date(Number(ms||Date.now())).toLocaleString(); } catch { return '—'; } }
-function normalizeEmail(email){ return String(email||'').trim().toLowerCase(); }
-function isAdmin(email){ return ADMIN_EMAILS.map(x=>x.toLowerCase()).includes(normalizeEmail(email)); }
-const PROTECTED_CORE_ADMINS = new Set([
-  'michael.h@regallakeland.com',
-  'janni.r@regallakeland.com'
-]);
+let user = null;
+let allPosts = [];
+let allUsers = [];
+let postsUnsub = null;
+let usersUnsub = null;
 
-
-function getClosedLabel(item) {
-  const board = String(item?.board || item?.category || '').toUpperCase();
-  if (board === 'EVENTS') return 'Ended';
-  if (board === 'SERVICES' || board === 'WORK') return 'Completed';
-  return 'Sold';
+function prettyTime(ts) {
+  try {
+    const d = ts?.toDate ? ts.toDate() : (typeof ts === "number" ? new Date(ts) : null);
+    if (!d) return "-";
+    return d.toLocaleString();
+  } catch {
+    return "-";
+  }
 }
 
-function getMarkClosedLabel(item) {
-  const board = String(item?.board || item?.category || '').toUpperCase();
-  if (board === 'EVENTS') return 'Mark Ended';
-  if (board === 'SERVICES' || board === 'WORK') return 'Mark Completed';
-  return 'Mark Sold';
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.includes(String(email || "").trim().toLowerCase());
 }
 
-function isProtectedCoreAdmin(email){ return PROTECTED_CORE_ADMINS.has(normalizeEmail(email)); }
-function isCoreAdminViewer(){ return isProtectedCoreAdmin(currentViewer?.email); }
+// Strictly Janni and Michael for permanent deletion privileges
+const CORE_ADMINS = [
+  "michael.h@regallakeland.com",
+  "janni.r@regallakeland.com"
+];
 
-let authResolved = false;
-let currentViewer = null;
-let currentViewerProfile = null;
-let listingRowsData = [];
-let userRowsData = [];
-let adminEditingId = null;
-let userSearchTerm = '';
-let userFilterValue = 'ALL';
-onAuthStateChanged(auth, async (user) => {
-  authResolved = true;
-  currentViewer = user || null;
-  if (!user) {
-    alert('Please log in first.');
-    location.href = 'index.html';
-    return;
+function isCoreAdmin(email) {
+  return CORE_ADMINS.includes(String(email || "").trim().toLowerCase());
+}
+
+function cleanupAdminListeners() {
+  if (postsUnsub) { postsUnsub(); postsUnsub = null; }
+  if (usersUnsub) { usersUnsub(); usersUnsub = null; }
+}
+
+function renderPosts() {
+  const wrap = $("tableWrap");
+  if (!wrap) return;
+
+  const qText = ($("q")?.value || "").trim().toLowerCase();
+  const board = $("board")?.value || "ALL";
+  const status = $("statusFilter")?.value || "ALL";
+
+  let posts = allPosts.slice();
+  if (qText) {
+    posts = posts.filter(p => `${p.title || ""} ${p.authorEmail || p.userEmail || ""}`.toLowerCase().includes(qText));
+  }
+  if (board !== "ALL") {
+    posts = posts.filter(p => (p.board || p.category) === board);
+  }
+  if (status !== "ALL") {
+    posts = posts.filter(p => (p.status || "ACTIVE") === status);
   }
 
-  const profileSnap = await getDoc(doc(db, 'profiles', user.uid)).catch(() => null);
-  currentViewerProfile = profileSnap?.exists() ? { id: profileSnap.id, ...profileSnap.data() } : null;
-  const allowed = !!(isProtectedCoreAdmin(user.email) || currentViewerProfile?.isAdmin || isAdmin(user.email));
-  if (!allowed) {
-    alert('Admin access only.');
-    location.href = 'index.html';
-    return;
+  if ($("countLine")) $("countLine").textContent = `${posts.length} posts`;
+
+  wrap.innerHTML = `
+    <table class="adminTable">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Board</th>
+          <th>User</th>
+          <th>Status</th>
+          <th>Posted</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${posts.map(p => `
+          <tr data-id="${esc(p.id)}">
+            <td>${esc(p.title || "")}</td>
+            <td>${esc(p.board || p.category || "")}</td>
+            <td>${esc(p.authorEmail || p.userEmail || "")}</td>
+            <td>${esc(p.status || "ACTIVE")}</td>
+            <td>${esc(prettyTime(p.createdAtMs))}</td>
+            <td>
+              <div class="rowBtns">
+                ${(p.status || "ACTIVE") !== "SOLD" ? `<button class="btn" data-action="markSold">Mark Sold</button>` : ""}
+                <button class="btn danger" data-action="deletePost">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderUsers() {
+  const wrap = $("usersWrap");
+  let deletedWrap = $("deletedUsersWrap");
+  if (!deletedWrap && wrap) {
+    deletedWrap = document.createElement("div");
+    deletedWrap.id = "deletedUsersWrap";
+    wrap.parentNode.insertBefore(deletedWrap, wrap.nextSibling);
   }
-  if ($('adminUser')) $('adminUser').textContent = user.email;
-  $('userSearch')?.addEventListener('input', (e) => { userSearchTerm = String(e.target.value || '').trim().toLowerCase(); renderUserRows(); });
-  $('userFilter')?.addEventListener('change', (e) => { userFilterValue = String(e.target.value || 'ALL'); renderUserRows(); });
-  startListings();
-  startUsers();
+  if (!wrap) return;
+
+  const qText = ($("uq")?.value || "").trim().toLowerCase();
+  let users = allUsers.slice().filter(u => !u.deleted);
+  let deletedUsers = allUsers.slice().filter(u => u.deleted);
+
+  if (qText) {
+    users = users.filter(u => `${u.displayName || ""} ${u.name || ""} ${u.email || ""}`.toLowerCase().includes(qText));
+    deletedUsers = deletedUsers.filter(u => `${u.displayName || ""} ${u.name || ""} ${u.email || ""}`.toLowerCase().includes(qText));
+  }
+
+  if ($("userCountLine")) $("userCountLine").textContent = `${users.length} active users`;
+
+  wrap.innerHTML = `
+    <h3>Active Users</h3>
+    <table class="adminTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Admin</th>
+          <th>Banned</th>
+          <th>Updated</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${users.map(u => `
+          <tr data-id="${esc(u.uid || u.id)}">
+            <td>${esc(u.displayName || u.name || "-")}</td>
+            <td>${esc(u.email || "-")}</td>
+            <td>${u.isAdmin ? "Yes" : "No"}</td>
+            <td>${u.banned ? "Yes" : "No"}</td>
+            <td>${esc(prettyTime(u.updatedAtMs || u.lastSeenAtMs))}</td>
+            <td>
+              <button class="btn ${u.banned ? "" : "danger"}" data-action="toggleBan">${u.banned ? "Unban" : "Ban"}</button>
+              <button class="btn danger" data-action="softDeleteUser">Soft Delete</button>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+
+  if (deletedWrap && deletedUsers.length > 0) {
+    deletedWrap.innerHTML = `
+      <h3 style="margin-top:2rem; color: #ef4444;">Deleted Users</h3>
+      <table class="adminTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Deleted At</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${deletedUsers.map(u => `
+            <tr data-id="${esc(u.uid || u.id)}">
+              <td>${esc(u.displayName || u.name || "-")}</td>
+              <td>${esc(u.email || "-")}</td>
+              <td>${esc(prettyTime(u.deletedAt))}</td>
+              <td>
+                <button class="btn" data-action="restoreUser">Restore</button>
+                ${isCoreAdmin(user?.email) ? `<button class="btn danger" data-action="permanentDeleteUser">Delete Permanently</button>` : ""}
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  } else if (deletedWrap) {
+    deletedWrap.innerHTML = "";
+  }
+}
+
+function startAdminListeners() {
+  cleanupAdminListeners();
+
+  postsUnsub = onSnapshot(query(collection(db, "listings"), orderBy("createdAtMs", "desc")), (snap) => {
+    allPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderPosts();
+  });
+
+  usersUnsub = onSnapshot(query(collection(db, "profiles"), orderBy("email", "asc")), (snap) => {
+    allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderUsers();
+  });
+}
+
+$("adminLoginButton")?.addEventListener("click", async () => {
+  const email = $("adminLoginEmail")?.value.trim();
+  const pass = $("adminLoginPassword")?.value.trim();
+  if (!email || !pass) return alert("Enter email and password.");
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (e) {
+    console.error(e);
+    alert("Admin login failed.");
+  }
 });
 
-function startListings(){
-  const qRef = query(collection(db, 'listings'), orderBy('createdAtMs', 'desc'));
-  onSnapshot(qRef, (snap) => {
-    const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    listingRowsData = rows;
-    if ($('adminListingCount')) $('adminListingCount').textContent = String(rows.length);
-    if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter(r => r.reactivationRequested).length);
-    if (!$('listingRows')) return;
-    $('listingRows').innerHTML = rows.map(item => {
-      const board = item.board || item.category || 'BUYSELL';
-      const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
-      const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
-      const hiddenPill = item.hidden ? `<div class="note">Hidden from marketplace view</div>` : '';
-      const featuredPill = item.featured ? `<div class="note">Featured on homepage</div>` : '';
-      return `
-        <tr>
-          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}${hiddenPill}${featuredPill}</td>
-          <td>${esc(boardLabels[board] || board)}</td>
-          <td>${esc(item.status === 'SOLD' ? getClosedLabel(item) : (item.status || 'ACTIVE'))}</td>
-          <td>${esc(poster)}</td>
-          <td>
-            <div class="rowBtns">
-              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : ''}
-              ${item.status === 'SOLD' ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Mark Active</button>` : ''}
-              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny Request</button>` : ''}
-              <button class="btn ghost" data-feature="${esc(item.id)}" data-on="${item.featured ? '1' : '0'}" type="button">${item.featured ? 'Unfeature' : 'Feature'}</button>
-              <button class="btn ghost" data-edit="${esc(item.id)}" type="button">Edit</button>
-              <button class="btn ghost" data-hide="${esc(item.id)}" data-on="${item.hidden ? '1' : '0'}" type="button">${item.hidden ? 'Unhide' : 'Hide'}</button>
-              <button class="btn danger" data-delete="${esc(item.id)}" type="button">Delete</button>
-            </div>
-          </td>
-        </tr>`;
-    }).join('');
+$("btnLogout")?.addEventListener("click", async () => {
+  await signOut(auth);
+});
 
-    document.querySelectorAll('[data-sold]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', reactivationRequested:false });
-    });
-    document.querySelectorAll('[data-approve]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.approve), {
-        status:'ACTIVE',
-        reactivationRequested:false,
-        reactivationRequestedAt:null,
-        reactivationDeniedAt:null
-      });
-    });
-    document.querySelectorAll('[data-deny]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.deny), {
-        reactivationRequested:false,
-        reactivationRequestedAt:null,
-        reactivationDeniedAt: Date.now()
-      });
-    });
-    document.querySelectorAll('[data-feature]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.feature), { featured: btn.dataset.on !== '1' });
-    });
-    document.querySelectorAll('[data-hide]').forEach(btn => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.hide), { hidden: btn.dataset.on !== '1' });
-    });
-    document.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => openEditModal(btn.dataset.edit));
-    document.querySelectorAll('[data-delete]').forEach(btn => btn.onclick = async () => {
-      if (!confirm('Delete this post permanently?')) return;
-      await deleteDoc(doc(db, 'listings', btn.dataset.delete));
-    });
-  });
-}
+$("q")?.addEventListener("input", renderPosts);
+$("board")?.addEventListener("input", renderPosts);
+$("statusFilter")?.addEventListener("input", renderPosts);
+$("uq")?.addEventListener("input", renderUsers);
 
+document.body.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const row = btn.closest("tr");
+  const id = row?.dataset.id;
+  if (!id) return;
 
-function duplicateMeta(rows) {
-  const groups = new Map();
-  for (const row of rows) {
-    const email = normalizeEmail(row.email);
-    if (!email) continue;
-    if (!groups.has(email)) groups.set(email, []);
-    groups.get(email).push(row);
+  if (action === "deletePost") {
+    if (!confirm("Delete this post?")) return;
+    await deleteDoc(doc(db, "listings", id));
   }
-  const meta = new Map();
-  for (const [email, items] of groups.entries()) {
-    items.sort((a, b) => {
-      const av = Number(a.createdAtMs || a.emailVerifiedAt || 0);
-      const bv = Number(b.createdAtMs || b.emailVerifiedAt || 0);
-      return av - bv;
-    });
-    const primaryId = items[0]?.id;
-    for (const item of items) {
-      meta.set(item.id, {
-        count: items.length,
-        isDuplicate: items.length > 1,
-        isPrimary: item.id === primaryId
-      });
-    }
+
+  if (action === "markSold") {
+    await updateDoc(doc(db, "listings", id), { status: "SOLD" });
   }
-  return meta;
-}
 
-function userPending(user) {
-  return !user.accessApproved || (!user.emailVerified && !user.manualVerified);
-}
-
-function applyUserFilters(rows) {
-  const dmeta = duplicateMeta(rows);
-  let filtered = rows.slice();
-  if (userSearchTerm) {
-    filtered = filtered.filter((user) => {
-      const hay = [user.email, user.displayName].join(' ').toLowerCase();
-      return hay.includes(userSearchTerm);
-    });
+  if (action === "toggleBan") {
+    const ref = doc(db, "profiles", id);
+    const snap = await getDoc(ref);
+    const existing = snap.exists() ? snap.data() : {};
+    const nextState = !existing.banned;
+    await setDoc(ref, { banned: nextState }, { merge: true });
   }
-  if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
-  if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
-  if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
-  if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
-  if (userFilterValue === 'DUPLICATES') filtered = filtered.filter((u) => dmeta.get(u.id)?.isDuplicate);
-  filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName).localeCompare(normalizeEmail(b.displayName)));
-  return { filtered, dmeta };
-}
 
-function renderUserRows() {
-  if (!$('userRows')) return;
-  const { filtered, dmeta } = applyUserFilters(userRowsData);
-  if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
-  if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
+  if (action === "softDeleteUser") {
+    if (!confirm("Soft delete this user? They will be moved to the Deleted Users list.")) return;
+    await updateDoc(doc(db, "profiles", id), { deleted: true, deletedAt: Date.now() });
+  }
 
-  $('userRows').innerHTML = filtered.map(user => {
-    const protectedUser = isProtectedCoreAdmin(user.email);
-    const dup = dmeta.get(user.id) || { isDuplicate:false, isPrimary:true, count:1 };
-    const roleBits = [];
-    if (protectedUser || user.isAdmin) roleBits.push('<span class="role-pill role-admin">Admin</span>');
-    if (user.isModerator) roleBits.push('<span class="role-pill role-mod">Moderator</span>');
-    if (user.accessApproved) roleBits.push('<span class="role-pill role-ok">Access Approved</span>');
-    else roleBits.push('<span class="role-pill role-pending">Pending Access</span>');
-    if (user.emailVerified || user.manualVerified) roleBits.push(`<span class="role-pill role-ok">${user.manualVerified && !user.emailVerified ? 'Manual Email Approved' : 'Email Verified'}</span>`);
-    else roleBits.push('<span class="role-pill role-pending">Email Pending</span>');
-    if (user.banned) roleBits.push('<span class="role-pill role-ban">Blocked</span>');
-    if (protectedUser) roleBits.push('<span class="role-pill">Protected</span>');
-    if (dup.isDuplicate) roleBits.push(`<span class="role-pill role-warn">Duplicate x${dup.count}</span>`);
+  if (action === "restoreUser") {
+    await updateDoc(doc(db, "profiles", id), { deleted: false });
+  }
 
-    return `
-      <tr>
-        <td>
-          <div class="user-main">${esc(user.email || '—')}</div>
-          <div class="note">UID: ${esc(user.uid || user.id)}</div>
-        </td>
-        <td>
-          <div class="user-main">${esc(user.displayName || '—')}</div>
-          <div class="note">${esc(fmtDate(user.createdAtMs || user.emailVerifiedAt || Date.now()))}</div>
-        </td>
-        <td><div class="role-pills">${roleBits.join(' ')}</div></td>
-        <td>
-          <div class="rowBtns compact-rowBtns">
-            ${!user.isModerator ? `<button class="btn ghost" data-role="grantMod" data-id="${esc(user.id)}" type="button">Grant Moderator</button>` : ''}
-            ${user.isModerator && !protectedUser ? `<button class="btn ghost" data-role="removeMod" data-id="${esc(user.id)}" type="button">Remove Moderator</button>` : ''}
-            ${!user.isAdmin ? `<button class="btn" data-role="grantAdmin" data-id="${esc(user.id)}" type="button">Grant Admin</button>` : ''}
-            ${user.isAdmin && !protectedUser ? `<button class="btn ghost" data-role="removeAdmin" data-id="${esc(user.id)}" type="button">Remove Admin</button>` : ''}
-            ${!user.accessApproved ? `<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve Access</button>` : ''}
-            ${user.accessApproved && !protectedUser ? `<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Deny Access</button>` : ''}
-            ${isCoreAdminViewer() && !user.emailVerified ? `<button class="btn ghost" data-role="resendVerify" data-id="${esc(user.id)}" type="button">Copy Email</button>` : ''}${isCoreAdminViewer() && !user.manualVerified && !user.emailVerified ? `<button class="btn ghost" data-role="approveEmail" data-id="${esc(user.id)}" type="button">Approve Email</button>` : ''}
-            ${isCoreAdminViewer() && user.manualVerified && !protectedUser ? `<button class="btn ghost" data-role="revokeEmail" data-id="${esc(user.id)}" type="button">Revoke Email</button>` : ''}
-            ${!user.banned && !protectedUser ? `<button class="btn danger" data-role="banUser" data-id="${esc(user.id)}" type="button">Block</button>` : ''}
-            ${user.banned && !protectedUser ? `<button class="btn ghost" data-role="unbanUser" data-id="${esc(user.id)}" type="button">Restore</button>` : ''}
-            ${dup.isDuplicate && !dup.isPrimary && !protectedUser ? `<button class="btn danger" data-role="deleteDuplicate" data-id="${esc(user.id)}" type="button">Delete Duplicate</button>` : ''}
-            ${isCoreAdminViewer() && (!protectedUser || normalizeEmail(user.email) === normalizeEmail(currentViewer?.email)) ? `<button class="btn danger" data-role="deleteAccount" data-id="${esc(user.id)}" type="button">Delete Account</button>` : ''}
-            ${protectedUser ? `<span class="pill">Locked</span>` : ''}
-          </div>
-        </td>
-      </tr>`;
-  }).join('');
-
-  document.querySelectorAll('[data-role]').forEach(btn => btn.onclick = async () => {
-    const user = userRowsData.find((x) => x.id === btn.dataset.id);
-    if (!user) return;
-    const role = btn.dataset.role;
-    if (isProtectedCoreAdmin(user.email) && ['removeMod','removeAdmin','banUser','revokeEmail','denyAccess','deleteDuplicate'].includes(role)) {
-      alert('This core admin account cannot be modified.');
+  if (action === "permanentDeleteUser") {
+    if (!isCoreAdmin(user?.email)) {
+      alert("Only Michael and Janni can perform a permanent delete.");
       return;
     }
-    const ref = doc(db, 'profiles', user.id);
-    if (role === 'grantMod') await updateDoc(ref, { isModerator: true, updatedAt: Date.now() });
-    if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
-    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, accessApproved: true, updatedAt: Date.now() });
-    if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
-    if (role === 'approveAccess') await updateDoc(ref, { accessApproved: true, updatedAt: Date.now() });
-    if (role === 'denyAccess') await updateDoc(ref, { accessApproved: false, updatedAt: Date.now() });
-    if (role === 'resendVerify') {
-      const copied = await copyText(user.email || '');
-      alert(copied ? `Email copied for ${user.email}.` : `User email: ${user.email}`);
-    }
-    if (role === 'approveEmail') await updateDoc(ref, { manualVerified: true, updatedAt: Date.now() });
-    if (role === 'revokeEmail') await updateDoc(ref, { manualVerified: false, updatedAt: Date.now() });
-    if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
-    if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
-    if (role === 'deleteDuplicate') {
-      if (!confirm(`Delete duplicate profile for ${user.email}? This only removes the extra profile row.`)) return;
-      await deleteDoc(ref);
-    }
-    if (role === 'deleteAccount') {
-      const selfEmail = normalizeEmail(currentViewer?.email);
-      const targetEmail = normalizeEmail(user.email);
-      const protectedTarget = isProtectedCoreAdmin(targetEmail);
-      if (!isCoreAdminViewer()) { alert('Only Michael and Janni can delete accounts.'); return; }
-      if (protectedTarget && selfEmail !== targetEmail) { alert('Protected core admins can only delete their own account.'); return; }
-      const confirmWord = prompt(`Type DELETE to remove ${user.email} from the marketplace.`);
-      if (confirmWord !== 'DELETE') return;
-      try {
-        const listingsSnap = await getDocs(query(collection(db, 'listings'), where('uid', '==', user.uid || user.id)));
-        for (const listingDoc of listingsSnap.docs) await deleteDoc(doc(db, 'listings', listingDoc.id));
-        const eventSnap = await getDocs(query(collection(db, 'eventResponses'), where('uid', '==', user.uid || user.id)));
-        for (const eventDoc of eventSnap.docs) await deleteDoc(doc(db, 'eventResponses', eventDoc.id));
-        const dupes = userRowsData.filter((row) => normalizeEmail(row.email) === targetEmail);
-        for (const row of dupes) { await deleteDoc(doc(db, 'profiles', row.id)).catch(() => {}); }
-        await updateDoc(ref, { banned: true, accessApproved: false, updatedAt: Date.now() }).catch(() => {});
-        alert('Marketplace account cleaned up. Note: Firebase Authentication user deletion still requires backend access.');
-      } catch (err) {
-        console.error(err);
-        alert(err?.message || 'Unable to delete this account.');
-      }
-    }
-  });
-}
+    if (!confirm("Permanently delete this user? This action removes their profile data and cannot be undone.")) return;
+    await deleteDoc(doc(db, "profiles", id));
+  }
+});
 
-function startUsers(){
-  onSnapshot(collection(db, 'profiles'), (snap) => {
-    const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    userRowsData = rows;
-    renderUserRows();
-  });
-}
+onAuthStateChanged(auth, async (u) => {
+  user = u || null;
 
+  if (!user) {
+    cleanupAdminListeners();
+    if ($("pillUser")) $("pillUser").textContent = "Not signed in";
+    if ($("adminLoginOverlay")) $("adminLoginOverlay").style.display = "flex";
+    return;
+  }
 
+  if (!isAdminEmail(user.email)) {
+    alert("You do not have admin permissions.");
+    await signOut(auth);
+    return;
+  }
 
-function ensureEditModal(){
-  if (document.getElementById('adminEditOverlay')) return;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = `
-  <div class="overlay" id="adminEditOverlay" style="display:none">
-    <div class="modal wide modal-scroll">
-      <div class="modal-h sticky-head">
-        <strong>Edit Post</strong>
-        <button class="btn ghost" id="adminEditClose" type="button">Close</button>
-      </div>
-      <div class="modal-b">
-        <div class="grid2">
-          <div class="field"><label>Board</label><select id="adminEditBoard"><option value="FREE">Free Items</option><option value="BUYSELL">Buy / Sell</option><option value="GARAGE">Garage Sales</option><option value="EVENTS">Events</option><option value="WORK">Work News</option><option value="SERVICES">Local Services</option></select></div>
-          <div class="field"><label>Status</label><select id="adminEditStatus"><option value="ACTIVE">Active</option><option value="SOLD">Closed</option></select></div>
-        </div>
-        <div class="field"><label>Title</label><input id="adminEditTitle" /></div>
-        <div class="grid2"><div class="field"><label>Price</label><input id="adminEditPrice" inputmode="decimal" /></div><div class="field"><label>Location</label><input id="adminEditLocation" /></div></div>
-        <div class="field"><label>Description</label><textarea id="adminEditDesc"></textarea></div>
-        <div class="field"><label>Contact</label><input id="adminEditContact" /></div>
-        <div class="grid2"><div class="field"><label><input id="adminEditFeatured" type="checkbox" /> Featured</label></div><div class="field"><label><input id="adminEditHidden" type="checkbox" /> Hidden</label></div></div>
-      </div>
-      <div class="modal-actions sticky-actions"><button class="btn primary" id="adminEditSave" type="button">Save Changes</button></div>
-    </div>
-  </div>`;
-  document.body.appendChild(wrap.firstElementChild);
-  document.getElementById('adminEditClose')?.addEventListener('click', closeEditModal);
-  document.getElementById('adminEditOverlay')?.addEventListener('click', (e) => { if (e.target.id === 'adminEditOverlay') closeEditModal(); });
-  document.getElementById('adminEditSave')?.addEventListener('click', saveAdminEdit);
-}
-
-function openEditModal(id){
-  ensureEditModal();
-  const item = listingRowsData.find((x) => x.id === id);
-  if (!item) return;
-  adminEditingId = id;
-  document.getElementById('adminEditBoard').value = item.board || item.category || 'BUYSELL';
-  document.getElementById('adminEditStatus').value = String(item.status || 'ACTIVE').toUpperCase();
-  document.getElementById('adminEditTitle').value = item.title || '';
-  document.getElementById('adminEditPrice').value = item.price ?? '';
-  document.getElementById('adminEditLocation').value = item.location || '';
-  document.getElementById('adminEditDesc').value = item.description || item.desc || '';
-  document.getElementById('adminEditContact').value = item.contact || '';
-  document.getElementById('adminEditFeatured').checked = !!item.featured;
-  document.getElementById('adminEditHidden').checked = !!item.hidden;
-  document.getElementById('adminEditOverlay').style.display = 'flex';
-}
-
-function closeEditModal(){
-  adminEditingId = null;
-  const overlay = document.getElementById('adminEditOverlay');
-  if (overlay) overlay.style.display = 'none';
-}
-
-async function saveAdminEdit(){
-  if (!adminEditingId) return;
-  const board = document.getElementById('adminEditBoard').value || 'BUYSELL';
-  const status = document.getElementById('adminEditStatus').value || 'ACTIVE';
-  const title = document.getElementById('adminEditTitle').value.trim();
-  const price = document.getElementById('adminEditPrice').value.trim();
-  const location = document.getElementById('adminEditLocation').value.trim();
-  const description = document.getElementById('adminEditDesc').value.trim();
-  const contact = document.getElementById('adminEditContact').value.trim();
-  const featured = document.getElementById('adminEditFeatured').checked;
-  const hidden = document.getElementById('adminEditHidden').checked;
-  if (!title || !description) { alert('Title and description are required.'); return; }
-  await updateDoc(doc(db, 'listings', adminEditingId), {
-    board, category: board, status, title, price: Number(price || 0), location, description, desc: description, contact, featured, hidden
-  });
-  closeEditModal();
-}
+  if ($("pillUser")) $("pillUser").textContent = user.email || "Admin";
+  if ($("adminLoginOverlay")) $("adminLoginOverlay").style.display = "none";
+  startAdminListeners();
+});
