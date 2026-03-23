@@ -471,9 +471,9 @@ function showRulesGate() {
     gate = document.createElement('div');
     gate.id = 'rulesGateOverlay';
     gate.className = 'overlay';
-    gate.style.zIndex = '9999';
+    gate.style.cssText = 'z-index: 99999; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.85); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);';
     gate.innerHTML = `
-      <div class="modal wide modal-scroll">
+      <div class="modal wide modal-scroll" style="background: #ffffff; width: 95%; max-width: 650px; max-height: 90vh; display: flex; flex-direction: column; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); overflow: hidden;">
         <div class="modal-h sticky-head">
           <strong style="font-size: 1.25rem; color: #1e293b;">Regal Lakeland Employee Marketplace - Code of Conduct & Rules</strong>
         </div>
