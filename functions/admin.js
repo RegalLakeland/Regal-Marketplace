@@ -372,7 +372,7 @@ function renderUserRows() {
     const dup = dmeta.get(user.id) || { isDuplicate:false, isPrimary:true, count:1 };
     const emailState = emailStatusMeta(user);
     const accessState = accessStatusMeta(user);
-    const rulesState = user.agreedToTerms ? { label: `Accepted ${fmtDate(user.agreedToTermsAt)}`, tone: 'ok' } : { label: 'Pending', tone: 'pending' };
+    const rulesState = user.agreedToTerms ? { label: `Accepted ${fmtDate(user.agreedToTermsAt)} (Signed: ${user.agreedToTermsSignature || 'Yes'})`, tone: 'ok' } : { label: 'Pending', tone: 'pending' };
     const actions = buildUserActionButtons(user, dup, protectedUser);
     const shownName = user.displayName || user.pendingName || user.requestedName || '—';
 

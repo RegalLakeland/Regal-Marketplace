@@ -470,44 +470,58 @@ function showRulesGate() {
     gate.innerHTML = `
       <div class="modal wide modal-scroll">
         <div class="modal-h sticky-head">
-          <strong>Employee Marketplace Rules & Terms</strong>
+          <strong style="font-size: 1.25rem; color: #1e293b;">Regal Lakeland Employee Marketplace - Code of Conduct & Rules</strong>
         </div>
-        <div class="modal-b" style="line-height: 1.6; font-size: 0.95rem;">
-          <p>Welcome to the Regal Lakeland Employee Marketplace. Before continuing to your account, please read and agree to our rules:</p>
-          <ol style="margin: 1rem 0; padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-            <li><strong>Respect & Courtesy:</strong> Respect all fellow employees and treat everyone with courtesy.</li>
-            <li><strong>Professionalism:</strong> Keep all marketplace listings, communications, and interactions professional.</li>
-            <li><strong>Legal Ownership:</strong> Items listed must be legally yours to sell. No stolen or illicit goods.</li>
-            <li><strong>Content Standards:</strong> No inappropriate, offensive, or discriminatory content is permitted.</li>
-            <li><strong>Intended Audience:</strong> The marketplace is solely for employee-to-employee transactions and approved local services.</li>
-            <li><strong>Company Time:</strong> Do not abuse company time for personal marketplace browsing or transactions.</li>
-            <li><strong>Dispute Resolution:</strong> Any disputes between users regarding a transaction should be handled privately and amicably.</li>
-            <li><strong>Management Rights:</strong> Management reserves the right to remove any post or revoke access at any time without warning.</li>
-            <li><strong>Accurate Information:</strong> Keep your contact information and item descriptions accurate and up to date.</li>
-            <li><strong>Company Policies:</strong> By using this platform, you agree to abide by all standard Regal Lakeland employee handbooks and policies.</li>
-          </ol>
-          <label style="display:flex; align-items:flex-start; gap:0.75rem; margin-top: 1.5rem; cursor:pointer; font-weight:600; padding: 1rem; background: #f8fafc; border-radius: 6px; border: 1px solid #cbd5e1;">
-            <input type="checkbox" id="rulesCheckbox" style="margin-top:0.25rem; transform: scale(1.3);" />
-            I have read, understood, and agree to follow these 10 rules.
-          </label>
-          <div id="rulesErrorMsg" style="color:#ef4444; font-size:0.85rem; margin-top:0.5rem; display:none; font-weight: 500;">You must check the box to agree to the rules before continuing.</div>
+        <div class="modal-b" style="line-height: 1.6; font-size: 0.95rem; color: #334155;">
+          <p style="margin-bottom: 1rem;">Welcome to the Regal Lakeland Employee Marketplace. To maintain a professional and respectful environment, all employees must carefully read and agree to the following terms before accessing the platform:</p>
+          <div style="background: #f1f5f9; padding: 1.25rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #cbd5e1;">
+            <ol style="margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+              <li><strong>Respect & Courtesy:</strong> Respect all fellow employees and treat everyone with courtesy. Bullying or harassment will result in immediate termination of access.</li>
+              <li><strong>Professionalism:</strong> Keep all marketplace listings, communications, and interactions highly professional.</li>
+              <li><strong>Legal Ownership:</strong> Items listed must be legally yours to sell. No stolen, illicit, or unauthorized goods.</li>
+              <li><strong>Content Standards:</strong> No inappropriate, offensive, discriminatory, or NSFW content is permitted.</li>
+              <li><strong>Intended Audience:</strong> The marketplace is strictly for employee-to-employee transactions and approved local services. Do not share external links.</li>
+              <li><strong>Company Time:</strong> Do not abuse company time for personal marketplace browsing or transactions. Conduct personal business during breaks.</li>
+              <li><strong>Dispute Resolution:</strong> Any disputes between users regarding a transaction should be handled privately and amicably outside of work hours.</li>
+              <li><strong>Management Rights:</strong> Management reserves the right to remove any post, edit content, or revoke access at any time without prior warning.</li>
+              <li><strong>Accurate Information:</strong> Keep your contact information and item descriptions accurate and up to date. Misrepresentation is prohibited.</li>
+              <li><strong>Company Policies:</strong> By using this platform, you agree to abide by all standard Regal Lakeland employee handbooks and workplace policies.</li>
+            </ol>
+          </div>
+          <div style="padding: 1.25rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <p style="margin-bottom: 0.75rem; font-weight: 600;">To proceed, please type your full legal name below as an electronic signature indicating your agreement to these rules.</p>
+            <input type="text" id="rulesSignature" placeholder="Type your full name here..." style="width: 100%; padding: 0.75rem; font-size: 1rem; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 0.5rem;" />
+            <div id="rulesErrorMsg" style="color:#ef4444; font-size:0.85rem; display:none; font-weight: 500;">You must type your full name to sign and agree to the rules.</div>
+          </div>
         </div>
-        <div class="modal-actions sticky-actions">
-          <button class="btn primary" id="btnAcceptRules" type="button">Accept & Continue</button>
+        <div class="modal-actions sticky-actions" style="background: #f8fafc; border-top: 1px solid #e2e8f0;">
+          <button class="btn primary" id="btnAcceptRules" type="button" style="padding: 0.75rem 1.5rem; font-size: 1rem;">Sign & Accept Rules</button>
         </div>
       </div>
     `;
     document.body.appendChild(gate);
 
     $('btnAcceptRules').addEventListener('click', async () => {
-      if (!$('rulesCheckbox').checked) {
+      const sig = $('rulesSignature').value.trim();
+      if (!sig || sig.length < 2) {
+        $('rulesErrorMsg').textContent = 'You must type your full name to sign and agree to the rules.';
         $('rulesErrorMsg').style.display = 'block';
         return;
       }
       $('rulesErrorMsg').style.display = 'none';
       try {
-        await updateDoc(doc(db, 'profiles', currentUser.uid), { agreedToTerms: true, agreedToTermsAt: Date.now(), updatedAt: serverTimestamp() });
-        if (currentProfile) { currentProfile.agreedToTerms = true; currentProfile.agreedToTermsAt = Date.now(); }
+        const timestamp = Date.now();
+        await updateDoc(doc(db, 'profiles', currentUser.uid), { 
+          agreedToTerms: true, 
+          agreedToTermsAt: timestamp, 
+          agreedToTermsSignature: sig,
+          updatedAt: serverTimestamp() 
+        });
+        if (currentProfile) { 
+          currentProfile.agreedToTerms = true; 
+          currentProfile.agreedToTermsAt = timestamp; 
+          currentProfile.agreedToTermsSignature = sig;
+        }
         hideRulesGate();
         updateAuthUI();
         startListingsListener();
@@ -658,6 +672,7 @@ async function handleSignup() {
       accessManuallyDenied: false,
       agreedToTerms: false,
       agreedToTermsAt: null,
+      agreedToTermsSignature: null,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -673,6 +688,10 @@ async function handleSignup() {
     setTimeout(() => {
       if ($('loginPassword')) $('loginPassword').focus();
     }, 100);
+    
+    alert(elevated
+      ? 'Account created. You can sign in now.'
+      : 'Account created successfully! It is now waiting for manual admin approval. You will not be able to log in until an admin approves it.');
   } catch (err) {
     console.error(err);
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
