@@ -462,13 +462,13 @@ function updateAuthUI() {
 
   if (loggedIn) {
     // FOOLPROOF BRUTE FORCE CLEAR OF GREY SCREENS ONCE FULLY LOGGED IN
-    document.body.classList.remove('modal-open');
-    document.body.classList.remove('auth-open');
+    document.body.className = '';
     document.querySelectorAll('.overlay').forEach(el => {
       if (!['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesGateOverlay'].includes(el.id)) {
         el.style.display = 'none';
       }
     });
+    if ($('loginOverlay')) $('loginOverlay').style.display = 'none';
   }
 }
 

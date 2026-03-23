@@ -134,6 +134,16 @@ let eventRowsData = [];
 let adminEditingId = null;
 let userSearchTerm = '';
 let userFilterValue = 'ALL';
+let listingSearchTerm = '';
+let userPage = 1;
+const usersPerPage = 25;
+
+function forceClearOverlays() {
+  document.body.className = '';
+  document.querySelectorAll('.overlay').forEach(el => {
+    if (el.id !== 'adminEditOverlay') el.style.display = 'none';
+  });
+}
 
 onAuthStateChanged(auth, async (user) => {
   authResolved = true;
@@ -152,13 +162,18 @@ onAuthStateChanged(auth, async (user) => {
     location.href = 'index.html';
     return;
   }
+
+  forceClearOverlays();
+
   if ($('adminUser')) $('adminUser').textContent = user.email;
   $('userSearch')?.addEventListener('input', (e) => {
     userSearchTerm = String(e.target.value || '').trim().toLowerCase();
+    userPage = 1;
     renderUserRows();
   });
   $('userFilter')?.addEventListener('change', (e) => {
     userFilterValue = String(e.target.value || 'ALL').toUpperCase();
+    userPage = 1;
     renderUserRows();
   });
 
@@ -210,8 +225,34 @@ function startListings() {
     listingRowsData = rows;
     if ($('adminListingCount')) $('adminListingCount').textContent = String(rows.length);
     if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter((r) => r.reactivationRequested).length);
+    renderListingRows();
+  });
+}
+
+function renderListingRows() {
     if (!$('listingRows')) return;
-    $('listingRows').innerHTML = rows.map((item) => {
+
+    const listingHeader = $('adminListingCount')?.parentElement;
+    if (listingHeader && !document.getElementById('listingSearchInput')) {
+       const sWrap = document.createElement('div');
+       sWrap.style.marginTop = '10px';
+       sWrap.innerHTML = `<input type="text" id="listingSearchInput" placeholder="Search by poster, email, or title..." style="padding:0.5rem; width:100%; max-width:300px; border-radius:4px; border:1px solid #ccc;">`;
+       listingHeader.appendChild(sWrap);
+       $('listingSearchInput').addEventListener('input', (e) => {
+           listingSearchTerm = e.target.value.toLowerCase();
+           renderListingRows();
+       });
+    }
+
+    let filtered = listingRowsData.slice();
+    if (listingSearchTerm) {
+      filtered = filtered.filter(item => {
+        const hay = [item.title, item.authorName, item.displayName, item.authorEmail, item.userEmail, item.description, item.desc].join(' ').toLowerCase();
+        return hay.includes(listingSearchTerm);
+      });
+    }
+
+    $('listingRows').innerHTML = filtered.map((item) => {
       const board = item.board || item.category || 'BUYSELL';
       const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
       const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
@@ -266,7 +307,6 @@ function startListings() {
       if (!confirm('Delete this post permanently?')) return;
       await deleteDoc(doc(db, 'listings', btn.dataset.delete));
     });
-  });
 }
 
 function duplicateMeta(rows) {
@@ -367,7 +407,13 @@ function renderUserRows() {
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
 
-  $('userRows').innerHTML = filtered.map((user) => {
+  const totalPages = Math.ceil(filtered.length / usersPerPage);
+  if (userPage > totalPages && totalPages > 0) userPage = totalPages;
+
+  const startIndex = (userPage - 1) * usersPerPage;
+  const paginated = filtered.slice(startIndex, startIndex + usersPerPage);
+
+  $('userRows').innerHTML = paginated.map((user) => {
     const protectedUser = isProtectedCoreAdmin(user.email);
     const dup = dmeta.get(user.id) || { isDuplicate:false, isPrimary:true, count:1 };
     const emailState = emailStatusMeta(user);
@@ -401,6 +447,28 @@ function renderUserRows() {
         </td>
       </tr>`;
   }).join('');
+
+  let pageControls = $('userPaginationControls');
+  if (!pageControls) {
+    pageControls = document.createElement('div');
+    pageControls.id = 'userPaginationControls';
+    pageControls.style.display = 'flex';
+    pageControls.style.gap = '10px';
+    pageControls.style.marginTop = '15px';
+    pageControls.style.alignItems = 'center';
+    pageControls.style.justifyContent = 'center';
+    const tableWrap = $('userRows').closest('table')?.parentElement;
+    if (tableWrap) tableWrap.appendChild(pageControls);
+  }
+  if (pageControls) {
+    pageControls.innerHTML = `
+      <button class="btn ghost" id="btnPrevPage" ${userPage === 1 ? 'disabled' : ''}>Previous</button>
+      <span style="font-size: 0.9rem; font-weight: 600;">Page ${userPage} of ${totalPages || 1}</span>
+      <button class="btn ghost" id="btnNextPage" ${userPage >= totalPages ? 'disabled' : ''}>Next</button>
+    `;
+    $('btnPrevPage')?.addEventListener('click', () => { if (userPage > 1) { userPage--; renderUserRows(); } });
+    $('btnNextPage')?.addEventListener('click', () => { if (userPage < totalPages) { userPage++; renderUserRows(); } });
+  }
 
   document.querySelectorAll('[data-role]').forEach((btn) => btn.onclick = async () => {
     const user = userRowsData.find((x) => x.id === btn.dataset.id);
