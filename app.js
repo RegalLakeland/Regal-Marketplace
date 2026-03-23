@@ -61,6 +61,36 @@ async function callVerificationEmailFunction(user, email) {
 
 const $ = (id) => document.getElementById(id);
 
+function forceHideLoginOverlay() {
+  const overlay = $('loginOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    overlay.style.visibility = 'hidden';
+    overlay.style.opacity = '0';
+    overlay.style.pointerEvents = 'none';
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+  document.body.classList.remove('auth-open');
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.body.style.overflowY = '';
+  document.body.style.overflowX = '';
+  document.documentElement.style.overflow = '';
+}
+
+function forceShowLoginOverlay() {
+  const overlay = $('loginOverlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+    overlay.style.visibility = 'visible';
+    overlay.style.opacity = '1';
+    overlay.style.pointerEvents = 'auto';
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+  document.body.classList.add('auth-open');
+}
+
+
 function getVerifyActionCodeSettings() {
   const url = `${window.location.origin}${window.location.pathname}`;
   return {
@@ -320,6 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentProfile = null;
       stopListeners();
       updateAuthUI();
+      forceShowLoginOverlay();
       return;
     }
 
@@ -627,9 +658,6 @@ async function ensureProfile(user) {
 
 function updateAuthUI() {
   const loggedIn = !!currentUser && !!currentProfile;
-  const loginOverlay = $('loginOverlay');
-
-  document.body.classList.toggle('auth-open', !loggedIn);
 
   if ($('pillUser')) {
     $('pillUser').textContent = loggedIn
@@ -642,16 +670,10 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
 
-  if (loginOverlay) {
-    loginOverlay.style.display = loggedIn ? 'none' : 'flex';
-    loginOverlay.setAttribute('aria-hidden', loggedIn ? 'true' : 'false');
-  }
-
   if (loggedIn) {
-    document.body.classList.remove('modal-open');
-    document.body.style.overflow = '';
-    document.body.style.overflowY = '';
-    document.body.style.overflowX = '';
+    forceHideLoginOverlay();
+  } else {
+    forceShowLoginOverlay();
   }
 }
 
