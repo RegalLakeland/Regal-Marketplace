@@ -61,31 +61,6 @@ async function callVerificationEmailFunction(user, email) {
 
 const $ = (id) => document.getElementById(id);
 
-const WORK_EMAIL_DOMAIN = '@regallakeland.com';
-
-function normalizeWorkEmailInput(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  const local = raw.includes('@') ? raw.split('@')[0].trim() : raw;
-  return local ? `${local}${WORK_EMAIL_DOMAIN}` : '';
-}
-
-function rememberLastLoginEmail(email) {
-  try {
-    localStorage.setItem('marketplace_last_login_email', normalizeWorkEmailInput(email));
-  } catch (_) {}
-}
-
-function applyRememberedLoginEmail() {
-  const loginInput = $('loginEmail');
-  if (!loginInput) return;
-  try {
-    const remembered = localStorage.getItem('marketplace_last_login_email') || '';
-    if (remembered) loginInput.value = remembered;
-  } catch (_) {}
-}
-
-
 function getVerifyActionCodeSettings() {
   const url = `${window.location.origin}${window.location.pathname}`;
   return {
@@ -148,7 +123,7 @@ const FEATURED_EVENT = {
   subtitle: 'Dinner, drinks & live entertainment',
   dateLine: 'May 15th • 6:30 PM',
   locationLine: 'Haus 820 • 820 Massachusetts Ave, Lakeland, FL',
-  imageUrl: './Images/background5.jpg'
+  imageUrl: 'Images/background5.jpg'
 };
 
 const RSVP_LABELS = {
@@ -196,14 +171,7 @@ window.addEventListener('error', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-rsvp]').forEach((btn) => {
-    btn.classList.remove('primary', 'active-rsvp');
-    btn.classList.add('ghost');
-    btn.setAttribute('aria-pressed', 'false');
-  });
-
   removeLegacyForgotPasswordUI();
-  applyRememberedLoginEmail();
   bindStaticEvents();
   renderBoards();
   renderListings();
@@ -302,7 +270,6 @@ function bindStaticEvents() {
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
-  $('btnChangeTempPassword')?.addEventListener('click', handleForcePasswordChange);
   $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
@@ -333,6 +300,15 @@ function bindStaticEvents() {
 
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => { const target = btn.dataset.close; if (target === 'postOverlay') resetPostEditor(); hide(target); });
+  });
+
+  document.querySelectorAll('.overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay && ['postOverlay', 'threadOverlay'].includes(overlay.id)) {
+        if (overlay.id === 'postOverlay') resetPostEditor();
+        hide(overlay.id);
+      }
+    });
   });
 
   $('q')?.addEventListener('input', renderListings);
@@ -388,7 +364,10 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'forcePasswordOverlay', 'passwordGateOverlay', 'passwordGate'].some((overlayId) => $(overlayId)?.style.display !== 'none');
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'].some((overlayId) => {
+    const o = $(overlayId);
+    return o && (o.style.display === 'flex' || o.style.display === 'block');
+  });
   if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
@@ -537,14 +516,17 @@ function updateAuthUI() {
   if (!loggedIn) hidePasswordGate();
 
   if (loggedIn) {
-    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay'];
-    const hasVisibleModal = visibleOverlayIds.some((overlayId) => $(overlayId)?.style.display !== 'none');
+    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'];
+    const hasVisibleModal = visibleOverlayIds.some((overlayId) => {
+      const o = $(overlayId);
+      return o && (o.style.display === 'flex' || o.style.display === 'block');
+    });
     if (!hasVisibleModal) document.body.classList.remove('modal-open');
   }
 }
 
 async function handleLogin() {
-  const email = normalizeWorkEmailInput($('loginEmail')?.value);
+  const email = $('loginEmail')?.value.trim().toLowerCase();
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
@@ -557,7 +539,6 @@ async function handleLogin() {
   }
 
   try {
-    rememberLastLoginEmail(email);
     const cred = await signInWithEmailAndPassword(auth, email, password);
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
@@ -599,34 +580,33 @@ async function handleLogin() {
 
 
 function showPasswordGate() {
-  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
+  const msg = $('passwordGateMsg');
   if (msg) {
     msg.style.display = 'none';
     msg.textContent = '';
     msg.dataset.state = '';
   }
-  const passwordInput = $('forcePassword') || $('newPasswordInput');
-  const confirmInput = $('forcePassword2') || $('confirmNewPasswordInput');
-  if (passwordInput) passwordInput.value = '';
-  if (confirmInput) confirmInput.value = '';
-  const gate = $('passwordGate') || $('passwordGateOverlay');
-  if (gate) gate.style.display = 'block';
-  document.body.classList.remove('modal-open');
+  if ($('newPasswordInput')) $('newPasswordInput').value = '';
+  if ($('confirmNewPasswordInput')) $('confirmNewPasswordInput').value = '';
+  const gate = $('passwordGateOverlay');
+  if (gate) gate.style.display = 'flex';
+  document.body.classList.add('modal-open');
   setTimeout(() => {
     gate?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    (passwordInput || $('forcePassword') || $('newPasswordInput'))?.focus();
+    $('newPasswordInput')?.focus();
   }, 20);
 }
 
 function hidePasswordGate() {
-  const gate = $('passwordGate') || $('passwordGateOverlay');
+  const gate = $('passwordGateOverlay');
   if (gate) gate.style.display = 'none';
+  document.body.classList.remove('modal-open');
 }
 
 async function handleForcePasswordChange() {
-  const password = ($('forcePassword') || $('newPasswordInput'))?.value || '';
-  const password2 = ($('forcePassword2') || $('confirmNewPasswordInput'))?.value || '';
-  const msg = $('forcePasswordMsg') || $('passwordGateMsg');
+  const password = $('newPasswordInput')?.value || '';
+  const password2 = $('confirmNewPasswordInput')?.value || '';
+  const msg = $('passwordGateMsg');
 
   if (msg) {
     msg.style.display = 'none';
@@ -722,10 +702,24 @@ async function handleForcePasswordChange() {
 }
 
 async function handleSignup() {
-  const fullName = ($('signupName') || $('signupFullName'))?.value.trim() || '';
-  const email = normalizeWorkEmailInput($('signupEmail')?.value);
-  const password = $('signupPassword')?.value || '';
-  const password2 = $('signupPassword2')?.value || '';
+  const fullName =
+    $('signupFullName')?.value.trim() ||
+    $('signupName')?.value.trim() ||
+    '';
+
+  const email =
+    $('signupEmail')?.value.trim().toLowerCase() ||
+    '';
+
+  const password =
+    $('signupPassword')?.value ||
+    '';
+
+  const password2 =
+    $('signupConfirmPassword')?.value ||
+    $('signupPassword2')?.value ||
+    '';
+
   const msg = $('signupMsg');
 
   if (msg) {
@@ -737,18 +731,22 @@ async function handleSignup() {
     alert('Complete all signup fields.');
     return;
   }
+
   if (fullName.split(/\s+/).length < 2) {
     alert('Enter first and last name.');
     return;
   }
+
   if (!isAllowedEmail(email)) {
     alert('Use your @regallakeland.com email.');
     return;
   }
+
   if (password.length < 6) {
     alert('Password must be at least 6 characters.');
     return;
   }
+
   if (password !== password2) {
     alert('Passwords do not match.');
     return;
@@ -757,6 +755,7 @@ async function handleSignup() {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const elevated = isProtectedCoreAdmin(email) || isAdmin(email);
+
     await setDoc(doc(db, 'profiles', cred.user.uid), {
       uid: cred.user.uid,
       email,
@@ -770,6 +769,8 @@ async function handleSignup() {
       emailVerified: !!cred.user.emailVerified,
       accessApproved: elevated,
       accessManuallyDenied: false,
+      tempPasswordActive: false,
+      mustChangePassword: false,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -788,31 +789,24 @@ async function handleSignup() {
     }
 
     if ($('loginEmail')) $('loginEmail').value = email;
-    rememberLastLoginEmail(email);
     if ($('loginPassword')) $('loginPassword').value = '';
-    if ($('signupFullName')) $('signupFullName').value = '';
-    if ($('signupName')) $('signupName').value = '';
-    if ($('signupEmail')) $('signupEmail').value = '';
-    if ($('signupPassword')) $('signupPassword').value = '';
-    if ($('signupPassword2')) $('signupPassword2').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-    setTimeout(() => $('loginPassword')?.focus(), 50);
-    alert(elevated
-      ? 'Account created. You can sign in now.'
-      : 'Account created. An admin must manually approve your account before you can sign in.');
+
+    alert(
+      elevated
+        ? 'Account created. You can sign in now.'
+        : 'Account created. An admin must manually approve your account before you can sign in.'
+    );
   } catch (err) {
     console.error(err);
+
     if (err?.code === 'auth/email-already-in-use') {
-      if ($('loginEmail')) $('loginEmail').value = email;
-      rememberLastLoginEmail(email);
-      if ($('loginPassword')) $('loginPassword').value = '';
-      showPane('login');
-      setTimeout(() => $('loginPassword')?.focus(), 50);
-      alert('That account already exists. We moved you to Login with the email filled in. Enter the password to continue.');
+      alert('That email is already registered.');
       return;
     }
+
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
   }
 }
@@ -923,13 +917,7 @@ function renderEventSpotlight() {
   ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
     const btn = document.querySelector(`[data-rsvp="${status}"]`);
     if (!btn) return;
-    btn.classList.remove('primary', 'active-rsvp', 'ghost');
-    if (mine?.status === status) {
-      btn.classList.add('primary', 'active-rsvp');
-    } else {
-      btn.classList.add('ghost');
-    }
-    btn.setAttribute('aria-pressed', mine?.status === status ? 'true' : 'false');
+    btn.classList.toggle('active-rsvp', mine?.status === status);
     btn.disabled = !canRsvp;
     btn.title = canRsvp ? '' : 'Log in with your Regal Lakeland account to RSVP';
   });
@@ -948,19 +936,16 @@ async function handleEventRsvp(status) {
     return;
   }
   try {
-    const responseId = `${FEATURED_EVENT.id}__${currentUser.uid}`;
-    const responseRef = doc(db, 'eventResponses', responseId);
-    const existingIndex = eventResponses.findIndex((item) => item.id === responseId);
-    const existing = existingIndex >= 0 ? eventResponses[existingIndex] : null;
-
-    if (existing?.status === status) {
-      await deleteDoc(responseRef);
-      if (existingIndex >= 0) eventResponses.splice(existingIndex, 1);
+    const mine = currentUserEventResponse();
+    if (mine && mine.status === status) {
+      await deleteDoc(doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`));
+      eventResponses = eventResponses.filter((item) => item.id !== `${FEATURED_EVENT.id}__${currentUser.uid}`);
       renderEventSpotlight();
-      if ($('eventStatusText')) $('eventStatusText').textContent = 'Your response was cleared.';
+      if ($('eventStatusText')) $('eventStatusText').textContent = 'RSVP removed.';
       return;
     }
 
+    const responseRef = doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`);
     const payload = {
       eventId: FEATURED_EVENT.id,
       eventTitle: FEATURED_EVENT.title,
@@ -972,7 +957,8 @@ async function handleEventRsvp(status) {
       updatedAtMs: Date.now()
     };
     await setDoc(responseRef, payload, { merge: true });
-    const optimistic = { id: responseId, ...payload };
+    const existingIndex = eventResponses.findIndex((item) => item.id === `${FEATURED_EVENT.id}__${currentUser.uid}`);
+    const optimistic = { id: `${FEATURED_EVENT.id}__${currentUser.uid}`, ...payload };
     if (existingIndex >= 0) {
       eventResponses[existingIndex] = { ...eventResponses[existingIndex], ...optimistic };
     } else {
@@ -1015,6 +1001,14 @@ function startListingsListener() {
     listings = snap.docs.map((d) => normalizeListing({ id: d.id, ...d.data() }));
     renderBoards();
     renderListings();
+
+    if (activeThread && $('threadOverlay')?.style.display !== 'none') {
+      const updatedThread = listings.find((x) => x.id === activeThread.id);
+      if (updatedThread) {
+        activeThread = updatedThread;
+        renderReplies(activeThread.replies || []);
+      }
+    }
   }, (err) => {
     console.error(err);
     alert(`Listings error: ${err?.message || err}`);
@@ -1226,7 +1220,7 @@ function renderListings() {
         <div class="topicSide">
           <div class="topicSideTop">
             <div class="price">${esc(formatPrice(item.price))}</div>
-            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
+            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
           </div>
           <div class="topicMeta topicMetaRight">
             <span>${esc(item.location || 'No location')}</span>
@@ -1378,7 +1372,7 @@ async function openThread(id) {
   if ($('threadBody')) {
     $('threadBody').innerHTML = `
       <div class="thread-body-grid">
-        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" decoding="async" />` : ''}
+        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
         <div>${esc(item.description || '')}</div>
         <div class="topicMeta">
           <span>${esc(item.location || 'No location')}</span>
@@ -1440,46 +1434,99 @@ async function handleSendReply() {
   try {
     await updateDoc(listingRef, { replies, updatedAt: serverTimestamp() });
     if ($('replyText')) $('replyText').value = '';
+    activeThread.replies = replies;
+    renderReplies(replies);
   } catch (err) {
     console.error(err);
     alert(err?.message || 'Unable to send reply.');
   }
 }
 
-
-// ===== ENTER KEY SUPPORT =====
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-
-  const target = e.target;
-  const id = target?.id || '';
-
-  if (id === 'loginEmail' || id === 'loginPassword') {
-    e.preventDefault();
-    handleLogin();
-    return;
+// --- CUSTOM WOW-FACTOR HERO SLIDER COMPONENT ---
+class HeroSlider extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.images = JSON.parse(this.getAttribute('images') || '[]');
+    this.currentIndex = 0;
   }
 
-  if (['signupName', 'signupFullName', 'signupEmail', 'signupPassword', 'signupPassword2'].includes(id)) {
-    e.preventDefault();
-    handleSignup();
-    return;
+  connectedCallback() {
+    this.render();
+    this.startSlider();
   }
 
-  if (['forcePassword', 'forcePassword2', 'newPasswordInput', 'confirmNewPasswordInput'].includes(id)) {
-    e.preventDefault();
-    handleForcePasswordChange();
-    return;
+  render() {
+    const style = `
+      :host {
+        display: block;
+        position: fixed; /* Ensures it acts as a site-wide background */
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -100; /* Deep behind all content */
+        overflow: hidden;
+        background-color: #0f172a; /* Deep premium backdrop */
+      }
+      
+      .slide {
+        position: absolute;
+        inset: -5%; /* Slightly oversized to allow for safe zooming without exposing edges */
+        background-size: cover;
+        background-position: center;
+        opacity: 0;
+        transition: opacity 2.5s ease-in-out, transform 12s linear;
+        transform: scale(1);
+        z-index: 1;
+      }
+      
+      .slide.active {
+        opacity: 1;
+        transform: scale(1.05); /* Smooth Ken Burns zoom effect */
+        z-index: 2;
+      }
+      
+      .noise-overlay {
+        position: absolute;
+        inset: 0;
+        background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)" opacity="0.08"/%3E%3C/svg%3E');
+        z-index: 3;
+        pointer-events: none;
+      }
+      
+      .gradient-overlay {
+        position: absolute;
+        inset: 0;
+        background: transparent;
+        z-index: 4;
+        pointer-events: none;
+      }
+    `;
+
+    const slidesHTML = this.images.map((img, index) => 
+      `<div class="slide ${index === 0 ? 'active' : ''}" style="background-image: url('${img}')"></div>`
+    ).join('');
+
+    this.shadowRoot.innerHTML = `
+      <style>${style}</style>
+      ${slidesHTML}
+      <div class="noise-overlay"></div>
+      <div class="gradient-overlay"></div>
+    `;
   }
 
-  if (id === 'displayNameInput') {
-    e.preventDefault();
-    handleSaveName();
-    return;
+  startSlider() {
+    if (this.images.length <= 1) return;
+    
+    setInterval(() => {
+      const slides = this.shadowRoot.querySelectorAll('.slide');
+      if (!slides.length) return;
+      
+      slides[this.currentIndex].classList.remove('active');
+      this.currentIndex = (this.currentIndex + 1) % this.images.length;
+      slides[this.currentIndex].classList.add('active');
+    }, 6000); 
   }
+}
 
-  if (id === 'replyText' && !e.shiftKey) {
-    e.preventDefault();
-    handleSendReply();
-  }
-});
+customElements.define('hero-slider', HeroSlider);
