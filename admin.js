@@ -158,7 +158,7 @@ onAuthStateChanged(auth, async (user) => {
     renderUserRows();
   });
   $('userFilter')?.addEventListener('change', (e) => {
-    userFilterValue = String(e.target.value || 'ALL');
+    userFilterValue = String(e.target.value || 'ALL').toUpperCase();
     renderUserRows();
   });
 
@@ -297,7 +297,7 @@ function duplicateMeta(rows) {
 }
 
 function userPending(user) {
-  return !user.accessApproved && !user.manualVerified;
+  return !user.accessApproved && !user.manualVerified && !user.banned && !user.deleted;
 }
 
 function applyUserFilters(rows) {
