@@ -63,108 +63,105 @@ const $ = (id) => document.getElementById(id);
 
 const WORK_EMAIL_DOMAIN = '@regallakeland.com';
 
-function normalizeWorkEmailInput(value) {
-  let raw = String(value || '').trim().toLowerCase();
+function normalizeMarketplaceEmail(value) {
+  const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
-  if (raw === WORK_EMAIL_DOMAIN) return raw;
-  if (!raw.includes('@')) return `${raw}${WORK_EMAIL_DOMAIN}`;
-  const local = raw.split('@')[0].trim();
-  return local ? `${local}${WORK_EMAIL_DOMAIN}` : WORK_EMAIL_DOMAIN;
+  const local = raw.split('@')[0].replace(/[^a-z0-9._-]/g, '');
+  return local ? `${local}${WORK_EMAIL_DOMAIN}` : '';
 }
 
-function setEmailInputCaretBeforeDomain(input) {
+function setMarketplaceEmailField(input, localPart = '') {
   if (!input) return;
-  const domainIndex = String(input.value || '').toLowerCase().indexOf(WORK_EMAIL_DOMAIN);
-  const caretPos = domainIndex >= 0 ? domainIndex : 0;
+  input.value = `${String(localPart || '').toLowerCase()}${WORK_EMAIL_DOMAIN}`;
+  const caret = String(localPart || '').length;
   try {
-    input.setSelectionRange(caretPos, caretPos);
+    input.setSelectionRange(caret, caret);
   } catch (_) {}
 }
 
-function primeWorkEmailField(input) {
-  if (!input) return;
-  const current = String(input.value || '').trim();
-  if (!current) {
-    input.value = WORK_EMAIL_DOMAIN;
-    setEmailInputCaretBeforeDomain(input);
-    return;
-  }
-  input.value = normalizeWorkEmailInput(current);
+function getMarketplaceEmailLocalPart(value) {
+  return String(value || '').toLowerCase().split('@')[0].replace(/[^a-z0-9._-]/g, '');
 }
 
-function installWorkEmailBehavior(inputId) {
+function installMarketplaceEmailField(inputId, { seedDomain = false } = {}) {
   const input = $(inputId);
   if (!input) return;
 
+  if (seedDomain && !String(input.value || '').trim()) {
+    setMarketplaceEmailField(input, '');
+  }
+
   input.addEventListener('focus', () => {
-    if (!String(input.value || '').trim()) {
-      input.value = WORK_EMAIL_DOMAIN;
-      setEmailInputCaretBeforeDomain(input);
-    } else if (String(input.value || '').toLowerCase() === WORK_EMAIL_DOMAIN) {
-      setEmailInputCaretBeforeDomain(input);
-    }
+    const local = getMarketplaceEmailLocalPart(input.value);
+    setMarketplaceEmailField(input, local);
   });
 
   input.addEventListener('click', () => {
-    if (String(input.value || '').toLowerCase() === WORK_EMAIL_DOMAIN) {
-      setEmailInputCaretBeforeDomain(input);
-    }
+    const local = getMarketplaceEmailLocalPart(input.value);
+    const caret = Math.min(input.selectionStart ?? local.length, local.length);
+    try {
+      input.setSelectionRange(caret, caret);
+    } catch (_) {}
   });
 
   input.addEventListener('keydown', (e) => {
-    const val = String(input.value || '').toLowerCase();
-    const domainIndex = val.indexOf(WORK_EMAIL_DOMAIN);
-    if (domainIndex < 0) return;
-
+    const local = getMarketplaceEmailLocalPart(input.value);
+    const domainStart = local.length;
     const start = input.selectionStart ?? 0;
     const end = input.selectionEnd ?? 0;
 
-    if ((e.key === 'Backspace' && start > domainIndex) || (e.key === 'Delete' && start >= domainIndex)) {
+    if (['ArrowRight', 'End'].includes(e.key) && start >= domainStart) {
       e.preventDefault();
-      setEmailInputCaretBeforeDomain(input);
+      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
+      return;
     }
-    if ((e.key === 'ArrowRight' || e.key === 'End') && start >= domainIndex) {
+
+    if (e.key === 'Backspace' && start > domainStart) {
       e.preventDefault();
-      setEmailInputCaretBeforeDomain(input);
+      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
+      return;
+    }
+
+    if (e.key === 'Delete' && start >= domainStart) {
+      e.preventDefault();
+      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
+      return;
+    }
+
+    if (start > domainStart || end > domainStart) {
+      try { input.setSelectionRange(domainStart, domainStart); } catch (_) {}
     }
   });
 
   input.addEventListener('input', () => {
-    const normalized = normalizeWorkEmailInput(input.value);
-    if (!normalized) return;
-    const oldStart = input.selectionStart ?? 0;
-    const oldVal = String(input.value || '');
-    const oldDomainIndex = oldVal.toLowerCase().indexOf(WORK_EMAIL_DOMAIN);
-    input.value = normalized;
-    const newDomainIndex = normalized.indexOf(WORK_EMAIL_DOMAIN);
-    let nextPos = oldStart;
-    if (oldDomainIndex >= 0 && oldStart > oldDomainIndex) nextPos = newDomainIndex;
-    if (nextPos > newDomainIndex) nextPos = newDomainIndex;
-    try {
-      input.setSelectionRange(nextPos, nextPos);
-    } catch (_) {}
+    const local = getMarketplaceEmailLocalPart(input.value);
+    setMarketplaceEmailField(input, local);
+  });
+
+  input.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const pasted = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+    setMarketplaceEmailField(input, getMarketplaceEmailLocalPart(pasted));
   });
 
   input.addEventListener('blur', () => {
-    const normalized = normalizeWorkEmailInput(input.value);
-    input.value = normalized || '';
+    const local = getMarketplaceEmailLocalPart(input.value);
+    input.value = local ? `${local}${WORK_EMAIL_DOMAIN}` : '';
   });
 }
 
-function rememberLastLoginEmail(email) {
+function rememberMarketplaceLoginEmail(email) {
   try {
-    localStorage.setItem('marketplace_last_login_email', normalizeEmail(email));
+    localStorage.setItem('marketplace_last_login_email', normalizeMarketplaceEmail(email));
   } catch (_) {}
 }
 
-function applyRememberedLoginEmail() {
-  const loginInput = $('loginEmail');
-  if (!loginInput) return;
+function restoreMarketplaceLoginEmail() {
+  const input = $('loginEmail');
+  if (!input) return;
   try {
-    const remembered = localStorage.getItem('marketplace_last_login_email') || '';
-    if (remembered) {
-      loginInput.value = remembered;
-    }
+    const email = localStorage.getItem('marketplace_last_login_email') || '';
+    if (email) input.value = email;
   } catch (_) {}
 }
 
@@ -280,10 +277,9 @@ window.addEventListener('error', (e) => {
 
 document.addEventListener('DOMContentLoaded', () => {
   removeLegacyForgotPasswordUI();
-  applyRememberedLoginEmail();
+  restoreMarketplaceLoginEmail();
   bindStaticEvents();
-  installWorkEmailBehavior('signupEmail');
-  installWorkEmailBehavior('loginEmail');
+  installMarketplaceEmailField('signupEmail', { seedDomain: true });
   renderBoards();
   renderListings();
 
@@ -622,7 +618,7 @@ function updateAuthUI() {
 }
 
 async function handleLogin() {
-  const email = normalizeWorkEmailInput($('loginEmail')?.value);
+  const email = normalizeMarketplaceEmail($('loginEmail')?.value);
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
@@ -635,7 +631,7 @@ async function handleLogin() {
   }
 
   try {
-    rememberLastLoginEmail(email);
+    rememberMarketplaceLoginEmail(email);
     const cred = await signInWithEmailAndPassword(auth, email, password);
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
@@ -804,7 +800,7 @@ async function handleSignup() {
     $('signupName')?.value.trim() ||
     '';
 
-  const email = normalizeWorkEmailInput($('signupEmail')?.value);
+  const email = normalizeMarketplaceEmail($('signupEmail')?.value);
 
   const password =
     $('signupPassword')?.value ||
@@ -883,24 +879,40 @@ async function handleSignup() {
       msg.style.display = 'block';
     }
 
+    rememberMarketplaceLoginEmail(email);
     if ($('loginEmail')) $('loginEmail').value = email;
-    rememberLastLoginEmail(email);
     if ($('loginPassword')) $('loginPassword').value = '';
+    if ($('signupFullName')) $('signupFullName').value = '';
+    if ($('signupName')) $('signupName').value = '';
+    if ($('signupEmail')) setMarketplaceEmailField($('signupEmail'), '');
+    if ($('signupPassword')) $('signupPassword').value = '';
+    if ($('signupConfirmPassword')) $('signupConfirmPassword').value = '';
+    if ($('signupPassword2')) $('signupPassword2').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-    setTimeout(() => $('loginPassword')?.focus(), 50);
-
-    alert(
-      elevated
+    if ($('verifyNote')) {
+      $('verifyNote').textContent = elevated
         ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.'
-    );
+        : 'Account created. An admin must manually approve your account before you can sign in.';
+      $('verifyNote').style.display = 'block';
+    }
+    setTimeout(() => {
+      if ($('loginEmail')) $('loginEmail').value = email;
+      $('loginPassword')?.focus();
+    }, 0);
   } catch (err) {
     console.error(err);
 
     if (err?.code === 'auth/email-already-in-use') {
-      alert('That email is already registered.');
+      rememberMarketplaceLoginEmail(email);
+      if ($('loginEmail')) $('loginEmail').value = email;
+      showPane('login');
+      if ($('verifyNote')) {
+        $('verifyNote').textContent = 'That email is already registered. Enter the password to sign in.';
+        $('verifyNote').style.display = 'block';
+      }
+      setTimeout(() => $('loginPassword')?.focus(), 0);
       return;
     }
 
