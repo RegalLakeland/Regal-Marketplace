@@ -173,7 +173,6 @@ let currentViewer = null;
 let currentViewerProfile = null;
 let listingRowsData = [];
 let userRowsData = [];
-let eventRowsData = [];
 let adminEditingId = null;
 let userSearchTerm = '';
 let userFilterValue = 'PENDING';
@@ -206,7 +205,6 @@ onAuthStateChanged(auth, async (user) => {
   });
   startListings();
   startUsers();
-  startEventResponses();
 });
 
 function startListings() {
@@ -303,7 +301,11 @@ function duplicateMeta(rows) {
 }
 
 function userPending(user) {
-  return !user.accessApproved || (!user.emailVerified && !user.manualVerified) || user.approvalStatus === 'PENDING_ADMIN_APPROVAL';
+  if (!user || user.deleted || user.banned) return false;
+  if (user.accessApproved === true) return false;
+  const status = String(user.approvalStatus || '').toUpperCase();
+  if (status === 'APPROVED' || status === 'DENIED' || status === 'DELETED') return false;
+  return true;
 }
 
 function applyUserFilters(rows) {
@@ -505,7 +507,7 @@ function renderUserRows() {
     if (role === 'hardDeleteAccount') {
       try {
         const selfRow = isSelfRow(user);
-        const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, listings, and RSVP responses.${selfRow ? ' You are deleting your own account.' : ''}`, '');
+        const confirmWord = window.prompt(`Type DELETE to permanently remove ${user.email || 'this account'}. This deletes the Auth user, profile, and listings.${selfRow ? ' You are deleting your own account.' : ''}`, '');
         if (confirmWord !== 'DELETE') return;
         const result = await callDeleteMarketplaceAccount(user);
         alert(result?.message || 'Account permanently deleted.');
@@ -530,36 +532,6 @@ function startUsers() {
     const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     userRowsData = rows;
     renderUserRows();
-  });
-}
-
-function renderRsvpRows() {
-  if (!$('rsvpRows')) return;
-  const counts = { ATTENDING: 0, MAYBE: 0, CANT: 0 };
-  const rows = eventRowsData.slice().sort((a, b) => Number(b.updatedAtMs || 0) - Number(a.updatedAtMs || 0));
-  rows.forEach((row) => {
-    const key = String(row.status || '').toUpperCase();
-    if (counts[key] !== undefined) counts[key] += 1;
-  });
-  if ($('rsvpAttendCount')) $('rsvpAttendCount').textContent = `${counts.ATTENDING} attending`;
-  if ($('rsvpMaybeCount')) $('rsvpMaybeCount').textContent = `${counts.MAYBE} maybe`;
-  if ($('rsvpCantCount')) $('rsvpCantCount').textContent = `${counts.CANT} can’t attend`;
-  $('rsvpRows').innerHTML = rows.length ? rows.map((row) => `
-    <tr>
-      <td><div class="user-main">${esc(row.displayName || '—')}</div></td>
-      <td>${esc(row.userEmail || '—')}</td>
-      <td><span class="user-status-value ${row.status === 'ATTENDING' ? 'ok' : row.status === 'MAYBE' ? 'pending' : 'bad'}">${esc(row.status === 'ATTENDING' ? 'Attending' : row.status === 'MAYBE' ? 'Maybe' : "Can't Attend")}</span></td>
-      <td>${esc(fmtDate(row.updatedAtMs || Date.now()))}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="4"><div class="note">No RSVP responses yet.</div></td></tr>';
-}
-
-function startEventResponses() {
-  onSnapshot(collection(db, 'eventResponses'), (snap) => {
-    eventRowsData = snap.docs
-      .map((d) => ({ id:d.id, ...d.data() }))
-      .filter((row) => row.eventId === 'regal-50th-anniversary-may-15-2026');
-    renderRsvpRows();
   });
 }
 
