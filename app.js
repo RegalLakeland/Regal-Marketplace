@@ -123,7 +123,7 @@ function delay(ms) {
 }
 
 function approvalWaitingMessage() {
-  return 'Waiting on admin approval. Once admin has approved you, you will be able to log in.';
+  return 'Waiting on admin approval. Once approved by an admin, please refresh this page and log in again.';
 }
 
 function approvalCreatedMessage() {
@@ -179,13 +179,16 @@ function consumeLoginFlashMessage() {
 }
 
 function showLoginStatusMessage(message) {
-  if (!message) return;
+  const normalized = String(message || '').trim();
+  if (!normalized) return;
+  if (lastStatusMessageShown === normalized) return;
+  lastStatusMessageShown = normalized;
   if ($('verifyNote')) {
-    $('verifyNote').textContent = message;
+    $('verifyNote').textContent = normalized;
     $('verifyNote').style.display = 'block';
   }
   if ($('signupMsg')) {
-    $('signupMsg').textContent = message;
+    $('signupMsg').textContent = normalized;
     $('signupMsg').style.display = 'block';
   }
 }
@@ -302,6 +305,8 @@ let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
 let lastStatusMessageShown = '';
+let loginInFlight = false;
+let signupInFlight = false;
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
@@ -336,8 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (savedEmail && $('loginEmail')) {
     $('loginEmail').value = savedEmail;
   }
-  const flashedLoginMessage = consumeLoginFlashMessage();
-  if (flashedLoginMessage) showLoginStatusMessage(flashedLoginMessage);
+  consumeLoginFlashMessage();
 
   onAuthStateChanged(auth, async (user) => {
   try {
@@ -373,14 +377,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!isProtectedCoreAdmin(user.email) && !canCompleteMarketplaceLogin(currentProfile)) {
       const blockedMessage = loginBlockedMessage(currentProfile);
-      if ($('verifyNote')) {
-        $('verifyNote').textContent = blockedMessage;
-        $('verifyNote').style.display = 'block';
-      }
       if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-      setLoginFlashMessage(blockedMessage);
+      if ($('loginPassword')) $('loginPassword').value = '';
+      showPane('login');
+      showLoginStatusMessage(blockedMessage);
       await signOut(auth);
-      alert(blockedMessage);
       return;
     }
 
@@ -435,21 +436,39 @@ function removeLegacyForgotPasswordUI() {
 }
 
 function bindStaticEvents() {
+  const loginForm = $('loginPane');
+  const submitLoginForm = () => {
+    if (loginInFlight) return;
+    if (loginForm?.requestSubmit) {
+      loginForm.requestSubmit();
+      return;
+    }
+    handleLogin();
+  };
+
   $('tabLogin')?.addEventListener('click', (e) => {
     e.preventDefault();
     const loginVisible = ($('loginPane')?.style.display || 'block') !== 'none';
-    const hasCreds = !!(($('loginEmail')?.value || '').trim() || ($('loginPassword')?.value || '').trim());
-    showPane('login');
-    if (loginVisible && hasCreds) {
-      handleLogin();
+    const emailVal = ($('loginEmail')?.value || '').trim();
+    const passwordVal = ($('loginPassword')?.value || '').trim();
+    if (!loginVisible) {
+      showPane('login');
+      setTimeout(() => (passwordVal ? $('loginPassword') : $('loginEmail'))?.focus(), 20);
+      return;
     }
+    if (emailVal && passwordVal) {
+      submitLoginForm();
+      return;
+    }
+    showPane('login');
+    setTimeout(() => (emailVal ? $('loginPassword') : $('loginEmail'))?.focus(), 20);
   });
+
   $('tabSignup')?.addEventListener('click', (e) => {
     e.preventDefault();
     showPane('signup');
   });
 
-  // Instantly auto-populates @regallakeland.com when the user tabs or clicks away
   ['loginEmail', 'signupEmail'].forEach(id => {
     $(id)?.addEventListener('blur', (e) => {
       let val = e.target.value.trim().toLowerCase();
@@ -459,27 +478,23 @@ function bindStaticEvents() {
     });
   });
 
-  // Allow pressing Enter to login on desktop and mobile keyboards
-  const triggerLoginFromKeyboard = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleLogin();
-    }
-  };
-
   ['loginEmail', 'loginPassword'].forEach(id => {
-    $(id)?.addEventListener('keydown', triggerLoginFromKeyboard);
-    $(id)?.addEventListener('keypress', triggerLoginFromKeyboard);
+    $(id)?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitLoginForm();
+      }
+    });
   });
 
-  $('loginPane')?.addEventListener('submit', (e) => {
+  loginForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     handleLogin();
   });
 
   $('btnLogin')?.addEventListener('click', (e) => {
     e.preventDefault();
-    handleLogin();
+    submitLoginForm();
   });
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
@@ -862,80 +877,43 @@ function updateAuthUI() {
 }
 
 async function handleLogin() {
+  if (loginInFlight) return;
+  loginInFlight = true;
+
   const emailInput = $('loginEmail')?.value.trim().toLowerCase() || '';
   const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
-  
+
   if ($('loginEmail') && email) $('loginEmail').value = email;
-  
+
   const password = $('loginPassword')?.value || '';
 
   if (!email || !password) {
+    loginInFlight = false;
     alert('Enter email and password.');
     return;
   }
   if (!isAllowedEmail(email)) {
-    alert('Use your @regallakeland.com email.');
+    loginInFlight = false;
+    alert('Use your Regal Lakeland username only or your full @regallakeland.com email.');
     return;
   }
 
+  clearLoginStatusMessage();
   localStorage.setItem('regal_saved_email', email);
+  setTempLoginContext(email, password);
 
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    let profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
-    if (!profileSnap?.exists?.()) {
-      const fallbackProfile = buildPendingProfileData(
-        cred.user,
-        (cred.user.displayName || email.split('@')[0] || '').replace(/[._-]+/g, ' ').trim() || email,
-        isProtectedCoreAdmin(email)
-      );
-      await writeProfileWithRetry(cred.user.uid, fallbackProfile).catch(() => {});
-      profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
-    }
-    const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
-    const approved = !!(isProtectedCoreAdmin(email) || canCompleteMarketplaceLogin(profileData));
-    const banned = profileData?.banned === true;
-
-    if (profileData?.mustChangePassword || profileData?.tempPasswordActive) {
-      setTempLoginContext(email, password);
-    } else {
-      clearTempLoginContext();
-    }
-
-    if (banned) {
-      clearTempLoginContext();
-      await signOut(auth).catch(() => {});
-      alert('Your marketplace access has been disabled. Contact an admin.');
-      return;
-    }
-
-    if (!approved) {
-      const blockedStatus = normalizeApprovalStatus(profileData);
-      const blockedMessage = loginBlockedMessage(profileData);
-      const blockedReason = blockedStatus === 'DENIED'
-        ? 'ACCESS_DENIED'
-        : (blockedStatus === 'DELETED' ? 'ACCOUNT_DELETED' : 'WAITING_ON_ADMIN_APPROVAL');
-
-      await updateDoc(doc(db, 'profiles', cred.user.uid), {
-        approvalStatus: blockedStatus,
-        lastLoginBlockedReason: blockedReason,
-        lastLoginBlockedAtMs: Date.now(),
-        updatedAt: serverTimestamp()
-      }).catch(() => {});
-      clearTempLoginContext();
-      await signOut(auth).catch(() => {});
-      showLoginStatusMessage(blockedMessage);
-      setLoginFlashMessage(blockedMessage);
-      alert(blockedMessage);
-      return;
-    }
+    await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
+    clearTempLoginContext();
     console.error(err);
     if (err?.code === 'auth/invalid-credential') {
-      alert('That email/password combination was rejected by Firebase. If you just set a temporary password, copy it exactly as shown and make sure you are signing in with the exact approved email address. If it still fails, set a new temporary password from the admin panel and try again.');
+      alert('That email/password combination was rejected. Check your password and try again.');
       return;
     }
     alert(`${err?.code || 'login_error'} — ${err?.message || 'Login failed.'}`);
+  } finally {
+    loginInFlight = false;
   }
 }
 
@@ -1067,6 +1045,7 @@ async function handleForcePasswordChange() {
 }
 
 async function handleSignup() {
+  if (signupInFlight) return;
   const fullName =
     $('signupFullName')?.value.trim() ||
     $('signupName')?.value.trim() ||
@@ -1122,6 +1101,7 @@ async function handleSignup() {
   localStorage.setItem('regal_saved_email', email);
 
   try {
+    signupInFlight = true;
     if (signupBtn) signupBtn.disabled = true;
 
     const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -1145,25 +1125,17 @@ async function handleSignup() {
     currentProfile = null;
     updateAuthUI();
 
-    const createdMessage = elevated ? 'Account created. You can sign in now.' : approvalCreatedMessage();
-
+    clearLoginStatusMessage();
     if (msg) {
-      msg.textContent = createdMessage;
-      msg.style.display = 'block';
-    }
-
-    if ($('verifyNote')) {
-      $('verifyNote').textContent = createdMessage;
-      $('verifyNote').style.display = 'block';
+      msg.textContent = '';
+      msg.style.display = 'none';
     }
 
     if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-    setLoginFlashMessage(createdMessage);
     showPane('login');
-    showLoginStatusMessage(createdMessage);
-    alert(createdMessage);
+    setTimeout(() => $('loginPassword')?.focus(), 30);
   } catch (err) {
     console.error(err);
 
@@ -1174,6 +1146,7 @@ async function handleSignup() {
 
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
   } finally {
+    signupInFlight = false;
     if (signupBtn) signupBtn.disabled = false;
   }
 }
