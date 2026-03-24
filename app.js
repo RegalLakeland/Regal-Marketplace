@@ -319,6 +319,8 @@ function bindStaticEvents() {
   $('btnSaveName')?.addEventListener('click', handleSaveName);
   $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
   $('btnAgreeRules')?.addEventListener('click', handleRulesAgreement);
+  $('rulesFullName')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleRulesAgreement(); } });
+  $('rulesFirstName')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleRulesAgreement(); } });
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -327,13 +329,19 @@ function bindStaticEvents() {
   });
 
   const openPost = () => {
-    if (!currentUser) {
-      alert('Please log in first.');
-      return;
-    }
-    resetPostEditor();
-    show('postOverlay');
-  };
+  if (!currentUser) {
+    alert('Please log in first.');
+    return;
+  }
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before using the marketplace.');
+    return;
+  }
+  resetPostEditor();
+  show('postOverlay');
+};
+
   $('btnNew')?.addEventListener('click', openPost);
   $('heroPostBtn')?.addEventListener('click', openPost);
   $('heroFreeBtn')?.addEventListener('click', () => {
@@ -449,11 +457,20 @@ function canModerate() {
 }
 
 
-function hasRulesAcceptance(profile) {
-  return !!(profile && profile.rulesAccepted === true && profile.rulesAcceptedVersion === MARKETPLACE_RULES_VERSION && Number(profile.rulesAcceptedAtMs || 0) > 0);
+function hasRulesAcceptance(profile = currentProfile) {
+  return !!(
+    profile &&
+    profile.rulesAccepted === true &&
+    profile.rulesAcceptedVersion === MARKETPLACE_RULES_VERSION &&
+    String(profile.rulesAcceptedName || '').trim() &&
+    String(profile.rulesAcceptedFirstName || '').trim() &&
+    String(profile.rulesAcceptedLastName || '').trim() &&
+    Number(profile.rulesAcceptedAtMs || 0) > 0
+  );
 }
 
-function expectedRulesFirstName(profile = currentProfile, user = currentUser) {
+
+function expectedRulesFullName(profile = currentProfile, user = currentUser) {
   const source = String(
     profile?.displayName ||
     profile?.pendingName ||
@@ -462,22 +479,29 @@ function expectedRulesFirstName(profile = currentProfile, user = currentUser) {
     user?.email?.split('@')[0] ||
     ''
   ).trim();
-  const cleaned = source.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return cleaned.split(' ')[0] || '';
+  return source.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
+
 
 function renderRulesList() {
   const list = $('rulesList');
   if (!list) return;
   list.innerHTML = MARKETPLACE_RULES.map((rule) => `<li>${rule}</li>`).join('');
-  const expected = expectedRulesFirstName();
+  const expected = expectedRulesFullName();
   const expectedEl = $('rulesExpectedName');
   if (expectedEl) {
     expectedEl.textContent = expected
-      ? `For security, type your first name exactly as: ${expected}`
-      : 'For security, type your first name exactly as it should appear in your employee profile.';
+      ? `For security, type your full first and last name exactly as: ${expected}`
+      : 'For security, type your full first and last name exactly as it should appear in your employee profile.';
+  }
+
+  const input = $('rulesFullName') || $('rulesFirstName');
+  if (input) {
+    input.placeholder = 'Enter your first and last name';
+    input.setAttribute('autocomplete', 'name');
   }
 }
+
 
 function showRulesOverlay() {
   renderRulesList();
@@ -487,12 +511,16 @@ function showRulesOverlay() {
     msg.textContent = '';
     msg.dataset.state = '';
   }
-  if ($('rulesFirstName')) $('rulesFirstName').value = '';
+  const input = $('rulesFullName') || $('rulesFirstName');
+  if (input) input.value = '';
+  const check = $('rulesAcknowledge');
+  if (check) check.checked = false;
   const overlay = $('rulesOverlay');
   if (overlay) overlay.style.display = 'flex';
   document.body.classList.add('modal-open');
-  setTimeout(() => $('rulesFirstName')?.focus(), 20);
+  setTimeout(() => input?.focus(), 20);
 }
+
 
 function hideRulesOverlay() {
   const overlay = $('rulesOverlay');
@@ -559,7 +587,13 @@ async function ensureProfile(user) {
     rulesAccepted: false,
     rulesAcceptedVersion: '',
     rulesAcceptedName: '',
+    rulesAcceptedFirstName: '',
+    rulesAcceptedLastName: '',
+    rulesAcceptedAt: null,
     rulesAcceptedAtMs: null,
+    rulesAcceptedByUid: '',
+    rulesAcceptedByEmail: '',
+    rulesAcceptedDisplayNameSnapshot: '',
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -588,6 +622,11 @@ async function ensureProfile(user) {
     if (typeof currentProfile.rulesAccepted !== 'boolean') updates.rulesAccepted = false;
     if (typeof currentProfile.rulesAcceptedVersion !== 'string') updates.rulesAcceptedVersion = '';
     if (typeof currentProfile.rulesAcceptedName !== 'string') updates.rulesAcceptedName = '';
+    if (typeof currentProfile.rulesAcceptedFirstName !== 'string') updates.rulesAcceptedFirstName = '';
+    if (typeof currentProfile.rulesAcceptedLastName !== 'string') updates.rulesAcceptedLastName = '';
+    if (typeof currentProfile.rulesAcceptedByUid !== 'string') updates.rulesAcceptedByUid = '';
+    if (typeof currentProfile.rulesAcceptedByEmail !== 'string') updates.rulesAcceptedByEmail = '';
+    if (typeof currentProfile.rulesAcceptedDisplayNameSnapshot !== 'string') updates.rulesAcceptedDisplayNameSnapshot = '';
     if (!Number.isFinite(Number(currentProfile.rulesAcceptedAtMs || 0))) updates.rulesAcceptedAtMs = null;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
@@ -899,8 +938,13 @@ async function handleSignup() {
       rulesAccepted: false,
       rulesAcceptedVersion: '',
       rulesAcceptedName: '',
+      rulesAcceptedFirstName: '',
+      rulesAcceptedLastName: '',
       rulesAcceptedAt: null,
       rulesAcceptedAtMs: null,
+      rulesAcceptedByUid: '',
+      rulesAcceptedByEmail: '',
+      rulesAcceptedDisplayNameSnapshot: '',
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -950,9 +994,11 @@ async function handleSignup() {
 
 
 async function handleRulesAgreement() {
-  const typedFirstName = String($('rulesFirstName')?.value || '').trim();
+  const input = $('rulesFullName') || $('rulesFirstName');
+  const typedName = String(input?.value || '').trim();
+  const acknowledged = !!$('rulesAcknowledge')?.checked;
   const msg = $('rulesMsg');
-  const expected = expectedRulesFirstName();
+  const expected = expectedRulesFullName();
 
   if (msg) {
     msg.style.display = 'none';
@@ -965,30 +1011,60 @@ async function handleRulesAgreement() {
     return;
   }
 
-  if (!typedFirstName) {
+  if (!typedName) {
     if (msg) {
-      msg.textContent = 'Type your first name to continue.';
+      msg.textContent = 'Enter your first and last name.';
       msg.dataset.state = 'error';
       msg.style.display = 'block';
     }
     return;
   }
 
-  if (expected && typedFirstName.toLowerCase() !== expected.toLowerCase()) {
+  if ($('rulesAcknowledge') && !acknowledged) {
     if (msg) {
-      msg.textContent = `The first name entered does not match ${expected}.`;
+      msg.textContent = 'You must check the acknowledgment box before continuing.';
       msg.dataset.state = 'error';
       msg.style.display = 'block';
     }
     return;
   }
+
+  const cleanedTyped = typedName.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const parts = cleanedTyped.split(' ').filter(Boolean);
+
+  if (parts.length < 2) {
+    if (msg) {
+      msg.textContent = 'You must enter both your first and last name.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+
+  if (expected && cleanedTyped.toLowerCase() !== expected.toLowerCase()) {
+    if (msg) {
+      msg.textContent = `The name entered does not match ${expected}.`;
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+
+  const firstName = parts[0];
+  const lastName = parts.slice(1).join(' ');
+  const now = Date.now();
 
   const payload = {
     rulesAccepted: true,
     rulesAcceptedVersion: MARKETPLACE_RULES_VERSION,
-    rulesAcceptedName: typedFirstName,
+    rulesAcceptedName: cleanedTyped,
+    rulesAcceptedFirstName: firstName,
+    rulesAcceptedLastName: lastName,
     rulesAcceptedAt: serverTimestamp(),
-    rulesAcceptedAtMs: Date.now(),
+    rulesAcceptedAtMs: now,
+    rulesAcceptedByUid: currentUser.uid,
+    rulesAcceptedByEmail: String(currentUser.email || '').toLowerCase(),
+    rulesAcceptedDisplayNameSnapshot: String(currentProfile.displayName || currentProfile.pendingName || currentProfile.requestedName || cleanedTyped),
     updatedAt: serverTimestamp()
   };
 
@@ -1124,6 +1200,12 @@ function renderEventSpotlight() {
 }
 
 async function handleEventRsvp(status) {
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before responding.');
+    return;
+  }
+
   if (!currentUser) {
     alert('Please log in first to RSVP.');
     return;
@@ -1433,6 +1515,12 @@ function renderListings() {
 }
 
 async function handleSavePost() {
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before posting.');
+    return;
+  }
+
   if (isSavingPost) return;
   if (!currentUser || !currentProfile) {
     alert('Please log in first.');
@@ -1560,6 +1648,12 @@ async function handleRequestActive(id) {
 }
 
 async function openThread(id) {
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before continuing.');
+    return;
+  }
+
   const item = listings.find((x) => x.id === id);
   if (!item) return;
 
@@ -1607,6 +1701,12 @@ function renderReplies(replies) {
 }
 
 async function handleSendReply() {
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before replying.');
+    return;
+  }
+
   if (!currentUser || !currentProfile || !activeThread) {
     alert('Open a thread first.');
     return;

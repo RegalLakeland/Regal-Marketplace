@@ -149,7 +149,17 @@ function flagSummary(user, dup) {
   if (!user?.emailVerified) flags.push('Manual-only email');
   if (!user?.displayName && !user?.pendingName && !user?.requestedName) flags.push('Name missing');
   if (user?.mustChangePassword) flags.push('Temp password active');
+  if (!user?.rulesAccepted) flags.push('Rules pending');
   return flags.length ? flags.join(' • ') : '—';
+}
+
+function formatRulesStatus(user) {
+  if (!user?.rulesAccepted) return 'Pending employee agreement';
+  const acceptedName = user.rulesAcceptedName || user.displayName || user.pendingName || user.requestedName || user.email || '—';
+  const acceptedAt = fmtDate(user.rulesAcceptedAtMs || user.updatedAt || user.createdAtMs || Date.now());
+  const version = user.rulesAcceptedVersion || '—';
+  const byEmail = user.rulesAcceptedByEmail || user.email || '—';
+  return `Accepted by ${acceptedName} on ${acceptedAt} • ${version} • ${byEmail}`;
 }
 
 let authResolved = false;
@@ -329,6 +339,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
 
   if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
+  buttons.push(`<button class="btn ghost" data-role="resetRules" data-id="${esc(user.id)}" type="button">Reset Rules</button>`);
   if (isCoreAdminViewer() && (!protectedUser || selfRow)) {
     if (!user.deleted) buttons.push(`<button class="btn danger" data-role="softDeleteAccount" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
     buttons.push(`<button class="btn danger" data-role="hardDeleteAccount" data-id="${esc(user.id)}" style="background:transparent; border-color:#ef4444; color:#ef4444;" type="button">Perm Delete</button>`);
@@ -394,7 +405,7 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Password</span><span class="user-status-meta">${esc(user.mustChangePassword ? 'Temporary password active' : 'Normal sign-in')}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${esc(user.rulesAccepted ? `Accepted by ${user.rulesAcceptedName || shownName} on ${fmtDate(user.rulesAcceptedAtMs || user.updatedAt || user.createdAtMs || Date.now())}` : 'Pending employee agreement')}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${esc(formatRulesStatus(user))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
           </div>
         </td>
@@ -430,6 +441,23 @@ function renderUserRows() {
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, updatedAt: Date.now() });
+    if (role === 'resetRules') {
+      if (!confirm(`Reset rules agreement for ${user.email || 'this user'}? They will be forced to accept the current rules again on next login.`)) return;
+      await updateDoc(ref, {
+        rulesAccepted: false,
+        rulesAcceptedVersion: '',
+        rulesAcceptedName: '',
+        rulesAcceptedFirstName: '',
+        rulesAcceptedLastName: '',
+        rulesAcceptedAt: null,
+        rulesAcceptedAtMs: null,
+        rulesAcceptedByUid: '',
+        rulesAcceptedByEmail: '',
+        rulesAcceptedDisplayNameSnapshot: '',
+        updatedAt: Date.now()
+      });
+      return;
+    }
     if (role === 'setTempPassword') {
       const suggested = generateTempPassword();
       const temporaryPassword = window.prompt(`Set a temporary password for ${user.email}. Share it with the user and they will be forced to change it after login.`, suggested);

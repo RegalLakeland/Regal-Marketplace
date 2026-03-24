@@ -135,28 +135,24 @@
 
 
   <div class="overlay" id="rulesOverlay" style="display:none">
-    <div class="modal wide modal-scroll rules-modal">
-      <div class="modal-h">
-        <div>
-          <strong>Regal Lakeland Marketplace Rules & Employee Agreement</strong>
-          <div class="note">One-time acknowledgement required before marketplace access continues.</div>
+    <div class="modal password-gate-modal">
+      <div class="modal-h"><strong>Marketplace Rules Agreement</strong></div>
+      <div class="modal-b">
+        <div class="note">Before accessing the marketplace, you must review and accept these rules. This agreement is recorded in the admin portal with your full name, email, and timestamp.</div>
+        <ol id="rulesList" class="note" style="padding-left:20px; margin:12px 0;"></ol>
+        <div class="field">
+          <label>Type Your First and Last Name</label>
+          <input id="rulesFullName" type="text" placeholder="Enter your first and last name" autocomplete="name" />
         </div>
+        <div class="note" id="rulesExpectedName" style="margin-top:6px;"></div>
+        <label class="note" style="display:flex; align-items:flex-start; gap:10px; margin-top:14px;">
+          <input id="rulesAcknowledge" type="checkbox" style="margin-top:3px;" />
+          <span>I have read these marketplace rules, I understand them, and I agree to follow them every time I use this website.</span>
+        </label>
+        <div class="note" id="rulesMsg" style="display:none; margin-top:12px;"></div>
       </div>
-      <div class="modal-b rules-modal-body">
-        <div class="rules-intro">
-          This private marketplace is for Regal Lakeland employees only. These rules are designed to protect Regal, the family-owned business, coworkers, customers, and the owner/administrator of this website.
-        </div>
-        <ol class="rules-list" id="rulesList"></ol>
-        <div class="field rules-name-field">
-          <label>Type your first name to agree</label>
-          <input id="rulesFirstName" type="text" placeholder="Enter your first name exactly" autocomplete="given-name" />
-        </div>
-        <div class="note" id="rulesExpectedName"></div>
-        <div class="note" id="rulesMsg" style="display:none"></div>
-      </div>
-      <div class="modal-actions rules-actions">
-        <div class="note tight-note">By agreeing, your acknowledgement is saved with date and time in the admin portal.</div>
-        <button class="btn primary" id="btnAgreeRules" type="button">I Agree to the Rules</button>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnAgreeRules" type="button">Agree & Continue</button>
       </div>
     </div>
   </div>
