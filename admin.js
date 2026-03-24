@@ -91,6 +91,12 @@ const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sa
 function fmtDate(ms) {
   try { return new Date(Number(ms || Date.now())).toLocaleString(); } catch { return '—'; }
 }
+function approvalStateLabel(user) {
+  if (user?.banned) return 'Blocked';
+  if (user?.accessApproved) return 'Approved';
+  if (user?.accessManuallyDenied) return 'Denied';
+  return 'Waiting on admin approval';
+}
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
 function isAdmin(email) { return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(normalizeEmail(email)); }
 function isProtectedCoreAdmin(email) { return CORE_ADMIN_EMAILS.includes(normalizeEmail(email)); }
@@ -297,7 +303,7 @@ function duplicateMeta(rows) {
 }
 
 function userPending(user) {
-  return !user.accessApproved || (!user.emailVerified && !user.manualVerified);
+  return !user.accessApproved || (!user.emailVerified && !user.manualVerified) || user.approvalStatus === 'PENDING_ADMIN_APPROVAL';
 }
 
 function applyUserFilters(rows) {
@@ -319,6 +325,8 @@ function applyUserFilters(rows) {
   
   if (userFilterValue === 'ONLINE') {
     filtered.sort((a, b) => Number(b.lastSeenAtMs || 0) - Number(a.lastSeenAtMs || 0));
+  } else if (userFilterValue === 'PENDING') {
+    filtered.sort((a, b) => Number(b.signupSubmittedAtMs || b.createdAtMs || 0) - Number(a.signupSubmittedAtMs || a.createdAtMs || 0));
   } else {
     filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
   }
@@ -403,6 +411,8 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Email</span><span class="user-status-value ${emailState.tone}">${esc(emailState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Approval</span><span class="user-status-meta">${esc(approvalStateLabel(user))}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Requested</span><span class="user-status-meta">${esc(fmtDate(user.signupSubmittedAtMs || user.createdAtMs || Date.now()))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Password</span><span class="user-status-meta">${esc(user.mustChangePassword ? 'Temporary password active' : 'Normal sign-in')}</span></div>
             <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${esc(formatRulesStatus(user))}</span></div>
@@ -430,16 +440,16 @@ function renderUserRows() {
 
     if (role === 'grantMod') await updateDoc(ref, { isModerator: true, updatedAt: Date.now() });
     if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
-    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
     if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
-    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
     if (role === 'denyAccess') {
-      const denyPayload = { accessApproved: false, accessManuallyDenied: true, updatedAt: Date.now() };
+      const denyPayload = { accessApproved: false, accessManuallyDenied: true, approvalStatus: 'DENIED', pendingApprovalAtMs: Date.now(), updatedAt: Date.now() };
       if (!user.emailVerified) denyPayload.manualVerified = false;
       await updateDoc(ref, denyPayload);
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
-    if (role === 'unbanUser') await updateDoc(ref, { banned: false, updatedAt: Date.now() });
+    if (role === 'unbanUser') await updateDoc(ref, { banned: false, approvalStatus: user.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL', updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, updatedAt: Date.now() });
     if (role === 'resetRules') {
       if (!confirm(`Reset rules agreement for ${user.email || 'this user'}? They will be forced to accept the current rules again on next login.`)) return;
@@ -481,6 +491,7 @@ function renderUserRows() {
       await updateDoc(ref, {
         deleted: true,
         accessApproved: false,
+        approvalStatus: 'DELETED',
         banned: true,
         updatedAt: Date.now()
       });

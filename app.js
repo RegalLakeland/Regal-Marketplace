@@ -118,6 +118,73 @@ function clearTempLoginContext() {
   } catch (_) {}
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function approvalWaitingMessage() {
+  return 'Waiting on admin approval. Once admin has approved you, you will be able to log in.';
+}
+
+function approvalCreatedMessage() {
+  return 'Account created successfully. Waiting on admin approval. Once admin has approved you, you will be able to log in.';
+}
+
+function buildPendingProfileData(user, fullName, elevated = false) {
+  const now = Date.now();
+  return {
+    uid: user.uid,
+    email: String(user.email || '').toLowerCase(),
+    displayName: fullName,
+    pendingName: fullName,
+    requestedName: fullName,
+    isAdmin: elevated,
+    isModerator: false,
+    banned: false,
+    deleted: false,
+    manualVerified: elevated,
+    emailVerified: !!user.emailVerified,
+    accessApproved: elevated,
+    accessManuallyDenied: false,
+    approvalStatus: elevated ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL',
+    signupSource: 'self-service',
+    signupSubmittedAtMs: now,
+    pendingApprovalAtMs: elevated ? null : now,
+    tempPasswordActive: false,
+    mustChangePassword: false,
+    rulesAccepted: false,
+    rulesAcceptedVersion: '',
+    rulesAcceptedName: '',
+    rulesAcceptedFirstName: '',
+    rulesAcceptedLastName: '',
+    rulesAcceptedAt: null,
+    rulesAcceptedAtMs: null,
+    rulesAcceptedByUid: '',
+    rulesAcceptedByEmail: '',
+    rulesAcceptedDisplayNameSnapshot: '',
+    createdAt: serverTimestamp(),
+    createdAtMs: now,
+    updatedAt: serverTimestamp()
+  };
+}
+
+async function writeProfileWithRetry(uid, data, attempts = 4) {
+  const ref = doc(db, 'profiles', uid);
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await setDoc(ref, data, { merge: true });
+      const snap = await getDoc(ref);
+      if (snap.exists()) return snap.data();
+      lastErr = new Error('Profile write did not become visible yet.');
+    } catch (err) {
+      lastErr = err;
+    }
+    await delay(350 * (i + 1));
+  }
+  throw lastErr || new Error('Profile write failed.');
+}
+
 const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -231,12 +298,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
       if ($('verifyNote')) {
-        $('verifyNote').textContent = 'Your account has been created and is waiting for manual admin approval.';
+        $('verifyNote').textContent = 'Waiting on admin approval. Once admin has approved you, you will be able to log in.';
         $('verifyNote').style.display = 'block';
       }
       if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
       await signOut(auth);
-      alert('Your account is waiting for manual admin approval.');
+      alert('Waiting on admin approval. Once admin has approved you, you will be able to log in.');
       return;
     }
 
@@ -583,6 +650,11 @@ async function ensureProfile(user) {
     emailVerified: !!user.emailVerified,
     accessApproved: isProtectedCoreAdmin(user.email) || isAdmin(user.email),
     accessManuallyDenied: false,
+    approvalStatus: (isProtectedCoreAdmin(user.email) || isAdmin(user.email)) ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL',
+    signupSource: 'self-service',
+    signupSubmittedAtMs: Date.now(),
+    pendingApprovalAtMs: (isProtectedCoreAdmin(user.email) || isAdmin(user.email)) ? null : Date.now(),
+    deleted: false,
     tempPasswordActive: false,
     mustChangePassword: false,
     rulesAccepted: false,
@@ -618,6 +690,11 @@ async function ensureProfile(user) {
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
+    if (typeof currentProfile.approvalStatus !== 'string') updates.approvalStatus = currentProfile.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL';
+    if (typeof currentProfile.signupSource !== 'string') updates.signupSource = 'self-service';
+    if (!Number.isFinite(Number(currentProfile.signupSubmittedAtMs || 0))) updates.signupSubmittedAtMs = Number(currentProfile.createdAtMs || Date.now());
+    if (!(Object.prototype.hasOwnProperty.call(currentProfile, 'pendingApprovalAtMs'))) updates.pendingApprovalAtMs = currentProfile.accessApproved ? null : Number(currentProfile.createdAtMs || Date.now());
+    if (typeof currentProfile.deleted !== 'boolean') updates.deleted = false;
     if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
     if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (typeof currentProfile.rulesAccepted !== 'boolean') updates.rulesAccepted = false;
@@ -640,6 +717,8 @@ async function ensureProfile(user) {
     }
     if (isProtectedCoreAdmin(user.email) && currentProfile.accessApproved !== true) {
       updates.accessApproved = true;
+      updates.approvalStatus = 'APPROVED';
+      updates.pendingApprovalAtMs = null;
     }
 
     if (Object.keys(updates).length) {
@@ -698,7 +777,16 @@ async function handleLogin() {
 
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
+    let profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
+    if (!profileSnap?.exists?.()) {
+      const fallbackProfile = buildPendingProfileData(
+        cred.user,
+        (cred.user.displayName || email.split('@')[0] || '').replace(/[._-]+/g, ' ').trim() || email,
+        isProtectedCoreAdmin(email)
+      );
+      await writeProfileWithRetry(cred.user.uid, fallbackProfile).catch(() => {});
+      profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
+    }
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
     const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
     const banned = profileData?.banned === true;
@@ -717,13 +805,23 @@ async function handleLogin() {
     }
 
     if (!approved) {
+      await updateDoc(doc(db, 'profiles', cred.user.uid), {
+        approvalStatus: 'PENDING_ADMIN_APPROVAL',
+        lastLoginBlockedReason: 'WAITING_ON_ADMIN_APPROVAL',
+        lastLoginBlockedAtMs: Date.now(),
+        updatedAt: serverTimestamp()
+      }).catch(() => {});
       clearTempLoginContext();
       await signOut(auth).catch(() => {});
       if ($('verifyNote')) {
-        $('verifyNote').textContent = 'Your account exists but is still waiting for manual admin approval.';
+        $('verifyNote').textContent = approvalWaitingMessage();
         $('verifyNote').style.display = 'block';
       }
-      alert('Your account is still waiting for manual admin approval.');
+      if ($('signupMsg')) {
+        $('signupMsg').textContent = approvalWaitingMessage();
+        $('signupMsg').style.display = 'block';
+      }
+      alert(approvalWaitingMessage());
       return;
     }
   } catch (err) {
@@ -871,7 +969,7 @@ async function handleSignup() {
 
   const emailInput = $('signupEmail')?.value.trim().toLowerCase() || '';
   const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
-  
+
   if ($('signupEmail') && email) $('signupEmail').value = email;
 
   const password =
@@ -884,6 +982,7 @@ async function handleSignup() {
     '';
 
   const msg = $('signupMsg');
+  const signupBtn = $('btnSignup');
 
   if (msg) {
     msg.style.display = 'none';
@@ -918,55 +1017,38 @@ async function handleSignup() {
   localStorage.setItem('regal_saved_email', email);
 
   try {
+    if (signupBtn) signupBtn.disabled = true;
+
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const elevated = isProtectedCoreAdmin(email);
+    const profilePayload = buildPendingProfileData(cred.user, fullName, elevated);
 
-    await setDoc(doc(db, 'profiles', cred.user.uid), {
-      uid: cred.user.uid,
-      email,
-      displayName: fullName,
-      pendingName: fullName,
-      requestedName: fullName,
-      isAdmin: elevated,
-      isModerator: false,
-      banned: false,
-      manualVerified: elevated,
-      emailVerified: !!cred.user.emailVerified,
-      accessApproved: elevated,
-      accessManuallyDenied: false,
-      tempPasswordActive: false,
-      mustChangePassword: false,
-      rulesAccepted: false,
-      rulesAcceptedVersion: '',
-      rulesAcceptedName: '',
-      rulesAcceptedFirstName: '',
-      rulesAcceptedLastName: '',
-      rulesAcceptedAt: null,
-      rulesAcceptedAtMs: null,
-      rulesAcceptedByUid: '',
-      rulesAcceptedByEmail: '',
-      rulesAcceptedDisplayNameSnapshot: '',
-      createdAt: serverTimestamp(),
-      createdAtMs: Date.now(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    try {
+      await writeProfileWithRetry(cred.user.uid, profilePayload, 5);
+    } catch (profileErr) {
+      console.error('profile_write_error', profileErr);
+      try {
+        await cred.user.delete();
+      } catch (cleanupErr) {
+        console.error('signup_cleanup_error', cleanupErr);
+      }
+      throw new Error('We could not finish creating your approval record. No account was left active. Please try again.');
+    }
 
     await signOut(auth).catch(() => {});
     currentUser = null;
     currentProfile = null;
     updateAuthUI();
 
+    const createdMessage = elevated ? 'Account created. You can sign in now.' : approvalCreatedMessage();
+
     if (msg) {
-      msg.textContent = elevated
-        ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.';
+      msg.textContent = createdMessage;
       msg.style.display = 'block';
     }
 
     if ($('verifyNote')) {
-      $('verifyNote').textContent = elevated
-        ? 'Account created successfully! You can sign in now.'
-        : 'Account created successfully! An admin must manually approve your account before you can sign in.';
+      $('verifyNote').textContent = createdMessage;
       $('verifyNote').style.display = 'block';
     }
 
@@ -975,12 +1057,7 @@ async function handleSignup() {
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
     showPane('login');
-
-    alert(
-      elevated
-        ? 'Account created. You can sign in now.'
-        : 'Account created. An admin must manually approve your account before you can sign in.'
-    );
+    alert(createdMessage);
   } catch (err) {
     console.error(err);
 
@@ -990,6 +1067,8 @@ async function handleSignup() {
     }
 
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
+  } finally {
+    if (signupBtn) signupBtn.disabled = false;
   }
 }
 
