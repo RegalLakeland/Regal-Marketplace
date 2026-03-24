@@ -98,6 +98,17 @@ function approvalStateLabel(user) {
   return 'Waiting on admin approval';
 }
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
+function normalizePersonName(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
+function preferredUserName(user, preferPending = false) {
+  const pendingFirst = preferPending
+    ? [user?.pendingName, user?.requestedName, user?.displayName]
+    : [user?.displayName, user?.pendingName, user?.requestedName];
+  for (const candidate of pendingFirst) {
+    const clean = normalizePersonName(candidate);
+    if (clean) return clean;
+  }
+  return normalizeEmail(user?.email) || '';
+}
 function isAdmin(email) { return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(normalizeEmail(email)); }
 function isProtectedCoreAdmin(email) { return CORE_ADMIN_EMAILS.includes(normalizeEmail(email)); }
 function isCoreAdminViewer() { return isProtectedCoreAdmin(currentViewer?.email); }
@@ -180,7 +191,7 @@ function flagSummary(user, dup) {
   const flags = [];
   if (dup?.isDuplicate) flags.push(`Duplicate x${dup.count}`);
   if (!user?.emailVerified) flags.push('Manual-only email');
-  if (!user?.displayName && !user?.pendingName && !user?.requestedName) flags.push('Name missing');
+  if (!preferredUserName(user, true)) flags.push('Name missing');
   if (user?.mustChangePassword) flags.push('Temp password active');
   if (!user?.rulesAccepted) flags.push('Rules pending');
   return flags.length ? flags.join(' • ') : '—';
@@ -188,7 +199,7 @@ function flagSummary(user, dup) {
 
 function formatRulesStatus(user) {
   if (!user?.rulesAccepted) return 'Pending employee agreement';
-  const acceptedName = user.rulesAcceptedName || user.displayName || user.pendingName || user.requestedName || user.email || '—';
+  const acceptedName = normalizePersonName(user.rulesAcceptedName) || preferredUserName(user, true) || user.email || '—';
   const acceptedAt = fmtDate(user.rulesAcceptedAtMs || user.updatedAt || user.createdAtMs || Date.now());
   const version = user.rulesAcceptedVersion || '—';
   const byEmail = user.rulesAcceptedByEmail || user.email || '—';
@@ -340,7 +351,7 @@ function applyUserFilters(rows) {
   let filtered = rows.slice();
   if (userSearchTerm) {
     filtered = filtered.filter((user) => {
-      const hay = [user.email, user.displayName, user.pendingName, user.requestedName].join(' ').toLowerCase();
+      const hay = [user.email, user.displayName, user.pendingName, user.requestedName, preferredUserName(user, true)].join(' ').toLowerCase();
       return hay.includes(userSearchTerm);
     });
   }
@@ -357,7 +368,7 @@ function applyUserFilters(rows) {
   } else if (userFilterValue === 'PENDING') {
     filtered.sort((a, b) => Number(b.signupSubmittedAtMs || b.createdAtMs || 0) - Number(a.signupSubmittedAtMs || a.createdAtMs || 0));
   } else {
-    filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || normalizeEmail(a.displayName || a.pendingName || a.requestedName).localeCompare(normalizeEmail(b.displayName || b.pendingName || b.requestedName)));
+    filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || preferredUserName(a, true).localeCompare(preferredUserName(b, true)));
   }
   return { filtered, dmeta };
 }
@@ -406,7 +417,7 @@ function renderUserRows() {
   if ($('adminOnlineNames')) {
     if (onlineUsers.length > 0) {
       $('adminOnlineNames').innerHTML = onlineUsers.map((u) => {
-        const name = esc(u.displayName || u.pendingName || u.requestedName || u.email);
+        const name = esc(preferredUserName(u, false) || u.email);
         return `<span class="pill" style="border-color:#22c55e; background:rgba(34,197,94,0.1); color:#bbf7d0; font-weight:800;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:8px; box-shadow:0 0 8px #22c55e;"></span>${name}</span>`;
       }).join('');
     } else {
@@ -420,7 +431,8 @@ function renderUserRows() {
     const emailState = emailStatusMeta(user);
     const accessState = accessStatusMeta(user);
     const actions = buildUserActionButtons(user, dup, protectedUser);
-    const shownName = user.displayName || user.pendingName || user.requestedName || '—';
+    const shownName = preferredUserName(user, userPending(user)) || '—';
+    const signupName = preferredUserName(user, true) || '—';
     const isOnline = user.accessApproved && !user.banned && Number(user.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS);
     const onlineDot = isOnline ? `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-left:8px; box-shadow:0 0 6px #22c55e;" title="Online Now"></span>` : '';
 
@@ -439,7 +451,8 @@ function renderUserRows() {
           <div class="user-status-stack">
             <div class="user-status-line"><span class="user-status-key">Email</span><span class="user-status-value ${emailState.tone}">${esc(emailState.label)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Access</span><span class="user-status-value ${accessState.tone}">${esc(accessState.label)}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Full Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Signup Name</span><span class="user-status-meta">${esc(signupName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Approval</span><span class="user-status-meta">${esc(approvalStateLabel(user))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Requested</span><span class="user-status-meta">${esc(fmtDate(user.signupSubmittedAtMs || user.createdAtMs || Date.now()))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>

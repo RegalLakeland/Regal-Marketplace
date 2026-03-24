@@ -8,7 +8,8 @@ import {
   signOut,
   onAuthStateChanged,
   EmailAuthProvider,
-  reauthenticateWithCredential
+  reauthenticateWithCredential,
+  updateProfile
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import {
   getFirestore,
@@ -91,6 +92,10 @@ function applyAuthLanguage() {
       auth.languageCode = navigator.language;
     }
   } catch (_) {}
+}
+
+function normalizePersonName(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 function setTempLoginContext(email, password) {
@@ -207,12 +212,13 @@ function clearLoginStatusMessage() {
 
 function buildPendingProfileData(user, fullName, elevated = false) {
   const now = Date.now();
+  const cleanName = normalizePersonName(fullName || user.displayName || '');
   return {
     uid: user.uid,
     email: String(user.email || '').toLowerCase(),
-    displayName: fullName,
-    pendingName: fullName,
-    requestedName: fullName,
+    displayName: cleanName,
+    pendingName: cleanName,
+    requestedName: cleanName,
     isAdmin: elevated,
     isModerator: false,
     banned: false,
@@ -838,6 +844,12 @@ async function ensureProfile(user) {
     if (!Number.isFinite(Number(currentProfile.signupSubmittedAtMs || 0))) updates.signupSubmittedAtMs = Number(currentProfile.createdAtMs || Date.now());
     if (!(Object.prototype.hasOwnProperty.call(currentProfile, 'pendingApprovalAtMs'))) updates.pendingApprovalAtMs = currentProfile.accessApproved ? null : Number(currentProfile.createdAtMs || Date.now());
     if (typeof currentProfile.deleted !== 'boolean') updates.deleted = false;
+    const authDisplayName = normalizePersonName(user.displayName || '');
+    if (authDisplayName) {
+      if (!normalizePersonName(currentProfile.displayName)) updates.displayName = authDisplayName;
+      if (!normalizePersonName(currentProfile.pendingName)) updates.pendingName = authDisplayName;
+      if (!normalizePersonName(currentProfile.requestedName)) updates.requestedName = authDisplayName;
+    }
     if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
     if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (typeof currentProfile.rulesAccepted !== 'boolean') updates.rulesAccepted = false;
@@ -1069,10 +1081,11 @@ async function handleForcePasswordChange() {
 
 async function handleSignup() {
   if (signupInFlight) return;
-  const fullName =
-    $('signupFullName')?.value.trim() ||
-    $('signupName')?.value.trim() ||
-    '';
+  const fullName = normalizePersonName(
+    $('signupFullName')?.value ||
+    $('signupName')?.value ||
+    ''
+  );
 
   const emailInput = $('signupEmail')?.value.trim().toLowerCase() || '';
   const email = emailInput.includes('@') ? emailInput : (emailInput ? `${emailInput}@regallakeland.com` : '');
@@ -1128,6 +1141,9 @@ async function handleSignup() {
     if (signupBtn) signupBtn.disabled = true;
 
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(cred.user, { displayName: fullName }).catch((err) => {
+      console.warn('signup_display_name_update_failed', err);
+    });
     const elevated = isProtectedCoreAdmin(email);
     const profilePayload = buildPendingProfileData(cred.user, fullName, elevated);
 
