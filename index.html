@@ -133,6 +133,34 @@
     </div>
   </div>
 
+
+  <div class="overlay" id="rulesOverlay" style="display:none">
+    <div class="modal wide modal-scroll rules-modal">
+      <div class="modal-h">
+        <div>
+          <strong>Regal Lakeland Marketplace Rules & Employee Agreement</strong>
+          <div class="note">One-time acknowledgement required before marketplace access continues.</div>
+        </div>
+      </div>
+      <div class="modal-b rules-modal-body">
+        <div class="rules-intro">
+          This private marketplace is for Regal Lakeland employees only. These rules are designed to protect Regal, the family-owned business, coworkers, customers, and the owner/administrator of this website.
+        </div>
+        <ol class="rules-list" id="rulesList"></ol>
+        <div class="field rules-name-field">
+          <label>Type your first name to agree</label>
+          <input id="rulesFirstName" type="text" placeholder="Enter your first name exactly" autocomplete="given-name" />
+        </div>
+        <div class="note" id="rulesExpectedName"></div>
+        <div class="note" id="rulesMsg" style="display:none"></div>
+      </div>
+      <div class="modal-actions rules-actions">
+        <div class="note tight-note">By agreeing, your acknowledgement is saved with date and time in the admin portal.</div>
+        <button class="btn primary" id="btnAgreeRules" type="button">I Agree to the Rules</button>
+      </div>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="left">
       <div class="logo">

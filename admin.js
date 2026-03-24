@@ -394,6 +394,7 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Password</span><span class="user-status-meta">${esc(user.mustChangePassword ? 'Temporary password active' : 'Normal sign-in')}</span></div>
+            <div class="user-status-line"><span class="user-status-key">Rules</span><span class="user-status-meta">${esc(user.rulesAccepted ? `Accepted by ${user.rulesAcceptedName || shownName} on ${fmtDate(user.rulesAcceptedAtMs || user.updatedAt || user.createdAtMs || Date.now())}` : 'Pending employee agreement')}</span></div>
             <div class="user-status-line"><span class="user-status-key">Flags</span><span class="user-status-meta">${esc(flagSummary(user, dup))}</span></div>
           </div>
         </td>

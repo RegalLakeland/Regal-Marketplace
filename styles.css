@@ -282,3 +282,15 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 .passwordGate-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px}
 .passwordGate-actions{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px}
 @media (max-width: 900px){.passwordGate-grid{grid-template-columns:1fr}.passwordGate-head,.passwordGate-actions{flex-direction:column; align-items:flex-start}}
+
+
+.rules-modal{width:min(100%,880px)}
+.rules-modal-body{display:grid;gap:16px}
+.rules-intro{color:#e4edf9;line-height:1.6;font-weight:700}
+.rules-list{margin:0;padding-left:22px;display:grid;gap:12px;color:#dce7f8;line-height:1.6}
+.rules-list li{padding-left:2px}
+.rules-name-field{max-width:380px}
+.rules-actions{align-items:center}
+#rulesMsg[data-state="error"]{color:#fecaca}
+#rulesMsg[data-state="success"]{color:#bbf7d0}
+@media (max-width:780px){.rules-actions{flex-direction:column;align-items:flex-start}}

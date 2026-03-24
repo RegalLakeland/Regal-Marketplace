@@ -38,6 +38,22 @@ const storage = getStorage(app);
 
 const AUTH_FUNCTION_REGION = 'us-central1';
 
+const MARKETPLACE_RULES_VERSION = '2026-03-24-v1';
+const MARKETPLACE_RULES = [
+  'Use this marketplace only if you are a current Regal Lakeland employee or an approved administrator of the site.',
+  'Do not post anything illegal, stolen, counterfeit, unsafe, recalled, or prohibited by company policy or law.',
+  'Do not use this site to harass, threaten, embarrass, defame, or target coworkers, managers, customers, vendors, or ownership.',
+  'Keep all posts truthful. Misrepresenting an item, hiding damage, falsifying condition, or misleading coworkers is not allowed.',
+  'Do not share customer data, repair orders, internal store information, pricing strategy, payroll details, passwords, or any confidential Regal information.',
+  'No spam, mass solicitation, side-deal recruiting, outside business blasting, or repeated promotional posting without approval from site ownership.',
+  'Photos, text, and listings must be workplace-appropriate. No obscene, hateful, discriminatory, retaliatory, or reputation-damaging content.',
+  'Regal Lakeland and the website owner may remove posts, suspend access, preserve records, and report misuse at their sole discretion to protect the business.',
+  'You are personally responsible for your own transactions, meetups, item safety, and communication. Regal Lakeland and the website owner are not liable for losses, disputes, or damage.',
+  'Do not attempt to bypass admin approvals, impersonate another person, share accounts, manipulate listings, scrape data, or interfere with the operation of the site.',
+  'Any post or conduct that could harm Regal's reputation, employee relations, store operations, family ownership interests, or the website owner's legal protection is grounds for removal.',
+  'Using this marketplace means you agree to follow these rules every time you access it. Violations can result in deleted posts, revoked access, or further internal review.'
+];
+
 function verificationFunctionUrl() {
   return `https://${AUTH_FUNCTION_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/resendVerificationEmail`;
 }
@@ -241,6 +257,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     hidePasswordGate();
+    if (!hasRulesAcceptance(currentProfile)) {
+      showRulesOverlay();
+      return;
+    }
+
+    hideRulesOverlay();
     if (!currentProfile.displayName) {
       $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
       show('nameOverlay');
@@ -296,6 +318,7 @@ function bindStaticEvents() {
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
   $('btnCompletePasswordReset')?.addEventListener('click', handleForcePasswordChange);
+  $('btnAgreeRules')?.addEventListener('click', handleRulesAgreement);
   $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
   $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
   $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
@@ -389,7 +412,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'].some((overlayId) => {
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay'].some((overlayId) => {
     const o = $(overlayId);
     return o && (o.style.display === 'flex' || o.style.display === 'block');
   });
@@ -423,6 +446,62 @@ function isViewerAdmin() {
 
 function canModerate() {
   return !!currentProfile && (!!currentProfile.isAdmin || !!currentProfile.isModerator || isProtectedCoreAdmin(currentUser?.email));
+}
+
+
+function hasRulesAcceptance(profile) {
+  return !!(profile && profile.rulesAccepted === true && profile.rulesAcceptedVersion === MARKETPLACE_RULES_VERSION && Number(profile.rulesAcceptedAtMs || 0) > 0);
+}
+
+function expectedRulesFirstName(profile = currentProfile, user = currentUser) {
+  const source = String(
+    profile?.displayName ||
+    profile?.pendingName ||
+    profile?.requestedName ||
+    user?.displayName ||
+    user?.email?.split('@')[0] ||
+    ''
+  ).trim();
+  const cleaned = source.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return cleaned.split(' ')[0] || '';
+}
+
+function renderRulesList() {
+  const list = $('rulesList');
+  if (!list) return;
+  list.innerHTML = MARKETPLACE_RULES.map((rule) => `<li>${rule}</li>`).join('');
+  const expected = expectedRulesFirstName();
+  const expectedEl = $('rulesExpectedName');
+  if (expectedEl) {
+    expectedEl.textContent = expected
+      ? `For security, type your first name exactly as: ${expected}`
+      : 'For security, type your first name exactly as it should appear in your employee profile.';
+  }
+}
+
+function showRulesOverlay() {
+  renderRulesList();
+  const msg = $('rulesMsg');
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.dataset.state = '';
+  }
+  if ($('rulesFirstName')) $('rulesFirstName').value = '';
+  const overlay = $('rulesOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  document.body.classList.add('modal-open');
+  setTimeout(() => $('rulesFirstName')?.focus(), 20);
+}
+
+function hideRulesOverlay() {
+  const overlay = $('rulesOverlay');
+  if (overlay) overlay.style.display = 'none';
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay'].some((overlayId) => {
+    const o = $(overlayId);
+    return o && (o.style.display === 'flex' || o.style.display === 'block');
+  });
+  if (!stillOpen) document.body.classList.remove('modal-open');
 }
 
 function isVisibleToViewer(item) {
@@ -477,6 +556,10 @@ async function ensureProfile(user) {
     accessManuallyDenied: false,
     tempPasswordActive: false,
     mustChangePassword: false,
+    rulesAccepted: false,
+    rulesAcceptedVersion: '',
+    rulesAcceptedName: '',
+    rulesAcceptedAtMs: null,
     lastSeenAtMs: Date.now(),
     updatedAt: serverTimestamp()
   };
@@ -502,6 +585,10 @@ async function ensureProfile(user) {
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
     if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
     if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
+    if (typeof currentProfile.rulesAccepted !== 'boolean') updates.rulesAccepted = false;
+    if (typeof currentProfile.rulesAcceptedVersion !== 'string') updates.rulesAcceptedVersion = '';
+    if (typeof currentProfile.rulesAcceptedName !== 'string') updates.rulesAcceptedName = '';
+    if (!Number.isFinite(Number(currentProfile.rulesAcceptedAtMs || 0))) updates.rulesAcceptedAtMs = null;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
@@ -538,7 +625,7 @@ function updateAuthUI() {
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
-  if (!loggedIn) hidePasswordGate();
+  if (!loggedIn) { hidePasswordGate(); hideRulesOverlay(); }
 
   if (loggedIn) {
     const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'];
@@ -711,6 +798,10 @@ async function handleForcePasswordChange() {
       document.body.classList.remove('modal-open');
       if (currentProfile) currentProfile.tempPasswordActive = false;
       renderListings();
+      if (currentProfile && !hasRulesAcceptance(currentProfile)) {
+        showRulesOverlay();
+        return;
+      }
       if (currentProfile && !currentProfile.displayName) {
         $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
         show('nameOverlay');
@@ -805,6 +896,11 @@ async function handleSignup() {
       accessManuallyDenied: false,
       tempPasswordActive: false,
       mustChangePassword: false,
+      rulesAccepted: false,
+      rulesAcceptedVersion: '',
+      rulesAcceptedName: '',
+      rulesAcceptedAt: null,
+      rulesAcceptedAtMs: null,
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
       updatedAt: serverTimestamp()
@@ -849,6 +945,69 @@ async function handleSignup() {
     }
 
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
+  }
+}
+
+
+async function handleRulesAgreement() {
+  const typedFirstName = String($('rulesFirstName')?.value || '').trim();
+  const msg = $('rulesMsg');
+  const expected = expectedRulesFirstName();
+
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.dataset.state = '';
+  }
+
+  if (!currentUser || !currentProfile) {
+    alert('Please log in again.');
+    return;
+  }
+
+  if (!typedFirstName) {
+    if (msg) {
+      msg.textContent = 'Type your first name to continue.';
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+
+  if (expected && typedFirstName.toLowerCase() !== expected.toLowerCase()) {
+    if (msg) {
+      msg.textContent = `The first name entered does not match ${expected}.`;
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
+    return;
+  }
+
+  const payload = {
+    rulesAccepted: true,
+    rulesAcceptedVersion: MARKETPLACE_RULES_VERSION,
+    rulesAcceptedName: typedFirstName,
+    rulesAcceptedAt: serverTimestamp(),
+    rulesAcceptedAtMs: Date.now(),
+    updatedAt: serverTimestamp()
+  };
+
+  try {
+    await updateDoc(doc(db, 'profiles', currentUser.uid), payload);
+    currentProfile = { ...currentProfile, ...payload };
+    hideRulesOverlay();
+    updateAuthUI();
+    if (!currentProfile.displayName) {
+      $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+      show('nameOverlay');
+    }
+  } catch (err) {
+    console.error(err);
+    if (msg) {
+      msg.textContent = `${err?.code || 'rules_save_error'} — ${err?.message || 'Could not save your agreement.'}`;
+      msg.dataset.state = 'error';
+      msg.style.display = 'block';
+    }
   }
 }
 
