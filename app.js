@@ -421,6 +421,29 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+function initPasswordToggles() {
+  document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetId = btn.getAttribute('data-target');
+      const input = targetId ? $(targetId) : null;
+      if (!input) return;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      btn.textContent = showing ? 'Show' : 'Hide';
+      btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+      btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
+      input.focus({ preventScroll: true });
+      try {
+        const end = input.value.length;
+        input.setSelectionRange(end, end);
+      } catch (_) {}
+    });
+  });
+}
+
 function removeLegacyForgotPasswordUI() {
   ['btnForgotPassword', 'forgotPasswordBtn', 'forgotPasswordLink', 'resetPasswordBtn', 'resetPasswordLink', 'forgotPasswordOverlay', 'resetPasswordOverlay'].forEach((id) => {
     const el = $(id);
@@ -436,6 +459,7 @@ function removeLegacyForgotPasswordUI() {
 }
 
 function bindStaticEvents() {
+  initPasswordToggles();
   const loginForm = $('loginPane');
   const submitLoginForm = () => {
     if (loginInFlight) return;
