@@ -50,7 +50,7 @@ const MARKETPLACE_RULES = [
   'Regal Lakeland and the website owner may remove posts, suspend access, preserve records, and report misuse at their sole discretion to protect the business.',
   'You are personally responsible for your own transactions, meetups, item safety, and communication. Regal Lakeland and the website owner are not liable for losses, disputes, or damage.',
   'Do not attempt to bypass admin approvals, impersonate another person, share accounts, manipulate listings, scrape data, or interfere with the operation of the site.',
-  'Any post or conduct that could harm Regal's reputation, employee relations, store operations, family ownership interests, or the website owner's legal protection is grounds for removal.',
+  "Any post or conduct that could harm Regal's reputation, employee relations, store operations, family ownership interests, or the website owner's legal protection is grounds for removal.",
   'Using this marketplace means you agree to follow these rules every time you access it. Violations can result in deleted posts, revoked access, or further internal review.'
 ];
 
