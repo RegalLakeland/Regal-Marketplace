@@ -69,11 +69,6 @@ a{color:inherit}
 .tabBtn{padding:14px 16px; border-radius:16px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); font-weight:900; cursor:pointer}
 .tabBtn.active{background:rgba(34,197,94,.18); border-color:rgba(34,197,94,.40)}
 .field{display:grid; gap:8px; margin-bottom:14px}
-.passwordField{position:relative; display:flex; align-items:center}
-.passwordField input{padding-right:88px; margin-bottom:0}
-.passwordToggle{position:absolute; right:10px; top:50%; transform:translateY(-50%); border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:var(--text); border-radius:12px; padding:7px 10px; font-size:12px; font-weight:900; cursor:pointer; min-width:62px}
-.passwordToggle:hover{background:rgba(255,255,255,.11)}
-.passwordToggle:focus-visible{outline:2px solid rgba(34,197,94,.55); outline-offset:2px}
 label{font-size:13px; font-weight:800; color:#cfdae8}
 input,textarea,select{
   width:100%; padding:14px 15px; border-radius:16px; border:1px solid rgba(255,255,255,.12);
@@ -82,6 +77,17 @@ input,textarea,select{
 textarea{min-height:132px; resize:vertical}
 select option{background:#0b1628; color:#f3f6fb}
 .note{font-size:13px; line-height:1.45; color:var(--muted)}
+
+.passwordFieldWrap{position:relative;display:flex;align-items:center}
+.passwordFieldWrap input{padding-right:86px}
+.passwordToggleBtn{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:var(--text);border-radius:12px;padding:8px 12px;font-size:12px;font-weight:900;line-height:1;cursor:pointer;min-width:62px;justify-content:center}
+.passwordToggleBtn:hover{background:rgba(255,255,255,.10)}
+.passwordToggleBtn:focus-visible{outline:2px solid rgba(34,197,94,.55);outline-offset:2px}
+@media (max-width:560px){
+  .passwordFieldWrap input{padding-right:82px}
+  .passwordToggleBtn{right:8px;padding:8px 10px;min-width:58px}
+}
+
 .rowBtns{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
 .spacer-10{height:10px}
 .btn{

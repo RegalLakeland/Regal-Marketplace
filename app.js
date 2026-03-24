@@ -333,6 +333,7 @@ window.addEventListener('error', (e) => {
 
 document.addEventListener('DOMContentLoaded', () => {
   removeLegacyForgotPasswordUI();
+  initPasswordToggles();
   bindStaticEvents();
   renderBoards();
   renderListings();
@@ -421,6 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+
 function initPasswordToggles() {
   document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
     if (btn.dataset.bound === '1') return;
@@ -436,10 +438,8 @@ function initPasswordToggles() {
       btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
       btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
       input.focus({ preventScroll: true });
-      try {
-        const end = input.value.length;
-        input.setSelectionRange(end, end);
-      } catch (_) {}
+      const end = input.value?.length || 0;
+      try { input.setSelectionRange(end, end); } catch (_) {}
     });
   });
 }
@@ -459,7 +459,6 @@ function removeLegacyForgotPasswordUI() {
 }
 
 function bindStaticEvents() {
-  initPasswordToggles();
   const loginForm = $('loginPane');
   const submitLoginForm = () => {
     if (loginInFlight) return;
