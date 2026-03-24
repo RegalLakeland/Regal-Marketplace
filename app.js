@@ -370,17 +370,35 @@ function bindStaticEvents() {
     });
   });
 
-  // Allow pressing Enter to login
+  // Allow pressing Enter to login on desktop and mobile keyboards
+  const triggerLoginFromKeyboard = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleLogin();
+    }
+  };
+
   ['loginEmail', 'loginPassword'].forEach(id => {
-    $(id)?.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleLogin();
-      }
-    });
+    $(id)?.addEventListener('keydown', triggerLoginFromKeyboard);
+    $(id)?.addEventListener('keypress', triggerLoginFromKeyboard);
   });
 
-  $('btnLogin')?.addEventListener('click', handleLogin);
+  $('loginPane')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleLogin();
+  });
+
+  $('btnLogin')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    handleLogin();
+  });
+
+  $('tabLogin')?.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    if (($('loginPane')?.style.display || 'block') !== 'none') {
+      handleLogin();
+    }
+  });
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
   $('btnSaveName')?.addEventListener('click', handleSaveName);
