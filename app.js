@@ -130,6 +130,13 @@ function approvalCreatedMessage() {
   return 'Account created successfully. Waiting on admin approval. Once admin has approved you, you will be able to log in.';
 }
 
+function loginBlockedMessage(profile) {
+  const status = normalizeApprovalStatus(profile);
+  if (status === 'DENIED') return 'Your marketplace access request has been denied. Please contact an admin.';
+  if (status === 'DELETED') return 'This marketplace account is no longer active. Please contact an admin.';
+  return approvalWaitingMessage();
+}
+
 function normalizeApprovalStatus(profile) {
   if (!profile) return 'PENDING_ADMIN_APPROVAL';
   if (profile.deleted) return 'DELETED';
@@ -351,14 +358,16 @@ document.addEventListener('DOMContentLoaded', () => {
       currentProfile = { ...currentProfile, ...authUpdates };
     }
 
-    if (!currentProfile?.accessApproved && !isProtectedCoreAdmin(user.email)) {
+    if (!isProtectedCoreAdmin(user.email) && !canCompleteMarketplaceLogin(currentProfile)) {
+      const blockedMessage = loginBlockedMessage(currentProfile);
       if ($('verifyNote')) {
-        $('verifyNote').textContent = 'Waiting on admin approval. Once admin has approved you, you will be able to log in.';
+        $('verifyNote').textContent = blockedMessage;
         $('verifyNote').style.display = 'block';
       }
       if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
+      setLoginFlashMessage(blockedMessage);
       await signOut(auth);
-      alert('Waiting on admin approval. Once admin has approved you, you will be able to log in.');
+      alert(blockedMessage);
       return;
     }
 
@@ -882,17 +891,23 @@ async function handleLogin() {
     }
 
     if (!approved) {
+      const blockedStatus = normalizeApprovalStatus(profileData);
+      const blockedMessage = loginBlockedMessage(profileData);
+      const blockedReason = blockedStatus === 'DENIED'
+        ? 'ACCESS_DENIED'
+        : (blockedStatus === 'DELETED' ? 'ACCOUNT_DELETED' : 'WAITING_ON_ADMIN_APPROVAL');
+
       await updateDoc(doc(db, 'profiles', cred.user.uid), {
-        approvalStatus: 'PENDING_ADMIN_APPROVAL',
-        lastLoginBlockedReason: 'WAITING_ON_ADMIN_APPROVAL',
+        approvalStatus: blockedStatus,
+        lastLoginBlockedReason: blockedReason,
         lastLoginBlockedAtMs: Date.now(),
         updatedAt: serverTimestamp()
       }).catch(() => {});
       clearTempLoginContext();
       await signOut(auth).catch(() => {});
-      showLoginStatusMessage(approvalWaitingMessage());
-      setLoginFlashMessage(approvalWaitingMessage());
-      alert(approvalWaitingMessage());
+      showLoginStatusMessage(blockedMessage);
+      setLoginFlashMessage(blockedMessage);
+      alert(blockedMessage);
       return;
     }
   } catch (err) {

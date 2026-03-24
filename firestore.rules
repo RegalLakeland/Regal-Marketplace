@@ -36,7 +36,9 @@ service cloud.firestore {
     function accessApproved() {
       return hasProfile()
         && requesterProfile().accessApproved == true
-        && requesterProfile().banned != true;
+        && requesterProfile().approvalStatus == 'APPROVED'
+        && requesterProfile().banned != true
+        && requesterProfile().deleted != true;
     }
 
     function isCoreAdmin() {
@@ -70,6 +72,86 @@ service cloud.firestore {
         || resource.data.email == 'janni.r@regallakeland.com';
     }
 
+    function ownerProfileCreateAllowed(uid) {
+      return signedIn()
+        && ownProfile(uid)
+        && employeeEmail()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.email.matches('.*@regallakeland\\.com$')
+        && request.resource.data.banned == false
+        && request.resource.data.deleted == false
+        && request.resource.data.accessManuallyDenied == false
+        && request.resource.data.rulesAccepted == false
+        && request.resource.data.rulesAcceptedVersion == ''
+        && request.resource.data.rulesAcceptedName == ''
+        && request.resource.data.rulesAcceptedFirstName == ''
+        && request.resource.data.rulesAcceptedLastName == ''
+        && request.resource.data.rulesAcceptedByUid == ''
+        && request.resource.data.rulesAcceptedByEmail == ''
+        && request.resource.data.rulesAcceptedDisplayNameSnapshot == ''
+        && (
+          (isCoreAdmin()
+            && request.resource.data.isAdmin == true
+            && request.resource.data.manualVerified == true
+            && request.resource.data.accessApproved == true
+            && request.resource.data.approvalStatus == 'APPROVED')
+          ||
+          (!isCoreAdmin()
+            && request.resource.data.isAdmin == false
+            && request.resource.data.manualVerified == false
+            && request.resource.data.accessApproved == false
+            && request.resource.data.approvalStatus == 'PENDING_ADMIN_APPROVAL')
+        );
+    }
+
+    function ownerProfileUpdateAllowed(uid) {
+      return signedIn()
+        && ownProfile(uid)
+        && employeeEmail()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.isAdmin == resource.data.isAdmin
+        && request.resource.data.isModerator == resource.data.isModerator
+        && request.resource.data.banned == resource.data.banned
+        && request.resource.data.deleted == resource.data.deleted
+        && request.resource.data.manualVerified == resource.data.manualVerified
+        && request.resource.data.accessApproved == resource.data.accessApproved
+        && request.resource.data.accessManuallyDenied == resource.data.accessManuallyDenied
+        && request.resource.data.approvalStatus == resource.data.approvalStatus
+        && request.resource.data.signupSource == resource.data.signupSource
+        && request.resource.data.signupSubmittedAtMs == resource.data.signupSubmittedAtMs
+        && request.resource.data.pendingApprovalAtMs == resource.data.pendingApprovalAtMs
+        && request.resource.data.approvedAt == resource.data.approvedAt
+        && request.resource.data.approvedBy == resource.data.approvedBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdAtMs == resource.data.createdAtMs
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'displayName',
+          'pendingName',
+          'requestedName',
+          'updatedAt',
+          'emailVerified',
+          'emailVerifiedAt',
+          'lastSeenAtMs',
+          'lastLoginBlockedReason',
+          'lastLoginBlockedAtMs',
+          'mustChangePassword',
+          'tempPasswordActive',
+          'passwordChangedAtMs',
+          'rulesAccepted',
+          'rulesAcceptedVersion',
+          'rulesAcceptedName',
+          'rulesAcceptedFirstName',
+          'rulesAcceptedLastName',
+          'rulesAcceptedAt',
+          'rulesAcceptedAtMs',
+          'rulesAcceptedByUid',
+          'rulesAcceptedByEmail',
+          'rulesAcceptedDisplayNameSnapshot'
+        ]);
+    }
+
     match /listings/{id} {
       allow read: if marketplaceMember();
 
@@ -89,15 +171,15 @@ service cloud.firestore {
         || marketplaceMember()
         || isAdminUser();
 
-      allow create: if signedIn() && ownProfile(uid) && employeeEmail();
+      allow create: if ownerProfileCreateAllowed(uid);
 
-      allow update: if signedIn()
-        && employeeEmail()
-        && (ownProfile(uid) || isAdminUser());
+      allow update: if ownerProfileUpdateAllowed(uid)
+        || (signedIn() && employeeEmail() && isAdminUser());
 
       allow delete: if isAdminUser()
         && (!protectedTarget() || request.auth.uid == uid);
     }
+
     match /eventResponses/{id} {
       allow read: if (signedIn() && employeeEmail() && hasProfile() && requesterProfile().banned != true)
         || isAdminUser();

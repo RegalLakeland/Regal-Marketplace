@@ -128,6 +128,23 @@ function generateTempPassword() {
   return `Regal!${digits}${tail}`;
 }
 
+function approvalPatch() {
+  return {
+    manualVerified: true,
+    accessApproved: true,
+    accessManuallyDenied: false,
+    approvalStatus: 'APPROVED',
+    pendingApprovalAtMs: null,
+    banned: false,
+    deleted: false,
+    approvedAt: Date.now(),
+    approvedBy: normalizeEmail(currentViewer?.email),
+    lastLoginBlockedReason: '',
+    lastLoginBlockedAtMs: null,
+    updatedAt: Date.now()
+  };
+}
+
 function accessStatusMeta(user) {
   if (user?.banned) return { label: 'Blocked', tone: 'bad' };
   if (user?.accessApproved) return { label: 'Granted', tone: 'ok' };
@@ -452,17 +469,16 @@ function renderUserRows() {
 
     if (role === 'grantMod') await updateDoc(ref, { isModerator: true, updatedAt: Date.now() });
     if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
-    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), lastLoginBlockedReason: '', lastLoginBlockedAtMs: null, updatedAt: Date.now() });
+    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, ...approvalPatch() });
     if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
-    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), lastLoginBlockedReason: '', lastLoginBlockedAtMs: null, updatedAt: Date.now() });
+    if (role === 'approveAccess') await updateDoc(ref, approvalPatch());
     if (role === 'denyAccess') {
       const denyPayload = { accessApproved: false, accessManuallyDenied: true, approvalStatus: 'DENIED', pendingApprovalAtMs: Date.now(), updatedAt: Date.now() };
       if (!user.emailVerified) denyPayload.manualVerified = false;
       await updateDoc(ref, denyPayload);
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
-    if (role === 'unbanUser') await updateDoc(ref, { banned: false, approvalStatus: user.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL', updatedAt: Date.now() });
-    if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, updatedAt: Date.now() });
+    if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, approvalStatus: user.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL', updatedAt: Date.now() });
     if (role === 'resetRules') {
       if (!confirm(`Reset rules agreement for ${user.email || 'this user'}? They will be forced to accept the current rules again on next login.`)) return;
       await updateDoc(ref, {
