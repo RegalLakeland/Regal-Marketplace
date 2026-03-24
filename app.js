@@ -130,6 +130,59 @@ function approvalCreatedMessage() {
   return 'Account created successfully. Waiting on admin approval. Once admin has approved you, you will be able to log in.';
 }
 
+function normalizeApprovalStatus(profile) {
+  if (!profile) return 'PENDING_ADMIN_APPROVAL';
+  if (profile.deleted) return 'DELETED';
+  if (profile.accessManuallyDenied) return 'DENIED';
+  if (profile.accessApproved === true) return 'APPROVED';
+  const raw = String(profile.approvalStatus || '').trim().toUpperCase();
+  if (raw === 'APPROVED' || raw === 'DENIED' || raw === 'DELETED') return raw;
+  return 'PENDING_ADMIN_APPROVAL';
+}
+
+function isApprovalPending(profile) {
+  return normalizeApprovalStatus(profile) === 'PENDING_ADMIN_APPROVAL';
+}
+
+function canCompleteMarketplaceLogin(profile) {
+  return !!(
+    profile &&
+    profile.deleted !== true &&
+    profile.banned !== true &&
+    profile.accessApproved === true &&
+    normalizeApprovalStatus(profile) === 'APPROVED'
+  );
+}
+
+function setLoginFlashMessage(message) {
+  try {
+    if (message) sessionStorage.setItem('marketplace_login_flash', message);
+    else sessionStorage.removeItem('marketplace_login_flash');
+  } catch (_) {}
+}
+
+function consumeLoginFlashMessage() {
+  try {
+    const value = sessionStorage.getItem('marketplace_login_flash') || '';
+    sessionStorage.removeItem('marketplace_login_flash');
+    return value;
+  } catch (_) {
+    return '';
+  }
+}
+
+function showLoginStatusMessage(message) {
+  if (!message) return;
+  if ($('verifyNote')) {
+    $('verifyNote').textContent = message;
+    $('verifyNote').style.display = 'block';
+  }
+  if ($('signupMsg')) {
+    $('signupMsg').textContent = message;
+    $('signupMsg').style.display = 'block';
+  }
+}
+
 function buildPendingProfileData(user, fullName, elevated = false) {
   const now = Date.now();
   return {
@@ -263,6 +316,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (savedEmail && $('loginEmail')) {
     $('loginEmail').value = savedEmail;
   }
+  const flashedLoginMessage = consumeLoginFlashMessage();
+  if (flashedLoginMessage) showLoginStatusMessage(flashedLoginMessage);
 
   onAuthStateChanged(auth, async (user) => {
   try {
@@ -711,6 +766,8 @@ async function ensureProfile(user) {
     if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
     if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
     if (typeof currentProfile.approvalStatus !== 'string') updates.approvalStatus = currentProfile.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL';
+    const normalizedApprovalStatus = normalizeApprovalStatus(currentProfile);
+    if (currentProfile.approvalStatus !== normalizedApprovalStatus) updates.approvalStatus = normalizedApprovalStatus;
     if (typeof currentProfile.signupSource !== 'string') updates.signupSource = 'self-service';
     if (!Number.isFinite(Number(currentProfile.signupSubmittedAtMs || 0))) updates.signupSubmittedAtMs = Number(currentProfile.createdAtMs || Date.now());
     if (!(Object.prototype.hasOwnProperty.call(currentProfile, 'pendingApprovalAtMs'))) updates.pendingApprovalAtMs = currentProfile.accessApproved ? null : Number(currentProfile.createdAtMs || Date.now());
@@ -808,7 +865,7 @@ async function handleLogin() {
       profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid)).catch(() => null);
     }
     const profileData = profileSnap?.exists?.() ? profileSnap.data() : null;
-    const approved = !!(isProtectedCoreAdmin(email) || profileData?.accessApproved === true);
+    const approved = !!(isProtectedCoreAdmin(email) || canCompleteMarketplaceLogin(profileData));
     const banned = profileData?.banned === true;
 
     if (profileData?.mustChangePassword || profileData?.tempPasswordActive) {
@@ -833,14 +890,8 @@ async function handleLogin() {
       }).catch(() => {});
       clearTempLoginContext();
       await signOut(auth).catch(() => {});
-      if ($('verifyNote')) {
-        $('verifyNote').textContent = approvalWaitingMessage();
-        $('verifyNote').style.display = 'block';
-      }
-      if ($('signupMsg')) {
-        $('signupMsg').textContent = approvalWaitingMessage();
-        $('signupMsg').style.display = 'block';
-      }
+      showLoginStatusMessage(approvalWaitingMessage());
+      setLoginFlashMessage(approvalWaitingMessage());
       alert(approvalWaitingMessage());
       return;
     }
@@ -1075,8 +1126,9 @@ async function handleSignup() {
     if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
-
+    setLoginFlashMessage(createdMessage);
     showPane('login');
+    showLoginStatusMessage(createdMessage);
     alert(createdMessage);
   } catch (err) {
     console.error(err);

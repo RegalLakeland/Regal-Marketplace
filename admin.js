@@ -135,6 +135,16 @@ function accessStatusMeta(user) {
   return { label: 'Pending', tone: 'pending' };
 }
 
+function normalizeApprovalStatus(user) {
+  if (!user) return 'PENDING_ADMIN_APPROVAL';
+  if (user.deleted) return 'DELETED';
+  if (user.accessManuallyDenied) return 'DENIED';
+  if (user.accessApproved === true) return 'APPROVED';
+  const raw = String(user.approvalStatus || '').trim().toUpperCase();
+  if (raw === 'APPROVED' || raw === 'DENIED' || raw === 'DELETED') return raw;
+  return 'PENDING_ADMIN_APPROVAL';
+}
+
 function emailStatusMeta(user) {
   if (user?.emailVerified) return { label: 'Verified Inbox', tone: 'ok' };
   if (user?.manualVerified) return { label: 'Manual Review', tone: 'ok' };
@@ -303,7 +313,7 @@ function duplicateMeta(rows) {
 function userPending(user) {
   if (!user || user.deleted || user.banned) return false;
   if (user.accessApproved === true) return false;
-  const status = String(user.approvalStatus || '').toUpperCase();
+  const status = normalizeApprovalStatus(user);
   if (status === 'APPROVED' || status === 'DENIED' || status === 'DELETED') return false;
   return true;
 }
@@ -442,9 +452,9 @@ function renderUserRows() {
 
     if (role === 'grantMod') await updateDoc(ref, { isModerator: true, updatedAt: Date.now() });
     if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
-    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+    if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), lastLoginBlockedReason: '', lastLoginBlockedAtMs: null, updatedAt: Date.now() });
     if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
-    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), updatedAt: Date.now() });
+    if (role === 'approveAccess') await updateDoc(ref, { manualVerified: true, accessApproved: true, accessManuallyDenied: false, approvalStatus: 'APPROVED', pendingApprovalAtMs: null, approvedAt: Date.now(), approvedBy: normalizeEmail(currentViewer?.email), lastLoginBlockedReason: '', lastLoginBlockedAtMs: null, updatedAt: Date.now() });
     if (role === 'denyAccess') {
       const denyPayload = { accessApproved: false, accessManuallyDenied: true, approvalStatus: 'DENIED', pendingApprovalAtMs: Date.now(), updatedAt: Date.now() };
       if (!user.emailVerified) denyPayload.manualVerified = false;
