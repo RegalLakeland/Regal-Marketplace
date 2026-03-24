@@ -13,7 +13,6 @@ const CORE_ADMIN_EMAILS = [
   'janni.r@regallakeland.com'
 ];
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
-const RECENT_APPROVAL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 const autoGrantSyncIds = new Set();
 
 function verificationFunctionUrl() {
@@ -114,44 +113,6 @@ function isAdmin(email) { return ADMIN_EMAILS.map((x) => x.toLowerCase()).includ
 function isProtectedCoreAdmin(email) { return CORE_ADMIN_EMAILS.includes(normalizeEmail(email)); }
 function isCoreAdminViewer() { return isProtectedCoreAdmin(currentViewer?.email); }
 function isSelfRow(user) { return !!currentViewer && user?.id === currentViewer.uid; }
-function approvedAtMs(user) {
-  return Number(user?.approvedAt || user?.approvedAtMs || 0);
-}
-function userRecentlyApproved(user) {
-  if (!user || user.deleted || user.banned || user.accessApproved !== true) return false;
-  const approvedMs = approvedAtMs(user);
-  if (!approvedMs) return false;
-  return approvedMs >= (Date.now() - RECENT_APPROVAL_WINDOW_MS);
-}
-function buildApprovalEmail(user) {
-  const fullName = preferredUserName(user, true) || 'there';
-  const recipient = normalizeEmail(user?.email);
-  const subject = 'Regal Marketplace Access Approved';
-  const body = [
-    `Hi ${fullName},`,
-    '',
-    'Your Regal Marketplace account has been approved and you should now be able to log in.',
-    '',
-    'If you have any issues, please respond to Michael.H@regallakeland.com.',
-    '',
-    'Thank you,',
-    'Regal Marketplace Admin'
-  ].join('\n');
-  return { recipient, subject, body };
-}
-async function openApprovalEmailDraft(user) {
-  const { recipient, subject, body } = buildApprovalEmail(user);
-  if (!recipient) {
-    alert('This user does not have an email address saved.');
-    return;
-  }
-  const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  const copied = await copyText(body);
-  window.location.href = mailto;
-  if (copied) {
-    setTimeout(() => alert('Prefilled approval email opened. The message body was also copied to your clipboard.'), 50);
-  }
-}
 
 function getClosedLabel(item) {
   const board = String(item?.board || item?.category || '').toUpperCase();
@@ -396,7 +357,6 @@ function applyUserFilters(rows) {
   }
   if (userFilterValue === 'PENDING') filtered = filtered.filter(userPending);
   if (userFilterValue === 'ONLINE') filtered = filtered.filter((u) => u.accessApproved && !u.banned && Number(u.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS));
-  if (userFilterValue === 'RECENT_APPROVED') filtered = filtered.filter(userRecentlyApproved);
   if (userFilterValue === 'ADMIN') filtered = filtered.filter((u) => !!u.isAdmin || isProtectedCoreAdmin(u.email));
   if (userFilterValue === 'MODERATOR') filtered = filtered.filter((u) => !!u.isModerator);
   if (userFilterValue === 'BANNED') filtered = filtered.filter((u) => !!u.banned);
@@ -407,8 +367,6 @@ function applyUserFilters(rows) {
     filtered.sort((a, b) => Number(b.lastSeenAtMs || 0) - Number(a.lastSeenAtMs || 0));
   } else if (userFilterValue === 'PENDING') {
     filtered.sort((a, b) => Number(b.signupSubmittedAtMs || b.createdAtMs || 0) - Number(a.signupSubmittedAtMs || a.createdAtMs || 0));
-  } else if (userFilterValue === 'RECENT_APPROVED') {
-    filtered.sort((a, b) => approvedAtMs(b) - approvedAtMs(a) || normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)));
   } else {
     filtered.sort((a, b) => normalizeEmail(a.email).localeCompare(normalizeEmail(b.email)) || preferredUserName(a, true).localeCompare(preferredUserName(b, true)));
   }
@@ -427,7 +385,6 @@ function buildUserActionButtons(user, dup, protectedUser) {
 
   if (!user.accessApproved) buttons.push(`<button class="btn primary" data-role="approveAccess" data-id="${esc(user.id)}" type="button">Approve User</button>`);
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
-  if (user.accessApproved && !user.banned && !user.deleted && normalizeEmail(user.email)) buttons.push(`<button class="btn ghost" data-role="sendApprovalEmail" data-id="${esc(user.id)}" type="button">Approval Email</button>`);
 
   if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
   buttons.push(`<button class="btn ghost" data-role="resetRules" data-id="${esc(user.id)}" type="button">Reset Rules</button>`);
@@ -456,7 +413,6 @@ function renderUserRows() {
   if ($('adminOnlineCount')) $('adminOnlineCount').textContent = `${onlineUsers.length} online`;
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
-  if ($('adminRecentApprovedCount')) $('adminRecentApprovedCount').textContent = `${userRowsData.filter(userRecentlyApproved).length} recently approved`;
 
   if ($('adminOnlineNames')) {
     if (onlineUsers.length > 0) {
@@ -498,8 +454,6 @@ function renderUserRows() {
             <div class="user-status-line"><span class="user-status-key">Full Name</span><span class="user-status-meta">${esc(shownName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Signup Name</span><span class="user-status-meta">${esc(signupName)}</span></div>
             <div class="user-status-line"><span class="user-status-key">Approval</span><span class="user-status-meta">${esc(approvalStateLabel(user))}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Approved</span><span class="user-status-meta">${approvedAtMs(user) ? esc(fmtDate(approvedAtMs(user))) : '—'}</span></div>
-            <div class="user-status-line"><span class="user-status-key">Approved By</span><span class="user-status-meta">${esc(user.approvedBy || '—')}</span></div>
             <div class="user-status-line"><span class="user-status-key">Requested</span><span class="user-status-meta">${esc(fmtDate(user.signupSubmittedAtMs || user.createdAtMs || Date.now()))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Roles</span><span class="user-status-meta">${esc(roleSummary(user, protectedUser))}</span></div>
             <div class="user-status-line"><span class="user-status-key">Password</span><span class="user-status-meta">${esc(user.mustChangePassword ? 'Temporary password active' : 'Normal sign-in')}</span></div>
@@ -530,12 +484,7 @@ function renderUserRows() {
     if (role === 'removeMod') await updateDoc(ref, { isModerator: false, updatedAt: Date.now() });
     if (role === 'grantAdmin') await updateDoc(ref, { isAdmin: true, ...approvalPatch() });
     if (role === 'removeAdmin') await updateDoc(ref, { isAdmin: false, updatedAt: Date.now() });
-    if (role === 'approveAccess') {
-      await updateDoc(ref, approvalPatch());
-      const openNow = confirm('User approved. Open a prefilled approval email now? They will also appear in Recently Approved.');
-      if (openNow) await openApprovalEmailDraft({ ...user, ...approvalPatch() });
-      return;
-    }
+    if (role === 'approveAccess') await updateDoc(ref, approvalPatch());
     if (role === 'denyAccess') {
       const denyPayload = { accessApproved: false, accessManuallyDenied: true, approvalStatus: 'DENIED', pendingApprovalAtMs: Date.now(), updatedAt: Date.now() };
       if (!user.emailVerified) denyPayload.manualVerified = false;
@@ -543,10 +492,6 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, approvalStatus: user.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL', updatedAt: Date.now() });
-    if (role === 'sendApprovalEmail') {
-      await openApprovalEmailDraft(user);
-      return;
-    }
     if (role === 'resetRules') {
       if (!confirm(`Reset rules agreement for ${user.email || 'this user'}? They will be forced to accept the current rules again on next login.`)) return;
       await updateDoc(ref, {
