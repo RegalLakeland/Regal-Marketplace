@@ -27,7 +27,7 @@ body{
   position:relative;
 }
 body.auth-open{overflow-y:auto}
-body.modal-open{overflow:hidden}
+body.modal-open{overflow:hidden; touch-action:none}
 input,textarea,select,button{font:inherit}
 a{color:inherit}
 .overlay{
@@ -295,3 +295,8 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 #rulesMsg[data-state="error"]{color:#fecaca}
 #rulesMsg[data-state="success"]{color:#bbf7d0}
 @media (max-width:780px){.rules-actions{flex-direction:column;align-items:flex-start}}
+
+.eventImageHelp{text-align:center;color:#dce7f8;font-weight:700}
+#eventImageOverlay{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#eventImageOverlay .modal{max-height:min(92vh,980px)}
+#eventImageOverlay .modal-b{overflow:auto}

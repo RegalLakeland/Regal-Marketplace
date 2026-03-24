@@ -212,22 +212,32 @@
           <span class="eventMetaPill">May 15th • 6:30 PM</span>
           <span class="eventMetaPill">Haus 820 @ 820 N Massachusetts Ave • Lakeland, FL</span>
         </div>
-        <div class="eventCounters">
-          <div class="eventCounter"><strong id="eventAttendCount">0</strong><span>Attending</span></div>
-          <div class="eventCounter"><strong id="eventMaybeCount">0</strong><span>Maybe</span></div>
-          <div class="eventCounter"><strong id="eventCantCount">0</strong><span>Can’t Attend</span></div>
+        <div class="eventRsvpNotice">
+          <strong>MUST SCAN THIS RSVP BARCODE TO RSVP</strong>
+          <span>The marketplace website does not submit your RSVP. Please click the event image to enlarge it, then scan the barcode directly from the flyer to complete your RSVP properly.</span>
         </div>
-        <div class="rowBtns eventActions">
-          <button class="btn ghost eventBtn" id="btnEventAttend" data-rsvp="ATTENDING" type="button">I’m Attending</button>
-          <button class="btn ghost eventBtn" id="btnEventMaybe" data-rsvp="MAYBE" type="button">Maybe</button>
-          <button class="btn ghost eventBtn" id="btnEventCant" data-rsvp="CANT" type="button">Can’t Attend</button>
-        </div>
-        <div class="note eventStatusNote" id="eventStatusText">Choose your response below.</div>
+        <div class="note eventStatusNote" id="eventStatusText">Click the flyer to enlarge the barcode for easier scanning on your phone.</div>
       </div>
       <div class="eventSpotlight-artWrap">
-        <img id="eventImage" class="eventSpotlight-art" src="Images/background5.jpg" alt="Regal 50th Anniversary event flyer" />
+        <button class="eventImageButton" id="eventImageButton" type="button" aria-label="Open RSVP flyer larger">
+          <img id="eventImage" class="eventSpotlight-art" src="Images/background5.jpg" alt="Regal 50th Anniversary event flyer with RSVP barcode" />
+        </button>
       </div>
     </section>
+
+    <div class="overlay" id="eventImageOverlay" style="display:none">
+      <div class="modal eventImageModal">
+        <div class="modal-h"><strong>Event Flyer & RSVP Barcode</strong></div>
+        <div class="modal-b eventImageModalBody modal-scroll">
+          <div class="eventRsvpNotice eventRsvpNoticeModal">
+            <strong>MUST SCAN THIS RSVP BARCODE TO RSVP</strong>
+            <span>The website does not record your RSVP. Scan the barcode shown on this flyer to submit your response.</span>
+          </div>
+          <img id="eventImageLarge" class="eventSpotlight-art eventSpotlight-artLarge" src="Images/background5.jpg" alt="Large RSVP barcode event flyer" />
+          <div class="note eventImageHelp">Tap or click anywhere outside this window to close.</div>
+        </div>
+      </div>
+    </div>
 
     <section class="content-grid">
       <aside class="glass boardPanel">

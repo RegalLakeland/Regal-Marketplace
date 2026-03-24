@@ -394,7 +394,9 @@ function bindStaticEvents() {
 
   $('eventImageButton')?.addEventListener('click', () => show('eventImageOverlay'));
   $('eventImage')?.addEventListener('click', () => show('eventImageOverlay'));
-  $('eventImageLarge')?.addEventListener('click', () => hide('eventImageOverlay'));
+  $('eventImageLarge')?.addEventListener('click', (e) => e.stopPropagation());
+  $('eventImageOverlay')?.addEventListener('click', (e) => { if (e.target === $('eventImageOverlay')) hide('eventImageOverlay'); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('eventImageOverlay')?.style.display === 'flex') hide('eventImageOverlay'); });
 
   const openPost = () => {
   if (!currentUser) {
@@ -488,7 +490,7 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay'].some((overlayId) => {
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay', 'eventImageOverlay'].some((overlayId) => {
     const o = $(overlayId);
     return o && (o.style.display === 'flex' || o.style.display === 'block');
   });
@@ -593,7 +595,7 @@ function showRulesOverlay() {
 function hideRulesOverlay() {
   const overlay = $('rulesOverlay');
   if (overlay) overlay.style.display = 'none';
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay'].some((overlayId) => {
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay', 'eventImageOverlay'].some((overlayId) => {
     const o = $(overlayId);
     return o && (o.style.display === 'flex' || o.style.display === 'block');
   });
@@ -747,7 +749,7 @@ function updateAuthUI() {
   if (!loggedIn) { hidePasswordGate(); hideRulesOverlay(); }
 
   if (loggedIn) {
-    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay'];
+    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'eventImageOverlay'];
     const hasVisibleModal = visibleOverlayIds.some((overlayId) => {
       const o = $(overlayId);
       return o && (o.style.display === 'flex' || o.style.display === 'block');
@@ -1255,64 +1257,15 @@ function renderEventSpotlight() {
   if ($('eventImage')) $('eventImage').src = FEATURED_EVENT.imageUrl;
   if ($('eventImageLarge')) $('eventImageLarge').src = FEATURED_EVENT.imageUrl;
   if ($('eventStatusText')) {
-    $('eventStatusText').textContent = 'Click the flyer to open the barcode larger for easier scanning on your phone.';
+    $('eventStatusText').textContent = 'Click the flyer to enlarge the barcode for easier scanning on your phone.';
   }
 }
 
 
 async function handleEventRsvp(status) {
-  if (!hasRulesAcceptance(currentProfile)) {
-    showRulesOverlay();
-    alert('You must accept the marketplace rules before responding.');
-    return;
-  }
-
-  if (!currentUser) {
-    alert('Please log in first to RSVP.');
-    return;
-  }
-  if (!currentProfile) {
-    await ensureProfile(currentUser);
-  }
-  if (!canUseEventRsvp()) {
-    alert('Your account is not ready to RSVP yet. Please refresh and try again.');
-    return;
-  }
-  try {
-    const mine = currentUserEventResponse();
-    if (mine && mine.status === status) {
-      await deleteDoc(doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`));
-      eventResponses = eventResponses.filter((item) => item.id !== `${FEATURED_EVENT.id}__${currentUser.uid}`);
-      renderEventSpotlight();
-      if ($('eventStatusText')) $('eventStatusText').textContent = 'RSVP removed.';
-      return;
-    }
-
-    const responseRef = doc(db, 'eventResponses', `${FEATURED_EVENT.id}__${currentUser.uid}`);
-    const payload = {
-      eventId: FEATURED_EVENT.id,
-      eventTitle: FEATURED_EVENT.title,
-      uid: currentUser.uid,
-      userEmail: currentUser.email || '',
-      displayName: currentProfile.displayName || currentProfile.pendingName || currentUser.email || '',
-      status,
-      updatedAt: serverTimestamp(),
-      updatedAtMs: Date.now()
-    };
-    await setDoc(responseRef, payload, { merge: true });
-    const existingIndex = eventResponses.findIndex((item) => item.id === `${FEATURED_EVENT.id}__${currentUser.uid}`);
-    const optimistic = { id: `${FEATURED_EVENT.id}__${currentUser.uid}`, ...payload };
-    if (existingIndex >= 0) {
-      eventResponses[existingIndex] = { ...eventResponses[existingIndex], ...optimistic };
-    } else {
-      eventResponses.unshift(optimistic);
-    }
-    renderEventSpotlight();
-    if ($('eventStatusText')) $('eventStatusText').textContent = `Saved: ${RSVP_LABELS[status] || status}`;
-  } catch (err) {
-    console.error(err);
-    if ($('eventStatusText')) $('eventStatusText').textContent = err?.message || 'Unable to save your RSVP right now.';
-    alert(err?.message || 'Unable to save your RSVP right now.');
+  show('eventImageOverlay');
+  if ($('eventStatusText')) {
+    $('eventStatusText').textContent = 'Please scan the barcode on the flyer to RSVP. The website does not record RSVPs.';
   }
 }
 
