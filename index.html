@@ -49,22 +49,20 @@
               <button class="tabBtn" id="tabSignup" type="button">Create Account</button>
             </div>
 
-            <div id="loginPane">
+            <form id="loginPane" onsubmit="return false;">
               <div class="field">
                 <label>Email</label>
-                <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" />
+                <input id="loginEmail" type="email" placeholder="first.last@regallakeland.com" autocomplete="username" enterkeyhint="next" />
               </div>
               <div class="field">
                 <label>Password</label>
-                <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+                <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" enterkeyhint="go" />
               </div>
-              <div class="note" id="verifyNote" style="display:none">
-                New accounts are approved manually by admin after review.
-              </div>
+              <div class="note" id="verifyNote" style="display:none"></div>
               <div class="rowBtns stack-mobile">
-                <button class="btn primary" id="btnLogin" type="button">Login</button>
+                <button class="btn primary" id="btnLogin" type="submit">Login</button>
               </div>
-            </div>
+            </form>
 
             <div id="signupPane" style="display:none">
               <div class="note">Create an account using your work email. Access is activated after manual admin approval.</div>
@@ -135,6 +133,30 @@
     </div>
   </div>
 
+
+  <div class="overlay" id="rulesOverlay" style="display:none">
+    <div class="modal password-gate-modal">
+      <div class="modal-h"><strong>Marketplace Rules Agreement</strong></div>
+      <div class="modal-b">
+        <div class="note">Before accessing the marketplace, you must review and accept these rules. This agreement is recorded in the admin portal with your full name, email, and timestamp.</div>
+        <ol id="rulesList" class="note" style="padding-left:20px; margin:12px 0;"></ol>
+        <div class="field">
+          <label>Type Your First and Last Name</label>
+          <input id="rulesFullName" type="text" placeholder="Enter your first and last name" autocomplete="name" />
+        </div>
+        <div class="note" id="rulesExpectedName" style="margin-top:6px;"></div>
+        <label class="note" style="display:flex; align-items:flex-start; gap:10px; margin-top:14px;">
+          <input id="rulesAcknowledge" type="checkbox" style="margin-top:3px;" />
+          <span>I have read these marketplace rules, I understand them, and I agree to follow them every time I use this website.</span>
+        </label>
+        <div class="note" id="rulesMsg" style="display:none; margin-top:12px;"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="btnAgreeRules" type="button">Agree & Continue</button>
+      </div>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="left">
       <div class="logo">
@@ -179,6 +201,8 @@
       </div>
     </section>
 
+
+
     <section class="glass eventSpotlight" id="featuredEventCard">
       <div class="eventSpotlight-copy">
         <div class="eventSpotlight-kicker">Upcoming Event</div>
@@ -188,22 +212,42 @@
           <span class="eventMetaPill">May 15th • 6:30 PM</span>
           <span class="eventMetaPill">Haus 820 @ 820 N Massachusetts Ave • Lakeland, FL</span>
         </div>
-        <div class="eventCounters">
-          <div class="eventCounter"><strong id="eventAttendCount">0</strong><span>Attending</span></div>
-          <div class="eventCounter"><strong id="eventMaybeCount">0</strong><span>Maybe</span></div>
-          <div class="eventCounter"><strong id="eventCantCount">0</strong><span>Can’t Attend</span></div>
+        <div class="eventRsvpNotice">
+          <strong>MUST RSVP USING ONE OF THE OPTIONS BELOW</strong>
+          <span>The marketplace website does not record your RSVP directly. Mobile users may tap the RSVP button below. Desktop users may also click the flyer to enlarge it and scan the barcode.</span>
         </div>
-        <div class="rowBtns eventActions">
-          <button class="btn ghost eventBtn" id="btnEventAttend" data-rsvp="ATTENDING" type="button">I’m Attending</button>
-          <button class="btn ghost eventBtn" id="btnEventMaybe" data-rsvp="MAYBE" type="button">Maybe</button>
-          <button class="btn ghost eventBtn" id="btnEventCant" data-rsvp="CANT" type="button">Can’t Attend</button>
+        <div class="eventRsvpActions">
+          <a class="btn primary eventRsvpLink" href="https://www.eventbrite.com/e/regal-50th-anniversary-party-tickets-1980564307158" target="_blank" rel="noopener noreferrer" aria-label="Open Regal 50th Anniversary RSVP page">
+            RSVP HERE
+          </a>
         </div>
-        <div class="note eventStatusNote" id="eventStatusText">Choose your response below.</div>
+        <div class="note eventStatusNote" id="eventStatusText">Tap RSVP HERE to open the event page directly, or click the flyer to enlarge the barcode for scanning.</div>
       </div>
       <div class="eventSpotlight-artWrap">
-        <img id="eventImage" class="eventSpotlight-art" src="Images/background5.jpg" alt="Regal 50th Anniversary event flyer" />
+        <button class="eventImageButton" id="eventImageButton" type="button" aria-label="Open RSVP flyer larger">
+          <img id="eventImage" class="eventSpotlight-art" src="Images/background5.jpg" alt="Regal 50th Anniversary event flyer with RSVP barcode" />
+        </button>
       </div>
     </section>
+
+    <div class="overlay" id="eventImageOverlay" style="display:none">
+      <div class="modal eventImageModal">
+        <div class="modal-h"><strong>Event Flyer & RSVP Barcode</strong></div>
+        <div class="modal-b eventImageModalBody modal-scroll">
+          <div class="eventRsvpNotice eventRsvpNoticeModal">
+            <strong>MUST RSVP USING ONE OF THE OPTIONS BELOW</strong>
+            <span>Use the RSVP button to open the event page directly, or scan the barcode on this flyer. The marketplace website itself does not submit your RSVP.</span>
+          </div>
+          <div class="eventRsvpActions eventRsvpActionsModal">
+            <a class="btn primary eventRsvpLink" href="https://www.eventbrite.com/e/regal-50th-anniversary-party-tickets-1980564307158" target="_blank" rel="noopener noreferrer" aria-label="Open Regal 50th Anniversary RSVP page from flyer modal">
+              RSVP HERE
+            </a>
+          </div>
+          <img id="eventImageLarge" class="eventSpotlight-art eventSpotlight-artLarge" src="Images/background5.jpg" alt="Large RSVP barcode event flyer" />
+          <div class="note eventImageHelp">Tap or click anywhere outside this window to close.</div>
+        </div>
+      </div>
+    </div>
 
     <section class="content-grid">
       <aside class="glass boardPanel">
