@@ -1275,7 +1275,7 @@ function renderEventSpotlight() {
   if ($('eventImage')) $('eventImage').src = FEATURED_EVENT.imageUrl;
   if ($('eventImageLarge')) $('eventImageLarge').src = FEATURED_EVENT.imageUrl;
   if ($('eventStatusText')) {
-    $('eventStatusText').textContent = 'Click the flyer to enlarge the barcode for easier scanning on your phone.';
+    $('eventStatusText').textContent = 'Tap RSVP HERE to open the event page directly, or click the flyer to enlarge the barcode for scanning.';
   }
 }
 
@@ -1283,7 +1283,7 @@ function renderEventSpotlight() {
 async function handleEventRsvp(status) {
   show('eventImageOverlay');
   if ($('eventStatusText')) {
-    $('eventStatusText').textContent = 'Please scan the barcode on the flyer to RSVP. The website does not record RSVPs.';
+    $('eventStatusText').textContent = 'Use RSVP HERE to open the event page directly, or scan the barcode on the flyer. The website does not record RSVPs.';
   }
 }
 
