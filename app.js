@@ -190,6 +190,18 @@ function showLoginStatusMessage(message) {
   }
 }
 
+function clearLoginStatusMessage() {
+  lastStatusMessageShown = '';
+  if ($('verifyNote')) {
+    $('verifyNote').textContent = '';
+    $('verifyNote').style.display = 'none';
+  }
+  if ($('signupMsg')) {
+    $('signupMsg').textContent = '';
+    $('signupMsg').style.display = 'none';
+  }
+}
+
 function buildPendingProfileData(user, fullName, elevated = false) {
   const now = Date.now();
   return {
@@ -289,6 +301,7 @@ let eventResponsesUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
+let lastStatusMessageShown = '';
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
@@ -372,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     lastUnverifiedEmail = '';
+    clearLoginStatusMessage();
     if ($('verifyNote')) $('verifyNote').style.display = 'none';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
@@ -421,8 +435,19 @@ function removeLegacyForgotPasswordUI() {
 }
 
 function bindStaticEvents() {
-  $('tabLogin')?.addEventListener('click', () => showPane('login'));
-  $('tabSignup')?.addEventListener('click', () => showPane('signup'));
+  $('tabLogin')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const loginVisible = ($('loginPane')?.style.display || 'block') !== 'none';
+    const hasCreds = !!(($('loginEmail')?.value || '').trim() || ($('loginPassword')?.value || '').trim());
+    showPane('login');
+    if (loginVisible && hasCreds) {
+      handleLogin();
+    }
+  });
+  $('tabSignup')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    showPane('signup');
+  });
 
   // Instantly auto-populates @regallakeland.com when the user tabs or clicks away
   ['loginEmail', 'signupEmail'].forEach(id => {
@@ -455,13 +480,6 @@ function bindStaticEvents() {
   $('btnLogin')?.addEventListener('click', (e) => {
     e.preventDefault();
     handleLogin();
-  });
-
-  $('tabLogin')?.addEventListener('dblclick', (e) => {
-    e.preventDefault();
-    if (($('loginPane')?.style.display || 'block') !== 'none') {
-      handleLogin();
-    }
   });
   $('btnSignup')?.addEventListener('click', handleSignup);
   $('btnResendVerify')?.addEventListener('click', handleResendVerification);
@@ -544,6 +562,7 @@ function bindStaticEvents() {
 }
 
 function showPane(which) {
+  clearLoginStatusMessage();
   const loginPane = $('loginPane');
   const signupPane = $('signupPane');
   const tabLogin = $('tabLogin');
