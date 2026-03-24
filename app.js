@@ -321,12 +321,13 @@ function bindStaticEvents() {
   $('btnAgreeRules')?.addEventListener('click', handleRulesAgreement);
   $('rulesFullName')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleRulesAgreement(); } });
   $('rulesFirstName')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleRulesAgreement(); } });
-  $('btnEventAttend')?.addEventListener('click', () => handleEventRsvp('ATTENDING'));
-  $('btnEventMaybe')?.addEventListener('click', () => handleEventRsvp('MAYBE'));
-  $('btnEventCant')?.addEventListener('click', () => handleEventRsvp('CANT'));
   $('btnLogout')?.addEventListener('click', async () => {
     await signOut(auth);
   });
+
+  $('eventImageButton')?.addEventListener('click', () => show('eventImageOverlay'));
+  $('eventImage')?.addEventListener('click', () => show('eventImageOverlay'));
+  $('eventImageLarge')?.addEventListener('click', () => hide('eventImageOverlay'));
 
   const openPost = () => {
   if (!currentUser) {
@@ -1172,32 +1173,13 @@ function canUseEventRsvp() {
 
 function renderEventSpotlight() {
   if (!$('featuredEventCard')) return;
-  const counts = featuredEventCounts();
-  const mine = currentUserEventResponse();
-  const canRsvp = canUseEventRsvp();
   if ($('eventImage')) $('eventImage').src = FEATURED_EVENT.imageUrl;
-  if ($('eventAttendCount')) $('eventAttendCount').textContent = String(counts.ATTENDING || 0);
-  if ($('eventMaybeCount')) $('eventMaybeCount').textContent = String(counts.MAYBE || 0);
-  if ($('eventCantCount')) $('eventCantCount').textContent = String(counts.CANT || 0);
+  if ($('eventImageLarge')) $('eventImageLarge').src = FEATURED_EVENT.imageUrl;
   if ($('eventStatusText')) {
-    if (mine) {
-      $('eventStatusText').textContent = `Your current response: ${RSVP_LABELS[mine.status] || mine.status}`;
-    } else if (!currentUser) {
-      $('eventStatusText').textContent = 'Log in with your Regal Lakeland email to RSVP.';
-    } else if (!canRsvp) {
-      $('eventStatusText').textContent = 'Your account can see the event, but RSVP is not ready until your employee profile finishes loading.';
-    } else {
-      $('eventStatusText').textContent = 'Choose your response below.';
-    }
+    $('eventStatusText').textContent = 'Click the flyer to open the barcode larger for easier scanning on your phone.';
   }
-  ['ATTENDING', 'MAYBE', 'CANT'].forEach((status) => {
-    const btn = document.querySelector(`[data-rsvp="${status}"]`);
-    if (!btn) return;
-    btn.classList.toggle('active-rsvp', mine?.status === status);
-    btn.disabled = !canRsvp;
-    btn.title = canRsvp ? '' : 'Log in with your Regal Lakeland account to RSVP';
-  });
 }
+
 
 async function handleEventRsvp(status) {
   if (!hasRulesAcceptance(currentProfile)) {
