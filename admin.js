@@ -85,6 +85,16 @@ async function copyText(text) {
 }
 
 const $ = (id) => document.getElementById(id);
+const FILTER_LABELS = {
+  ALL: 'Showing all users',
+  PENDING: 'Showing pending approvals',
+  ONLINE: 'Showing users currently online',
+  ADMIN: 'Showing admin accounts',
+  MODERATOR: 'Showing moderator accounts',
+  BANNED: 'Showing blocked users',
+  DUPLICATES: 'Showing duplicate profiles',
+  DELETED: 'Showing deleted accounts'
+};
 const esc = (s) => String(s ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
 
@@ -291,8 +301,18 @@ onAuthStateChanged(auth, async (user) => {
   });
   $('userFilter')?.addEventListener('change', (e) => {
     userFilterValue = String(e.target.value || 'ALL');
+    syncAdminFilterUi();
     renderUserRows();
   });
+  document.querySelectorAll('[data-admin-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      userFilterValue = String(btn.dataset.adminFilter || 'ALL');
+      if ($('userFilter')) $('userFilter').value = userFilterValue;
+      syncAdminFilterUi();
+      renderUserRows();
+    });
+  });
+  syncAdminFilterUi();
 
   if (!canManageUsers()) {
     if ($('userAccessPanel')) $('userAccessPanel').style.display = 'none';
@@ -304,6 +324,19 @@ onAuthStateChanged(auth, async (user) => {
   if (canManageUsers()) startUsers();
 });
 
+
+
+function syncAdminFilterUi() {
+  if ($('adminActiveFilterLabel')) $('adminActiveFilterLabel').textContent = FILTER_LABELS[userFilterValue] || FILTER_LABELS.ALL;
+  document.querySelectorAll('[data-admin-filter]').forEach((btn) => {
+    btn.classList.toggle('active', String(btn.dataset.adminFilter || '') === userFilterValue);
+  });
+}
+
+function setText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
 
 function getReplyRowsForListing(listingId) {
   return replyRowsData
@@ -542,6 +575,7 @@ function renderModerationRows() {
   if (!wrap) return;
   const openFlags = moderationFlagsData.filter((flag) => String(flag.status || 'OPEN').toUpperCase() === 'OPEN');
   if ($('adminFlagOpenCount')) $('adminFlagOpenCount').textContent = `${openFlags.length} open`;
+  setText('adminFlagOpenCountHero', String(openFlags.length));
   if (!openFlags.length) {
     wrap.innerHTML = '<tr><td colspan="6"><div class="note">No flagged content is currently waiting for review.</div></td></tr>';
     return;
@@ -675,14 +709,27 @@ function renderUserRows() {
   if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
 
+  const pendingCount = userRowsData.filter(userPending).length;
+  const blockedCount = userRowsData.filter((u) => !!u.banned).length;
+  const deletedCount = userRowsData.filter((u) => !!u.deleted).length;
+  const duplicateCount = Array.from(dmeta.values()).filter((meta) => meta.isDuplicate).length;
+
+  setText('adminOnlineCountHero', String(onlineUsers.length));
+  setText('adminPendingCountHero', String(pendingCount));
+  setText('adminBlockedCount', String(blockedCount));
+  setText('adminDeletedCount', String(deletedCount));
+  setText('adminDuplicateCount', String(duplicateCount));
+  syncAdminFilterUi();
+
   if ($('adminOnlineNames')) {
     if (onlineUsers.length > 0) {
       $('adminOnlineNames').innerHTML = onlineUsers.map((u) => {
         const name = esc(preferredUserName(u, false) || u.email);
-        return `<span class="pill" style="border-color:#22c55e; background:rgba(34,197,94,0.1); color:#bbf7d0; font-weight:800;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:8px; box-shadow:0 0 8px #22c55e;"></span>${name}</span>`;
+        const seen = u.lastSeenAtMs ? esc(fmtDate(u.lastSeenAtMs)) : 'Active now';
+        return `<span class="online-chip"><span class="online-dot"></span><span>${name}</span><small>${seen}</small></span>`;
       }).join('');
     } else {
-      $('adminOnlineNames').innerHTML = '<span class="note" style="margin-left: 4px;">No users currently online.</span>';
+      $('adminOnlineNames').innerHTML = '<div class="admin-empty-note">No users are currently online.</div>';
     }
   }
 

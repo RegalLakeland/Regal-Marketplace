@@ -653,7 +653,6 @@ function bindStaticEvents() {
     activeBoard = 'FREE';
     renderBoards();
     renderListings();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   $('btnSavePost')?.addEventListener('click', handleSavePost);
@@ -1944,7 +1943,6 @@ function renderBoards() {
       activeBoard = btn.dataset.board;
       renderBoards();
       renderListings();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   });
 
