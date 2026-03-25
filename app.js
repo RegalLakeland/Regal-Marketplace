@@ -128,11 +128,11 @@ function delay(ms) {
 }
 
 function approvalWaitingMessage() {
-  return 'Waiting on admin approval. Once approved by an admin, please refresh this page and log in again.';
+  return 'Your account is pending admin approval. Please allow up to 24 hours for review, although approval may happen sooner. Please check back shortly by logging in again.';
 }
 
 function approvalCreatedMessage() {
-  return 'Account created successfully. Waiting on admin approval. Once admin has approved you, you will be able to log in.';
+  return 'Your account request has been submitted to the marketplace admins for approval. Please allow up to 24 hours for review, although approval may happen sooner. Once approved, you should be able to log in normally.';
 }
 
 function loginBlockedMessage(profile) {
@@ -313,6 +313,7 @@ let editingPostId = null;
 let lastStatusMessageShown = '';
 let loginInFlight = false;
 let signupInFlight = false;
+let signupFlowContext = null;
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
@@ -352,12 +353,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   onAuthStateChanged(auth, async (user) => {
   try {
+    const isSignupFlowUser = !!(
+      signupInFlight &&
+      signupFlowContext &&
+      user &&
+      normalizeEmail(user.email) === normalizeEmail(signupFlowContext.email)
+    );
+
     if (!user) {
       currentUser = null;
       currentProfile = null;
       clearTempLoginContext();
       stopListeners();
       updateAuthUI();
+      return;
+    }
+
+    if (isSignupFlowUser) {
       return;
     }
 
@@ -1138,6 +1150,7 @@ async function handleSignup() {
 
   try {
     signupInFlight = true;
+    signupFlowContext = { email };
     if (signupBtn) signupBtn.disabled = true;
 
     const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -1170,10 +1183,15 @@ async function handleSignup() {
       msg.style.display = 'none';
     }
 
+    const createdMessage = approvalCreatedMessage();
+    setLoginFlashMessage(createdMessage);
+
     if ($('loginEmail')) $('loginEmail').value = email;
     if ($('loginPassword')) $('loginPassword').value = '';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
     showPane('login');
+    showLoginStatusMessage(createdMessage);
+    alert(createdMessage);
     setTimeout(() => $('loginPassword')?.focus(), 30);
   } catch (err) {
     console.error(err);
@@ -1186,6 +1204,7 @@ async function handleSignup() {
     alert(`${err?.code || 'signup_error'} — ${err?.message || 'Signup failed.'}`);
   } finally {
     signupInFlight = false;
+    signupFlowContext = null;
     if (signupBtn) signupBtn.disabled = false;
   }
 }
