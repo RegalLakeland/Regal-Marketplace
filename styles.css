@@ -336,3 +336,45 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 .replyModerationSub{font-size:12px;color:var(--muted)}
 .replyModerationText{white-space:pre-wrap;line-height:1.55;color:#edf3fb}
 @media (max-width:780px){.replyModerationHead{flex-direction:column}}
+
+
+.notifBtn{white-space:nowrap}
+.threadUnreadBadge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(251,191,36,.16);
+  border:1px solid rgba(251,191,36,.34);
+  font-size:12px;
+  font-weight:900;
+  color:#ffe7a8;
+}
+.topicTitleWrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.topicRow-unread{border-color:rgba(251,191,36,.34);box-shadow:0 0 0 1px rgba(251,191,36,.18), 0 10px 24px rgba(0,0,0,.16)}
+.thread-card-highlight{animation:threadPulse 1.8s ease}
+@keyframes threadPulse{
+  0%{transform:scale(1);box-shadow:0 0 0 0 rgba(251,191,36,.0)}
+  25%{transform:scale(1.01);box-shadow:0 0 0 3px rgba(251,191,36,.22)}
+  100%{transform:scale(1);box-shadow:0 0 0 0 rgba(251,191,36,.0)}
+}
+.threadUnreadNotice{
+  margin-top:16px;
+  padding:12px 14px;
+  border-radius:16px;
+  border:1px solid rgba(251,191,36,.34);
+  background:rgba(251,191,36,.12);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  font-weight:900;
+  color:#ffe7a8;
+}
+.replyActionRow{margin-top:10px}
+.btn-xs{padding:8px 12px;font-size:12px}
+.moderation-flagged{border-color:rgba(239,68,68,.35)}
+@media (max-width:780px){
+  .threadUnreadNotice{align-items:flex-start;flex-direction:column}
+}

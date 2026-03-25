@@ -1,7 +1,7 @@
 import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import { getFirestore, collection, collectionGroup, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { getFirestore, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -431,7 +431,7 @@ function renderListingRows() {
   document.querySelectorAll('[data-delete]').forEach((btn) => btn.onclick = async () => {
     const item = listingRowsData.find((row) => row.id === btn.dataset.delete);
     if (!item) return;
-    if (!confirm('Delete this post and remove its thread from normal view?')) return;
+    if (!confirm('Permanently delete this post and all of its replies? This fully removes the thread from the website.')) return;
     await deleteListingAndResolve(item);
   });
 }
@@ -486,19 +486,55 @@ async function resolveFlagsForListing(listingId, resolution = 'reviewed') {
   })));
 }
 
-async function deleteListingAndResolve(item) {
-  const linkedReplies = getReplyRowsForListing(item.id);
-  await Promise.all(linkedReplies.map((reply) => updateDoc(doc(db, reply.path), {
-    deleted: true,
-    hidden: true,
-    parentDeleted: true,
-    deletedAtMs: Date.now(),
-    deletedBy: normalizeEmail(currentViewer?.email),
+async function deleteFlagDocsForListing(listingId = '', replyId = '') {
+  const requests = [];
+  if (replyId) requests.push(getDocs(query(collection(db, 'moderationFlags'), where('replyId', '==', replyId))));
+  else if (listingId) requests.push(getDocs(query(collection(db, 'moderationFlags'), where('listingId', '==', listingId))));
+  if (!requests.length) return;
+  const results = await Promise.all(requests);
+  const seen = new Set();
+  const deletes = [];
+  results.forEach((snap) => {
+    snap.forEach((flagDoc) => {
+      if (seen.has(flagDoc.id)) return;
+      seen.add(flagDoc.id);
+      deletes.push(deleteDoc(flagDoc.ref).catch(() => {}));
+    });
+  });
+  await Promise.all(deletes);
+}
+
+async function refreshListingReplySummary(listingId) {
+  if (!listingId) return;
+  const listingRef = doc(db, 'listings', listingId);
+  const listingSnap = await getDoc(listingRef);
+  if (!listingSnap.exists()) return;
+  const listingData = listingSnap.data() || {};
+  const legacyReplies = Array.isArray(listingData.replies) ? listingData.replies.filter((reply) => reply?.deleted !== true && reply?.hidden !== true) : [];
+  const liveSnap = await getDocs(query(collection(db, 'listings', listingId, 'replies'), orderBy('createdAtMs', 'asc')));
+  const liveReplies = liveSnap.docs.map((d) => d.data()).filter((reply) => reply?.deleted !== true && reply?.hidden !== true);
+  const combined = [...legacyReplies, ...liveReplies].sort((a, b) => Number(a?.createdAtMs || a?.createdAt || 0) - Number(b?.createdAtMs || b?.createdAt || 0));
+  const lastReply = combined.length ? combined[combined.length - 1] : null;
+  await updateDoc(listingRef, {
+    replyCount: combined.length,
+    lastReplyAtMs: Number(lastReply?.createdAtMs || lastReply?.createdAt || 0) || null,
+    lastReplyPreview: lastReply?.text ? String(lastReply.text).slice(0, 120) : '',
+    lastReplyByUid: lastReply?.uid || '',
+    lastReplyByEmail: lastReply?.userEmail || '',
     updatedAt: Date.now()
-  }).catch(() => {})));
-  await resolveFlagsForListing(item.id, 'post_deleted').catch(() => {});
-  await deleteDoc(doc(db, 'listings', item.id));
-  if (moderationListingId === item.id) closeModerationModal();
+  }).catch(() => {});
+}
+
+async function deleteListingAndResolve(item) {
+  const listingId = item?.id;
+  if (!listingId) return;
+  const repliesSnap = await getDocs(query(collection(db, 'listings', listingId, 'replies'), orderBy('createdAtMs', 'asc'))).catch(() => null);
+  if (repliesSnap) {
+    await Promise.all(repliesSnap.docs.map((replyDoc) => deleteDoc(replyDoc.ref).catch(() => {})));
+  }
+  await deleteFlagDocsForListing(listingId).catch(() => {});
+  await deleteDoc(doc(db, 'listings', listingId));
+  if (moderationListingId === listingId) closeModerationModal();
 }
 
 function renderModerationRows() {
@@ -842,30 +878,24 @@ function closeModerationModal() {
 
 async function deleteReplyRecord(reply) {
   if (!reply) return;
+  const listingId = reply.listingId || moderationListingId || '';
+  if (!listingId) return;
+  const listingRef = doc(db, 'listings', listingId);
+
   if (reply.source === 'legacy') {
-    const listing = listingRowsData.find((item) => item.id === reply.listingId);
-    if (!listing || !Array.isArray(listing.replies) || reply.legacyIndex < 0) return;
-    const replies = listing.replies.slice();
-    const existing = replies[reply.legacyIndex] || {};
-    replies[reply.legacyIndex] = {
-      ...existing,
-      deleted: true,
-      hidden: true,
-      deletedAtMs: Date.now(),
-      deletedBy: normalizeEmail(currentViewer?.email),
-      text: ''
-    };
-    await updateDoc(doc(db, 'listings', reply.listingId), { replies, updatedAt: Date.now() });
+    const listingSnap = await getDoc(listingRef);
+    if (!listingSnap.exists()) return;
+    const listingData = listingSnap.data() || {};
+    const replies = Array.isArray(listingData.replies) ? listingData.replies.slice() : [];
+    if (reply.legacyIndex < 0 || reply.legacyIndex >= replies.length) return;
+    replies.splice(reply.legacyIndex, 1);
+    await updateDoc(listingRef, { replies, updatedAt: Date.now() });
+    await refreshListingReplySummary(listingId);
   } else if (reply.path) {
-    await updateDoc(doc(db, reply.path), {
-      deleted: true,
-      hidden: true,
-      deletedAtMs: Date.now(),
-      deletedBy: normalizeEmail(currentViewer?.email),
-      updatedAt: Date.now()
-    });
+    await deleteFlagDocsForListing(listingId, reply.id).catch(() => {});
+    await deleteDoc(doc(db, reply.path)).catch(() => {});
+    await refreshListingReplySummary(listingId);
   }
-  await resolveFlagsForSource(reply.sourceKey, 'reply_deleted').catch(() => {});
 }
 
 function renderModerationModal() {

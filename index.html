@@ -190,6 +190,7 @@
     <div class="right">
       <span class="pill" id="pillUser">Not signed in</span>
       <span class="pill" id="boardPill">All</span>
+      <button class="btn ghost notifBtn" id="threadAlertsBadge" type="button" style="display:none">🔔 0 new</button>
       <a class="btn ghost" id="adminLink" href="admin.html" style="display:none">Admin</a>
       <button class="btn primary" id="btnNew" type="button">+ Post</button>
       <button class="btn danger" id="btnLogout" type="button">Logout</button>
@@ -207,6 +208,7 @@
           <div class="rowBtns hero-actions">
             <button class="btn primary" id="heroPostBtn" type="button">Post Item</button>
             <button class="btn ghost" id="heroFreeBtn" type="button">Browse Free Items</button>
+            <button class="btn ghost notifBtn" id="heroThreadAlert" type="button" style="display:none">0 threads have new activity</button>
           </div>
         </div>
         <div class="hero-side glass-soft">
@@ -384,6 +386,11 @@
       <div class="modal-b">
         <div id="threadMeta" class="meta"></div>
         <div id="threadBody"></div>
+
+        <div class="threadUnreadNotice" id="threadUnreadNotice" style="display:none">
+          <span>New activity in this thread</span>
+          <button class="btn ghost btn-xs" data-action="markThreadRead" data-id="" id="threadMarkReadBtn" type="button">Mark Read</button>
+        </div>
 
         <hr />
 

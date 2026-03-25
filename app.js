@@ -14,9 +14,11 @@ import {
 import {
   getFirestore,
   collection,
+  collectionGroup,
   addDoc,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -24,7 +26,8 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  increment
+  increment,
+  where
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 import {
   getStorage,
@@ -364,6 +367,10 @@ let activeBoard = 'ALL';
 let activeThread = null;
 let activeThreadRepliesUnsub = null;
 let activeThreadReplyDocs = [];
+let participantRepliesUnsub = null;
+let threadParticipationIds = new Set();
+let threadReadState = {};
+let threadUnreadCount = 0;
 let listingsUnsub = null;
 let profilesUnsub = null;
 let userProfileUnsub = null;
@@ -430,6 +437,8 @@ document.addEventListener('DOMContentLoaded', () => {
       currentProfile = null;
       clearTempLoginContext();
       stopListeners();
+      threadReadState = {};
+      threadUnreadCount = 0;
       updateAuthUI();
       return;
     }
@@ -474,9 +483,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if ($('verifyNote')) $('verifyNote').style.display = 'none';
     if ($('btnResendVerify')) $('btnResendVerify').style.display = 'none';
 
+    loadThreadReadState();
     updateAuthUI();
     startListingsListener();
     startProfilesListener();
+    startParticipantRepliesListener();
     startUserProfileGuard(user);
     startEventResponsesListener();
     touchPresence();
@@ -613,6 +624,8 @@ function bindStaticEvents() {
   $('btnLogout')?.addEventListener('click', async () => {
     await signOut(auth);
   });
+  $('threadAlertsBadge')?.addEventListener('click', scrollToFirstUnreadThread);
+  $('heroThreadAlert')?.addEventListener('click', scrollToFirstUnreadThread);
 
   $('eventImageButton')?.addEventListener('click', () => show('eventImageOverlay'));
   $('eventImage')?.addEventListener('click', () => show('eventImageOverlay'));
@@ -679,6 +692,15 @@ function bindStaticEvents() {
       await handleRequestActive(id);
     } else if (action === 'editPost') {
       openPostEditor(id);
+    } else if (action === 'deletePost' && canModerate()) {
+      await hardDeleteListingFromFeed(id);
+    } else if (action === 'deleteReply' && canModerate()) {
+      const reply = mergedRepliesForThread(activeThread).find((entry) => entry.sourceKey === actionEl.dataset.replyKey);
+      if (!reply) return;
+      if (!confirm('Permanently delete this reply from the website?')) return;
+      await hardDeleteReplyRecord(reply);
+    } else if (action === 'markThreadRead') {
+      markThreadSeen(id, Date.now());
     }
   });
 }
@@ -749,8 +771,242 @@ function isViewerAdmin() {
   return !!currentProfile?.isAdmin || isProtectedCoreAdmin(currentUser?.email);
 }
 
+
 function canModerate() {
   return !!currentProfile && (!!currentProfile.isAdmin || !!currentProfile.isModerator || isProtectedCoreAdmin(currentUser?.email));
+}
+
+function threadReadStorageKey() {
+  return `marketplace_thread_reads_v2:${currentUser?.uid || 'guest'}`;
+}
+
+function loadThreadReadState() {
+  threadReadState = {};
+  if (!currentUser?.uid) return;
+  try {
+    const raw = localStorage.getItem(threadReadStorageKey());
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (parsed && typeof parsed === 'object') {
+      threadReadState = parsed;
+    }
+  } catch (_) {
+    threadReadState = {};
+  }
+}
+
+function persistThreadReadState() {
+  if (!currentUser?.uid) return;
+  try {
+    localStorage.setItem(threadReadStorageKey(), JSON.stringify(threadReadState || {}));
+  } catch (_) {}
+}
+
+function getThreadSeenAt(listingId) {
+  return Number(threadReadState?.[listingId] || 0);
+}
+
+function markThreadSeen(listingId, seenAtMs = Date.now()) {
+  if (!currentUser?.uid || !listingId) return;
+  const normalized = Math.max(getThreadSeenAt(listingId), Number(seenAtMs || Date.now()));
+  threadReadState = { ...(threadReadState || {}), [listingId]: normalized };
+  persistThreadReadState();
+  updateThreadNotificationUI();
+}
+
+function getListingLatestReplyMeta(item) {
+  let latestMs = Number(item?.lastReplyAtMs || 0);
+  let latestByUid = item?.lastReplyByUid || '';
+  let latestByEmail = normalizeEmail(item?.lastReplyByEmail || '');
+  const legacyReplies = Array.isArray(item?.replies) ? item.replies : [];
+  legacyReplies.forEach((reply) => {
+    if (reply?.deleted === true || reply?.hidden === true) return;
+    const replyMs = Number(reply?.createdAtMs || reply?.createdAt || 0);
+    if (replyMs >= latestMs) {
+      latestMs = replyMs;
+      latestByUid = reply?.uid || latestByUid || '';
+      latestByEmail = normalizeEmail(reply?.userEmail || latestByEmail || '');
+    }
+  });
+  if (activeThread?.id === item?.id) {
+    activeThreadReplyDocs.forEach((reply) => {
+      if (reply?.deleted === true || reply?.hidden === true) return;
+      const replyMs = Number(reply?.createdAtMs || reply?.createdAt || 0);
+      if (replyMs >= latestMs) {
+        latestMs = replyMs;
+        latestByUid = reply?.uid || latestByUid || '';
+        latestByEmail = normalizeEmail(reply?.userEmail || latestByEmail || '');
+      }
+    });
+  }
+  return { latestMs, latestByUid, latestByEmail };
+}
+
+function isThreadParticipant(item) {
+  if (!currentUser || !item) return false;
+  if (item.uid === currentUser.uid) return true;
+  if (normalizeEmail(item.userEmail || item.authorEmail) === normalizeEmail(currentUser.email)) return true;
+  if (threadParticipationIds.has(item.id)) return true;
+  const legacyReplies = Array.isArray(item.replies) ? item.replies : [];
+  return legacyReplies.some((reply) => reply?.deleted !== true && reply?.hidden !== true && (
+    reply?.uid === currentUser.uid || normalizeEmail(reply?.userEmail) === normalizeEmail(currentUser.email)
+  ));
+}
+
+function hasUnreadThreadActivity(item) {
+  if (!currentUser || !item || !isThreadParticipant(item)) return false;
+  const { latestMs, latestByUid, latestByEmail } = getListingLatestReplyMeta(item);
+  if (!latestMs) return false;
+  if (latestByUid && latestByUid === currentUser.uid) return false;
+  if (!latestByUid && latestByEmail && latestByEmail === normalizeEmail(currentUser.email)) return false;
+  return latestMs > getThreadSeenAt(item.id);
+}
+
+function getUnreadThreadListings() {
+  return listings.filter((item) => isVisibleToViewer(item) && hasUnreadThreadActivity(item));
+}
+
+function updateThreadNotificationUI() {
+  const unreadItems = getUnreadThreadListings();
+  threadUnreadCount = unreadItems.length;
+
+  const badge = $('threadAlertsBadge');
+  if (badge) {
+    badge.style.display = threadUnreadCount ? 'inline-flex' : 'none';
+    badge.textContent = threadUnreadCount ? `🔔 ${threadUnreadCount} new` : '';
+  }
+
+  const heroBadge = $('heroThreadAlert');
+  if (heroBadge) {
+    heroBadge.style.display = threadUnreadCount ? 'inline-flex' : 'none';
+    heroBadge.textContent = threadUnreadCount === 1 ? '1 thread has new activity' : `${threadUnreadCount} threads have new activity`;
+  }
+
+  const threadNotice = $('threadUnreadNotice');
+  if (threadNotice && activeThread) {
+    threadNotice.style.display = hasUnreadThreadActivity(activeThread) ? 'block' : 'none';
+  }
+}
+
+function scrollToFirstUnreadThread() {
+  const unreadItems = getUnreadThreadListings();
+  if (!unreadItems.length) {
+    alert('No new thread activity right now.');
+    return;
+  }
+  const target = document.querySelector(`[data-thread-card-id="${CSS.escape(unreadItems[0].id)}"]`);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('thread-card-highlight');
+    setTimeout(() => target.classList.remove('thread-card-highlight'), 1800);
+  }
+}
+
+function stopParticipantRepliesListener() {
+  if (participantRepliesUnsub) {
+    participantRepliesUnsub();
+    participantRepliesUnsub = null;
+  }
+  threadParticipationIds = new Set();
+}
+
+function startParticipantRepliesListener() {
+  stopParticipantRepliesListener();
+  if (!currentUser?.uid || !currentProfile) return;
+  const qRef = query(collectionGroup(db, 'replies'), where('uid', '==', currentUser.uid));
+  participantRepliesUnsub = onSnapshot(qRef, (snap) => {
+    threadParticipationIds = new Set(
+      snap.docs.map((d) => String(d.data()?.listingId || '').trim()).filter(Boolean)
+    );
+    updateThreadNotificationUI();
+    renderListings();
+  }, (err) => {
+    console.error('Participant replies error:', err);
+  });
+}
+
+async function deleteRelatedModerationFlags(listingId = '', replyId = '') {
+  const queries = [];
+  if (replyId) queries.push(getDocs(query(collection(db, 'moderationFlags'), where('replyId', '==', replyId))));
+  else if (listingId) queries.push(getDocs(query(collection(db, 'moderationFlags'), where('listingId', '==', listingId))));
+  if (!queries.length) return;
+  const results = await Promise.all(queries);
+  const seen = new Set();
+  const deletes = [];
+  results.forEach((snap) => {
+    snap.forEach((flagDoc) => {
+      if (seen.has(flagDoc.id)) return;
+      seen.add(flagDoc.id);
+      deletes.push(deleteDoc(flagDoc.ref).catch(() => {}));
+    });
+  });
+  await Promise.all(deletes);
+}
+
+async function refreshListingReplySummary(listingId) {
+  if (!listingId) return;
+  const listingRef = doc(db, 'listings', listingId);
+  const listingSnap = await getDoc(listingRef);
+  if (!listingSnap.exists()) return;
+  const listingData = listingSnap.data() || {};
+  const legacyReplies = Array.isArray(listingData.replies) ? listingData.replies.filter((reply) => reply?.deleted !== true && reply?.hidden !== true) : [];
+  const liveSnap = await getDocs(query(collection(db, 'listings', listingId, 'replies'), orderBy('createdAtMs', 'asc')));
+  const liveReplies = liveSnap.docs.map((d) => d.data()).filter((reply) => reply?.deleted !== true && reply?.hidden !== true);
+
+  const combined = [...legacyReplies, ...liveReplies].sort((a, b) => Number(a?.createdAtMs || a?.createdAt || 0) - Number(b?.createdAtMs || b?.createdAt || 0));
+  const lastReply = combined.length ? combined[combined.length - 1] : null;
+  await updateDoc(listingRef, {
+    replyCount: combined.length,
+    lastReplyAtMs: Number(lastReply?.createdAtMs || lastReply?.createdAt || 0) || null,
+    lastReplyPreview: lastReply?.text ? buildModerationSnippet(lastReply.text, 120) : '',
+    lastReplyByUid: lastReply?.uid || '',
+    lastReplyByEmail: lastReply?.userEmail || '',
+    updatedAt: serverTimestamp()
+  }).catch(() => {});
+}
+
+async function hardDeleteReplyRecord(reply) {
+  if (!reply?.listingId) return;
+  const listingRef = doc(db, 'listings', reply.listingId);
+  if (reply.source === 'legacy') {
+    const listingSnap = await getDoc(listingRef);
+    if (!listingSnap.exists()) return;
+    const listingData = listingSnap.data() || {};
+    const replies = Array.isArray(listingData.replies) ? listingData.replies.slice() : [];
+    if (reply.legacyIndex < 0 || reply.legacyIndex >= replies.length) return;
+    replies.splice(reply.legacyIndex, 1);
+    await updateDoc(listingRef, { replies, updatedAt: serverTimestamp() });
+    await refreshListingReplySummary(reply.listingId);
+    return;
+  }
+  if (reply.path) {
+    await deleteRelatedModerationFlags(reply.listingId, reply.id).catch(() => {});
+    await deleteDoc(doc(db, reply.path)).catch(() => {});
+    await refreshListingReplySummary(reply.listingId);
+  }
+}
+
+async function hardDeleteListingFromFeed(listingId) {
+  const item = listings.find((entry) => entry.id === listingId);
+  if (!item) return;
+  const confirmText = canModerate()
+    ? 'Permanently delete this entire post and all replies? This fully removes the thread from the website.'
+    : 'Delete this post permanently?';
+  if (!confirm(confirmText)) return;
+
+  const replySnap = await getDocs(query(collection(db, 'listings', listingId, 'replies'), orderBy('createdAtMs', 'asc'))).catch(() => null);
+  if (replySnap) {
+    await Promise.all(replySnap.docs.map((replyDoc) => deleteDoc(replyDoc.ref).catch(() => {})));
+  }
+  await deleteRelatedModerationFlags(listingId).catch(() => {});
+  await deleteDoc(doc(db, 'listings', listingId));
+  if (activeThread?.id === listingId) hide('threadOverlay');
+  if (threadReadState?.[listingId]) {
+    const next = { ...(threadReadState || {}) };
+    delete next[listingId];
+    threadReadState = next;
+    persistThreadReadState();
+  }
+  updateThreadNotificationUI();
 }
 
 
@@ -1036,6 +1292,8 @@ function updateAuthUI() {
   if ($('adminLink')) $('adminLink').style.display = showAdmin ? 'inline-flex' : 'none';
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
+  if ($('threadAlertsBadge')) $('threadAlertsBadge').style.display = loggedIn && threadUnreadCount ? 'inline-flex' : 'none';
+  if ($('heroThreadAlert')) $('heroThreadAlert').style.display = loggedIn && threadUnreadCount ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
   if (!loggedIn) { hidePasswordGate(); hideRulesOverlay(); }
 
@@ -1565,6 +1823,8 @@ function normalizeReplyRecord(reply, source = 'legacy', legacyIndex = -1) {
     ...reply,
     source,
     legacyIndex,
+    sourceKey: reply?.sourceKey || (source === 'legacy' ? `legacy:${reply?.listingId || activeThread?.id || ''}:${legacyIndex}` : `reply:${reply?.id || ''}`),
+    listingId: reply?.listingId || activeThread?.id || '',
     deleted: reply?.deleted === true,
     hidden: reply?.hidden === true,
     flagged: reply?.flagged === true,
@@ -1590,10 +1850,11 @@ function startActiveThreadRepliesListener(listingId) {
   if (!listingId || !currentUser || !currentProfile) return;
   const qRef = query(collection(db, 'listings', listingId, 'replies'), orderBy('createdAtMs', 'asc'));
   activeThreadRepliesUnsub = onSnapshot(qRef, (snap) => {
-    activeThreadReplyDocs = snap.docs.map((d) => ({ id: d.id, path: d.ref.path, ...d.data() }));
+    activeThreadReplyDocs = snap.docs.map((d) => ({ id: d.id, path: d.ref.path, sourceKey: `reply:${d.id}`, ...d.data() }));
     if (activeThread && activeThread.id === listingId && $('threadOverlay')?.style.display !== 'none') {
       renderReplies(mergedRepliesForThread(activeThread));
     }
+    updateThreadNotificationUI();
   }, (err) => {
     console.error('Thread replies error:', err);
   });
@@ -1607,6 +1868,7 @@ function startListingsListener() {
     listings = snap.docs.map((d) => normalizeListing({ id: d.id, ...d.data() }));
     renderBoards();
     renderListings();
+    updateThreadNotificationUI();
 
     if (activeThread && $('threadOverlay')?.style.display !== 'none') {
       const updatedThread = listings.find((x) => x.id === activeThread.id);
@@ -1633,6 +1895,8 @@ function normalizeListing(item) {
     reactivationRequested: !!item.reactivationRequested,
     featured: !!item.featured,
     hidden: !!item.hidden,
+    lastReplyByUid: item.lastReplyByUid || '',
+    lastReplyByEmail: item.lastReplyByEmail || '',
     status: String(item.status || 'ACTIVE').toUpperCase(),
     replies: Array.isArray(item.replies) ? item.replies : [],
     replyCount: Number(item.replyCount || 0)
@@ -1793,6 +2057,7 @@ function renderListings() {
   if (!data.length) {
     wrap.innerHTML = '';
     empty.style.display = 'block';
+    updateThreadNotificationUI();
     return;
   }
 
@@ -1803,17 +2068,24 @@ function renderListings() {
     const showRequestActive = isViewerAdmin() && item.status === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
     const requestPending = item.status === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
     const featuredPill = item.featured ? `<span class="status featured">Featured</span>` : '';
+    const unread = hasUnreadThreadActivity(item);
+    const unreadBadge = unread ? '<span class="threadUnreadBadge" title="New activity in this thread">● New</span>' : '';
+    const quickDelete = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : '';
     return `
-      <article class="topicRow">
+      <article class="topicRow ${unread ? 'topicRow-unread' : ''}" data-thread-card-id="${esc(item.id)}">
         <div class="topicMain">
           <div class="topicHeader">
-            <div class="topicTitle">${esc(item.title || 'Untitled')}</div>
+            <div class="topicTitleWrap">
+              <div class="topicTitle">${esc(item.title || 'Untitled')}</div>
+              ${unreadBadge}
+            </div>
             <span class="status ${statusClass}">${esc(statusText)}</span>${featuredPill}
           </div>
           <div class="topicMeta">
             <span>${esc(BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board)}</span>
             <span>${esc(item.authorName || item.authorEmail || '')}</span>
             <span>${esc(formatDate(item.createdAtMs))}</span>
+            ${item.lastReplyAtMs ? `<span>${esc(formatDate(item.lastReplyAtMs))} latest reply</span>` : ''}
           </div>
           <div class="topicDesc">${esc(item.description || '').slice(0, 220)}${(item.description || '').length > 220 ? '…' : ''}</div>
           <div class="rowBtns">
@@ -1821,6 +2093,7 @@ function renderListings() {
             ${canModify(item) ? `<button class="btn ghost" data-action="editPost" data-id="${esc(item.id)}" type="button">Edit</button>` : ''}
             ${canModify(item) && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : ''}
             ${showRequestActive ? `<button class="btn ghost" data-action="requestActive" data-id="${esc(item.id)}" type="button">Request Active</button>` : ''}
+            ${quickDelete}
             ${requestPending ? `<span class="pill">Awaiting admin review</span>` : ''}
           </div>
         </div>
@@ -1837,6 +2110,7 @@ function renderListings() {
       </article>
     `;
   }).join('');
+  updateThreadNotificationUI();
 }
 
 async function handleSavePost() {
@@ -2014,6 +2288,7 @@ async function openThread(id) {
   }
 
   if ($('threadBody')) {
+    const deleteThreadBtn = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete Thread</button>` : '';
     $('threadBody').innerHTML = `
       <div class="thread-body-grid">
         ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
@@ -2023,10 +2298,19 @@ async function openThread(id) {
           <span>${esc(item.contact || 'No contact')}</span>
           <span>${esc(formatPrice(item.price))}</span>
         </div>
+        ${deleteThreadBtn ? `<div class="rowBtns">${deleteThreadBtn}</div>` : ''}
       </div>
     `;
   }
 
+  if ($('threadUnreadNotice')) {
+    $('threadUnreadNotice').style.display = 'none';
+  }
+  if ($('threadMarkReadBtn')) {
+    $('threadMarkReadBtn').dataset.id = item.id;
+  }
+
+  markThreadSeen(item.id, getListingLatestReplyMeta(item).latestMs || Date.now());
   renderReplies(mergedRepliesForThread(item));
   if ($('replyText')) $('replyText').value = '';
   show('threadOverlay');
@@ -2035,6 +2319,9 @@ async function openThread(id) {
 function renderReplies(replies) {
   const wrap = $('threadReplies');
   if (!wrap) return;
+  if ($('threadUnreadNotice')) {
+    $('threadUnreadNotice').style.display = activeThread && hasUnreadThreadActivity(activeThread) ? 'block' : 'none';
+  }
   if (!replies.length) {
     wrap.innerHTML = '<div class="note">No replies yet. Be the first to respond.</div>';
     return;
@@ -2045,6 +2332,9 @@ function renderReplies(replies) {
     if (canModerate() && r.deleted) badges.push('<span class="status sold">Removed</span>');
     if (canModerate() && r.hidden && !r.deleted) badges.push('<span class="status">Hidden</span>');
     const bodyText = r.deleted ? 'Reply removed by moderation.' : (r.hidden ? 'Reply hidden by moderation.' : (r.text || ''));
+    const deleteReplyBtn = canModerate() && !r.deleted
+      ? `<button class="btn danger btn-xs" data-action="deleteReply" data-id="${esc(r.listingId || activeThread?.id || '')}" data-reply-key="${esc(r.sourceKey)}" type="button">Delete Reply</button>`
+      : '';
     return `
       <div class="replyItem${r.flagged && canModerate() ? ' moderation-flagged' : ''}">
         <div class="replyTop">
@@ -2055,6 +2345,7 @@ function renderReplies(replies) {
           <div class="replyTime">${esc(formatDate(r.createdAtMs || r.createdAt))}</div>
         </div>
         <div>${esc(bodyText)}</div>
+        ${deleteReplyBtn ? `<div class="rowBtns replyActionRow">${deleteReplyBtn}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -2113,6 +2404,8 @@ async function handleSendReply() {
       replyCount: increment(1),
       lastReplyAtMs: createdAtMs,
       lastReplyPreview: buildModerationSnippet(text, 120),
+      lastReplyByUid: currentUser.uid,
+      lastReplyByEmail: currentUser.email || '',
       updatedAt: serverTimestamp()
     }).catch(() => {});
 
@@ -2134,6 +2427,7 @@ async function handleSendReply() {
       });
     }
 
+    markThreadSeen(activeThread.id, createdAtMs);
     if ($('replyText')) $('replyText').value = '';
   } catch (err) {
     console.error(err);
