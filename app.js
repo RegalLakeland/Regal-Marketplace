@@ -303,6 +303,7 @@ let activeBoard = 'ALL';
 let activeThread = null;
 let listingsUnsub = null;
 let profilesUnsub = null;
+let userProfileUnsub = null;
 let presenceTimer = null;
 let profiles = [];
 let eventResponses = [];
@@ -314,6 +315,7 @@ let lastStatusMessageShown = '';
 let loginInFlight = false;
 let signupInFlight = false;
 let signupFlowContext = null;
+let forcedAccessExitInFlight = false;
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
@@ -412,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAuthUI();
     startListingsListener();
     startProfilesListener();
+    startUserProfileGuard(user);
     startEventResponsesListener();
     touchPresence();
     if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
@@ -775,6 +778,10 @@ function stopListeners() {
     profilesUnsub();
     profilesUnsub = null;
   }
+  if (userProfileUnsub) {
+    userProfileUnsub();
+    userProfileUnsub = null;
+  }
   if (eventResponsesUnsub) {
     eventResponsesUnsub();
     eventResponsesUnsub = null;
@@ -791,6 +798,57 @@ function stopListeners() {
   renderEventSpotlight();
   renderBoards();
   renderListings();
+}
+
+async function forceAccessExit(message) {
+  if (forcedAccessExitInFlight) return;
+  forcedAccessExitInFlight = true;
+  const notice = String(message || 'Your marketplace access has changed. Please sign in again or contact an admin.').trim();
+
+  try {
+    stopListeners();
+    setLoginFlashMessage(notice);
+    if ($('loginPassword')) $('loginPassword').value = '';
+    await signOut(auth).catch(() => {});
+    showPane('login');
+    showLoginStatusMessage(notice);
+    alert(notice);
+  } finally {
+    forcedAccessExitInFlight = false;
+  }
+}
+
+function startUserProfileGuard(user) {
+  if (!user || userProfileUnsub) return;
+
+  const profileRef = doc(db, 'profiles', user.uid);
+  userProfileUnsub = onSnapshot(profileRef, async (snap) => {
+    if (!snap.exists()) {
+      if (!isProtectedCoreAdmin(user.email)) {
+        await forceAccessExit('Your marketplace profile could not be found. Please contact an admin.');
+      }
+      return;
+    }
+
+    const liveProfile = { id: snap.id, ...snap.data() };
+    currentProfile = { ...(currentProfile || {}), ...liveProfile };
+
+    if (isProtectedCoreAdmin(user.email)) return;
+
+    if (liveProfile.banned === true) {
+      await forceAccessExit('Your marketplace access has been disabled by an admin. Please contact Michael.H@regallakeland.com if you need help.');
+      return;
+    }
+
+    if (!canCompleteMarketplaceLogin(liveProfile)) {
+      await forceAccessExit(loginBlockedMessage(liveProfile));
+      return;
+    }
+
+    updateAuthUI();
+  }, async (err) => {
+    console.error('User profile guard error:', err);
+  });
 }
 
 async function ensureProfile(user) {
@@ -1675,6 +1733,10 @@ async function handleSavePost() {
     alert('Please log in first.');
     return;
   }
+  if (!canCompleteMarketplaceLogin(currentProfile)) {
+    alert('Your access is no longer active. Please log in again or contact an admin.');
+    return;
+  }
 
   const title = $('fTitle')?.value.trim();
   const description = $('fDesc')?.value.trim();
@@ -1858,6 +1920,10 @@ async function handleSendReply() {
 
   if (!currentUser || !currentProfile || !activeThread) {
     alert('Open a thread first.');
+    return;
+  }
+  if (!canCompleteMarketplaceLogin(currentProfile)) {
+    alert('Your access is no longer active. Please log in again or contact an admin.');
     return;
   }
 
