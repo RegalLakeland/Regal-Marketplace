@@ -7,11 +7,10 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- WOW FACTOR BACKGROUND SLIDER -->
   <hero-slider aria-hidden="true" images='[
-    "Images/background1.jpg", 
-    "Images/background2.jpg", 
-    "Images/background3.jpg", 
+    "Images/background1.jpg",
+    "Images/background2.jpg",
+    "Images/background3.jpg",
     "Images/background4.jpg"
   ]'></hero-slider>
 
@@ -20,7 +19,7 @@
       <div class="logo"><span class="logo-dot"></span><span class="logo-text">Regal Honda</span></div>
       <div class="title">
         <div class="h1">Marketplace Admin</div>
-        <div class="h2">Moderation tools, manual account approvals, temporary password resets, account deletion controls, and protected account safeguards</div>
+        <div class="h2">Moderation tools, flagged-content review, reply deletion controls, and protected account safeguards</div>
       </div>
     </div>
     <div class="right">
@@ -33,7 +32,7 @@
     <section class="panel">
       <div class="panel-h">
         <div class="panel-title">Admin Dashboard</div>
-        <div class="meta">Mark sold removes items from normal employee view. Admin can mark items active again, feature posts, hide posts, or approve/deny reactivation requests.</div>
+        <div class="meta">Permanent moderation upgrade: flagged content queue, per-post thread review, fast reply deletion, and admin-safe controls that do not disturb the live site.</div>
       </div>
       <div class="panel-b admin-grid">
         <section class="panel" style="background:rgba(8,16,30,.52)">
@@ -41,49 +40,75 @@
           <div class="panel-b table-scroll">
             <table class="adminTable">
               <thead>
-                <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Actions</th></tr>
+                <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Thread</th><th>Actions</th></tr>
               </thead>
               <tbody id="listingRows"></tbody>
             </table>
           </div>
         </section>
+
         <section class="panel" style="background:rgba(8,16,30,.52)">
-          <div class="panel-h"><div><div class="panel-title">User Access</div><div class="meta">Search users, review the full name entered at signup before approval, approve pending manual access, reset passwords, delete accounts, and clean up duplicate profile rows. Manual-only approval does not prove mailbox ownership, so unverified users are flagged as Not Proven.</div></div></div>
-          <div class="panel-b">
-            <div class="admin-tools">
-              <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
-              <select id="userFilter" class="adminFilter">
-                <option value="ALL">All Users</option>
-                <option value="PENDING" selected>Pending Access</option>
-                <option value="ONLINE">Online Now</option>
-                <option value="ADMIN">Admins</option>
-                <option value="MODERATOR">Moderators</option>
-                <option value="BANNED">Blocked</option>
-                <option value="DUPLICATES">Duplicates</option>
-                <option value="DELETED">Deleted Accounts</option>
-              </select>
-              <div class="admin-summary">
-                <span class="pill" id="adminUserCount">0</span>
-                <span class="pill" id="adminPendingCount">0 pending</span>
-                <span class="pill" id="adminOnlineCount">0 online</span>
-              </div>
+          <div class="panel-h">
+            <div>
+              <div class="panel-title">Moderation Queue</div>
+              <div class="meta">Flagged posts and replies appear here for admin or moderator review. Open the thread, delete the reply fast, or mark the flag reviewed.</div>
             </div>
-            <div id="adminOnlineNames" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; margin-top: -4px;"></div>
-            <div class="table-scroll">
+            <div class="admin-summary">
+              <span class="pill" id="adminFlagOpenCount">0 open</span>
+              <span class="pill" id="adminReplyCount">0 replies</span>
+            </div>
+          </div>
+          <div class="panel-b table-scroll">
             <table class="adminTable">
               <thead>
-                <tr><th>User</th><th>Full Name</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>When</th><th>Type</th><th>Post</th><th>Content</th><th>Flags</th><th>Actions</th></tr>
               </thead>
-              <tbody id="userRows"></tbody>
+              <tbody id="moderationRows"></tbody>
             </table>
           </div>
-          </div>
         </section>
-        
+      </div>
+    </section>
+
+    <section class="panel" id="userAccessPanel">
+      <div class="panel-h">
+        <div>
+          <div class="panel-title">User Access</div>
+          <div class="meta">Search users, review the full name entered at signup before approval, approve pending manual access, reset passwords, delete accounts, and clean up duplicate profile rows. Manual-only approval does not prove mailbox ownership, so unverified users are flagged as Not Proven.</div>
+        </div>
+      </div>
+      <div class="panel-b">
+        <div class="admin-tools">
+          <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
+          <select id="userFilter" class="adminFilter">
+            <option value="ALL">All Users</option>
+            <option value="PENDING" selected>Pending Access</option>
+            <option value="ONLINE">Online Now</option>
+            <option value="ADMIN">Admins</option>
+            <option value="MODERATOR">Moderators</option>
+            <option value="BANNED">Blocked</option>
+            <option value="DUPLICATES">Duplicates</option>
+            <option value="DELETED">Deleted Accounts</option>
+          </select>
+          <div class="admin-summary">
+            <span class="pill" id="adminUserCount">0</span>
+            <span class="pill" id="adminPendingCount">0 pending</span>
+            <span class="pill" id="adminOnlineCount">0 online</span>
+          </div>
+        </div>
+        <div id="adminOnlineNames" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; margin-top:-4px;"></div>
+        <div class="table-scroll">
+          <table class="adminTable">
+            <thead>
+              <tr><th>User</th><th>Full Name</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="userRows"></tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>
 
-  <script type="module" src="admin.js?v=5"></script>
+  <script type="module" src="admin.js?v=6"></script>
 </body>
 </html>

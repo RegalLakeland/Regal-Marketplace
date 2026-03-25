@@ -55,6 +55,19 @@ service cloud.firestore {
         && (isCoreAdmin() || requesterProfile().isAdmin == true);
     }
 
+    function isModeratorUser() {
+      return signedIn()
+        && hasProfile()
+        && requesterProfile().isModerator == true;
+    }
+
+    function canModerateContent() {
+      return signedIn()
+        && employeeEmail()
+        && hasProfile()
+        && (isCoreAdmin() || requesterProfile().isAdmin == true || requesterProfile().isModerator == true);
+    }
+
     function marketplaceMember() {
       return signedIn()
         && employeeEmail()
@@ -160,10 +173,32 @@ service cloud.firestore {
         && request.resource.data.userEmail == request.auth.token.email;
 
       allow update: if marketplaceMember()
-        && (resource.data.uid == request.auth.uid || isAdminUser());
+        && (resource.data.uid == request.auth.uid || canModerateContent());
 
       allow delete: if marketplaceMember()
-        && (resource.data.uid == request.auth.uid || isAdminUser());
+        && (resource.data.uid == request.auth.uid || canModerateContent());
+    }
+
+    match /listings/{listingId}/replies/{replyId} {
+      allow read: if marketplaceMember();
+
+      allow create: if marketplaceMember()
+        && request.resource.data.listingId == listingId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email
+        && request.resource.data.deleted == false
+        && request.resource.data.hidden == false;
+
+      allow update, delete: if marketplaceMember()
+        && (resource.data.uid == request.auth.uid || canModerateContent());
+    }
+
+    match /moderationFlags/{id} {
+      allow read, update, delete: if canModerateContent();
+
+      allow create: if marketplaceMember()
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdByEmail == request.auth.token.email;
     }
 
     match /profiles/{uid} {

@@ -23,7 +23,8 @@ import {
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  increment
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 import {
   getStorage,
@@ -96,6 +97,66 @@ function applyAuthLanguage() {
 
 function normalizePersonName(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+
+const MODERATION_KEYWORDS = [
+  { label: 'Insults / harassment', terms: ['idiot', 'moron', 'stupid', 'dumbass', 'clown', 'loser', 'delusional', 'pathetic', 'trash', 'garbage', 'need a life', 'shut up'] },
+  { label: 'Profanity', terms: ['fuck', 'fucking', 'shit', 'bitch', 'asshole', 'bastard'] },
+  { label: 'Threat / self-harm', terms: ['kill yourself', 'kys', 'watch your back', 'i will find you', 'beat your ass'] },
+  { label: 'Discriminatory / hateful', terms: ['racist', 'sexist', 'homophobic', 'nazi'] }
+];
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeModerationSource(value) {
+  return ` ${String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()} `;
+}
+
+function detectModerationIssues(value) {
+  const source = normalizeModerationSource(value);
+  const matchedLabels = [];
+  const matchedTerms = [];
+
+  MODERATION_KEYWORDS.forEach((rule) => {
+    rule.terms.forEach((term) => {
+      const pattern = new RegExp(`(^|\\s)${escapeRegex(term).replace(/\ /g, '\\s+')}($|\\s)`, 'i');
+      if (pattern.test(source)) {
+        matchedLabels.push(rule.label);
+        matchedTerms.push(term);
+      }
+    });
+  });
+
+  const uniqueLabels = [...new Set(matchedLabels)];
+  const uniqueTerms = [...new Set(matchedTerms)].slice(0, 12);
+  return {
+    flagged: uniqueLabels.length > 0,
+    matchedLabels: uniqueLabels,
+    matchedTerms: uniqueTerms,
+    severity: uniqueLabels.includes('Threat / self-harm') ? 'HIGH' : (uniqueLabels.length ? 'REVIEW' : '')
+  };
+}
+
+function buildModerationSnippet(value, max = 220) {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  return clean.length > max ? `${clean.slice(0, Math.max(0, max - 1)).trimEnd()}…` : clean;
+}
+
+async function createModerationFlag(entry) {
+  try {
+    await addDoc(collection(db, 'moderationFlags'), {
+      status: 'OPEN',
+      createdAt: serverTimestamp(),
+      createdAtMs: Date.now(),
+      ...entry
+    });
+  } catch (err) {
+    console.warn('Unable to create moderation flag', err);
+  }
 }
 
 function setTempLoginContext(email, password) {
@@ -301,6 +362,8 @@ let currentProfile = null;
 let listings = [];
 let activeBoard = 'ALL';
 let activeThread = null;
+let activeThreadRepliesUnsub = null;
+let activeThreadReplyDocs = [];
 let listingsUnsub = null;
 let profilesUnsub = null;
 let userProfileUnsub = null;
@@ -650,6 +713,10 @@ function show(id) {
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
+  if (id === 'threadOverlay') {
+    stopActiveThreadRepliesListener();
+    activeThread = null;
+  }
   const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay', 'eventImageOverlay'].some((overlayId) => {
     const o = $(overlayId);
     return o && (o.style.display === 'flex' || o.style.display === 'block');
@@ -786,6 +853,7 @@ function stopListeners() {
     eventResponsesUnsub();
     eventResponsesUnsub = null;
   }
+  stopActiveThreadRepliesListener();
   if (presenceTimer) {
     clearInterval(presenceTimer);
     presenceTimer = null;
@@ -1482,6 +1550,55 @@ function startProfilesListener() {
   });
 }
 
+
+function stopActiveThreadRepliesListener() {
+  if (activeThreadRepliesUnsub) {
+    activeThreadRepliesUnsub();
+    activeThreadRepliesUnsub = null;
+  }
+  activeThreadReplyDocs = [];
+}
+
+function normalizeReplyRecord(reply, source = 'legacy', legacyIndex = -1) {
+  const createdAtMs = Number(reply?.createdAtMs || reply?.createdAt || Date.now());
+  return {
+    ...reply,
+    source,
+    legacyIndex,
+    deleted: reply?.deleted === true,
+    hidden: reply?.hidden === true,
+    flagged: reply?.flagged === true,
+    moderationLabels: Array.isArray(reply?.moderationLabels) ? reply.moderationLabels : [],
+    moderationMatchedTerms: Array.isArray(reply?.moderationMatchedTerms) ? reply.moderationMatchedTerms : [],
+    displayName: reply?.displayName || reply?.authorName || reply?.userEmail || 'Unknown',
+    createdAtMs
+  };
+}
+
+function mergedRepliesForThread(item = activeThread) {
+  const legacyReplies = Array.isArray(item?.replies)
+    ? item.replies.map((reply, index) => normalizeReplyRecord(reply, 'legacy', index))
+    : [];
+  const liveReplies = activeThreadReplyDocs.map((reply) => normalizeReplyRecord(reply, 'doc', -1));
+  return [...legacyReplies, ...liveReplies]
+    .filter((reply) => canModerate() || (reply.deleted !== true && reply.hidden !== true))
+    .sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0));
+}
+
+function startActiveThreadRepliesListener(listingId) {
+  stopActiveThreadRepliesListener();
+  if (!listingId || !currentUser || !currentProfile) return;
+  const qRef = query(collection(db, 'listings', listingId, 'replies'), orderBy('createdAtMs', 'asc'));
+  activeThreadRepliesUnsub = onSnapshot(qRef, (snap) => {
+    activeThreadReplyDocs = snap.docs.map((d) => ({ id: d.id, path: d.ref.path, ...d.data() }));
+    if (activeThread && activeThread.id === listingId && $('threadOverlay')?.style.display !== 'none') {
+      renderReplies(mergedRepliesForThread(activeThread));
+    }
+  }, (err) => {
+    console.error('Thread replies error:', err);
+  });
+}
+
 function startListingsListener() {
   if (listingsUnsub) return;
 
@@ -1495,7 +1612,7 @@ function startListingsListener() {
       const updatedThread = listings.find((x) => x.id === activeThread.id);
       if (updatedThread) {
         activeThread = updatedThread;
-        renderReplies(activeThread.replies || []);
+        renderReplies(mergedRepliesForThread(activeThread));
       }
     }
   }, (err) => {
@@ -1517,7 +1634,8 @@ function normalizeListing(item) {
     featured: !!item.featured,
     hidden: !!item.hidden,
     status: String(item.status || 'ACTIVE').toUpperCase(),
-    replies: Array.isArray(item.replies) ? item.replies : []
+    replies: Array.isArray(item.replies) ? item.replies : [],
+    replyCount: Number(item.replyCount || 0)
   };
 }
 
@@ -1756,12 +1874,14 @@ async function handleSavePost() {
     return;
   }
 
+  const moderationScan = detectModerationIssues([title, description, location, contact].join(' '));
   let imageUrl = '';
   isSavingPost = true;
   if ($('btnSavePost')) $('btnSavePost').disabled = true;
   try {
+    let existing = null;
     if (editingPostId) {
-      const existing = listings.find((x) => x.id === editingPostId);
+      existing = listings.find((x) => x.id === editingPostId) || null;
       if (!existing || !canModify(existing)) {
         alert('You do not have permission to edit this post.');
         return;
@@ -1775,6 +1895,7 @@ async function handleSavePost() {
       imageUrl = await getDownloadURL(storageRef);
     }
 
+    const nowMs = Date.now();
     const payload = {
       category: board,
       board,
@@ -1787,23 +1908,49 @@ async function handleSavePost() {
       price: Number(priceRaw || 0),
       photo: imageUrl,
       imageUrl,
+      moderationFlagged: moderationScan.flagged,
+      moderationLabels: moderationScan.matchedLabels,
+      moderationMatchedTerms: moderationScan.matchedTerms,
+      moderationSeverity: moderationScan.severity,
+      moderationUpdatedAtMs: nowMs,
       updatedAt: serverTimestamp()
     };
 
+    let listingId = editingPostId || '';
     if (editingPostId) {
       await updateDoc(doc(db, 'listings', editingPostId), payload);
     } else {
-      await addDoc(collection(db, 'listings'), {
+      const createdRef = await addDoc(collection(db, 'listings'), {
         uid: currentUser.uid,
         userEmail: currentUser.email || '',
         displayName: currentProfile.displayName || currentUser.email || '',
+        authorName: currentProfile.displayName || currentUser.email || '',
         ...payload,
         replies: [],
+        replyCount: 0,
         featured: false,
         hidden: false,
         reactivationRequested: false,
         createdAt: serverTimestamp(),
-        createdAtMs: Date.now()
+        createdAtMs: nowMs
+      });
+      listingId = createdRef.id;
+    }
+
+    if (moderationScan.flagged && listingId && (!editingPostId || !existing?.moderationFlagged)) {
+      await createModerationFlag({
+        sourceType: 'listing',
+        sourceKey: `listing:${listingId}`,
+        listingId,
+        listingTitle: title,
+        userEmail: currentUser.email || '',
+        displayName: currentProfile.displayName || currentUser.email || '',
+        textSnippet: buildModerationSnippet(`${title} — ${description}`),
+        matchedLabels: moderationScan.matchedLabels,
+        matchedTerms: moderationScan.matchedTerms,
+        severity: moderationScan.severity,
+        createdByUid: currentUser.uid,
+        createdByEmail: currentUser.email || ''
       });
     }
 
@@ -1816,15 +1963,6 @@ async function handleSavePost() {
     isSavingPost = false;
     if ($('btnSavePost')) $('btnSavePost').disabled = false;
   }
-}
-
-function clearPostForm() {
-  ['fTitle', 'fDesc', 'fLocation', 'fContact', 'fPrice'].forEach((id) => {
-    if ($(id)) $(id).value = '';
-  });
-  if ($('fBoard')) $('fBoard').value = 'FREE';
-  if ($('fStatus')) $('fStatus').value = 'ACTIVE';
-  if ($('fPhoto')) $('fPhoto').value = '';
 }
 
 async function handleMarkSold(id) {
@@ -1869,6 +2007,7 @@ async function openThread(id) {
   if (!item) return;
 
   activeThread = item;
+  startActiveThreadRepliesListener(item.id);
   if ($('threadTitle')) $('threadTitle').textContent = item.title || 'Thread';
   if ($('threadMeta')) {
     $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${item.authorName || item.authorEmail || ''} | ${formatDate(item.createdAtMs)}`;
@@ -1888,7 +2027,7 @@ async function openThread(id) {
     `;
   }
 
-  renderReplies(item.replies || []);
+  renderReplies(mergedRepliesForThread(item));
   if ($('replyText')) $('replyText').value = '';
   show('threadOverlay');
 }
@@ -1900,15 +2039,25 @@ function renderReplies(replies) {
     wrap.innerHTML = '<div class="note">No replies yet. Be the first to respond.</div>';
     return;
   }
-  wrap.innerHTML = replies.map((r) => `
-    <div class="replyItem">
-      <div class="replyTop">
-        <div class="replyUser">${esc(r.displayName || r.userEmail || 'Unknown')}</div>
-        <div class="replyTime">${esc(formatDate(r.createdAtMs || r.createdAt))}</div>
+  wrap.innerHTML = replies.map((r) => {
+    const badges = [];
+    if (canModerate() && r.flagged) badges.push('<span class="status pending">Flagged</span>');
+    if (canModerate() && r.deleted) badges.push('<span class="status sold">Removed</span>');
+    if (canModerate() && r.hidden && !r.deleted) badges.push('<span class="status">Hidden</span>');
+    const bodyText = r.deleted ? 'Reply removed by moderation.' : (r.hidden ? 'Reply hidden by moderation.' : (r.text || ''));
+    return `
+      <div class="replyItem${r.flagged && canModerate() ? ' moderation-flagged' : ''}">
+        <div class="replyTop">
+          <div>
+            <div class="replyUser">${esc(r.displayName || r.userEmail || 'Unknown')}</div>
+            ${badges.length ? `<div class="replyBadges">${badges.join('')}</div>` : ''}
+          </div>
+          <div class="replyTime">${esc(formatDate(r.createdAtMs || r.createdAt))}</div>
+        </div>
+        <div>${esc(bodyText)}</div>
       </div>
-      <div>${esc(r.text || '')}</div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 async function handleSendReply() {
@@ -1936,21 +2085,56 @@ async function handleSendReply() {
   const listingRef = doc(db, 'listings', activeThread.id);
   const snap = await getDoc(listingRef);
   if (!snap.exists()) return;
-  const data = snap.data();
-  const replies = Array.isArray(data.replies) ? data.replies.slice() : [];
-  replies.push({
-    uid: currentUser.uid,
-    userEmail: currentUser.email || '',
-    displayName: currentProfile.displayName || currentUser.email || '',
-    text,
-    createdAtMs: Date.now()
-  });
+
+  const moderationScan = detectModerationIssues(text);
+  const createdAtMs = Date.now();
 
   try {
-    await updateDoc(listingRef, { replies, updatedAt: serverTimestamp() });
+    const replyRef = await addDoc(collection(db, 'listings', activeThread.id, 'replies'), {
+      listingId: activeThread.id,
+      listingTitle: activeThread.title || '',
+      uid: currentUser.uid,
+      userEmail: currentUser.email || '',
+      displayName: currentProfile.displayName || currentUser.email || '',
+      text,
+      textSnippet: buildModerationSnippet(text, 160),
+      flagged: moderationScan.flagged,
+      moderationLabels: moderationScan.matchedLabels,
+      moderationMatchedTerms: moderationScan.matchedTerms,
+      moderationSeverity: moderationScan.severity,
+      hidden: false,
+      deleted: false,
+      createdAt: serverTimestamp(),
+      createdAtMs,
+      updatedAt: serverTimestamp()
+    });
+
+    await updateDoc(listingRef, {
+      replyCount: increment(1),
+      lastReplyAtMs: createdAtMs,
+      lastReplyPreview: buildModerationSnippet(text, 120),
+      updatedAt: serverTimestamp()
+    }).catch(() => {});
+
+    if (moderationScan.flagged) {
+      await createModerationFlag({
+        sourceType: 'reply',
+        sourceKey: `reply:${replyRef.id}`,
+        listingId: activeThread.id,
+        replyId: replyRef.id,
+        listingTitle: activeThread.title || '',
+        userEmail: currentUser.email || '',
+        displayName: currentProfile.displayName || currentUser.email || '',
+        textSnippet: buildModerationSnippet(text),
+        matchedLabels: moderationScan.matchedLabels,
+        matchedTerms: moderationScan.matchedTerms,
+        severity: moderationScan.severity,
+        createdByUid: currentUser.uid,
+        createdByEmail: currentUser.email || ''
+      });
+    }
+
     if ($('replyText')) $('replyText').value = '';
-    activeThread.replies = replies;
-    renderReplies(replies);
   } catch (err) {
     console.error(err);
     alert(err?.message || 'Unable to send reply.');

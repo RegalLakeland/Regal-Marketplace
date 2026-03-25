@@ -1,7 +1,7 @@
 import { firebaseConfig, ADMIN_EMAILS } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import { getFirestore, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { getFirestore, collection, collectionGroup, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -114,6 +114,55 @@ function isProtectedCoreAdmin(email) { return CORE_ADMIN_EMAILS.includes(normali
 function isCoreAdminViewer() { return isProtectedCoreAdmin(currentViewer?.email); }
 function isSelfRow(user) { return !!currentViewer && user?.id === currentViewer.uid; }
 
+function canModerateViewer() {
+  return !!(currentViewerProfile && (currentViewerProfile.isAdmin || currentViewerProfile.isModerator || isProtectedCoreAdmin(currentViewer?.email) || isAdmin(currentViewer?.email)));
+}
+
+function canManageUsers() {
+  return !!(currentViewerProfile && (currentViewerProfile.isAdmin || isProtectedCoreAdmin(currentViewer?.email) || isAdmin(currentViewer?.email)));
+}
+
+const MODERATION_KEYWORDS = [
+  { label: 'Insults / harassment', terms: ['idiot', 'moron', 'stupid', 'dumbass', 'clown', 'loser', 'delusional', 'pathetic', 'trash', 'garbage', 'need a life', 'shut up'] },
+  { label: 'Profanity', terms: ['fuck', 'fucking', 'shit', 'bitch', 'asshole', 'bastard'] },
+  { label: 'Threat / self-harm', terms: ['kill yourself', 'kys', 'watch your back', 'i will find you', 'beat your ass'] },
+  { label: 'Discriminatory / hateful', terms: ['racist', 'sexist', 'homophobic', 'nazi'] }
+];
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeModerationSource(value) {
+  return ` ${String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()} `;
+}
+
+function detectModerationIssues(value) {
+  const source = normalizeModerationSource(value);
+  const matchedLabels = [];
+  const matchedTerms = [];
+  MODERATION_KEYWORDS.forEach((rule) => {
+    rule.terms.forEach((term) => {
+      const pattern = new RegExp(`(^|\\s)${escapeRegex(term).replace(/\ /g, '\\s+')}($|\\s)`, 'i');
+      if (pattern.test(source)) {
+        matchedLabels.push(rule.label);
+        matchedTerms.push(term);
+      }
+    });
+  });
+  return {
+    flagged: matchedLabels.length > 0,
+    matchedLabels: [...new Set(matchedLabels)],
+    matchedTerms: [...new Set(matchedTerms)].slice(0, 12)
+  };
+}
+
+function buildSnippet(value, max = 220) {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  return clean.length > max ? `${clean.slice(0, Math.max(0, max - 1)).trimEnd()}…` : clean;
+}
+
 function getClosedLabel(item) {
   const board = String(item?.board || item?.category || '').toUpperCase();
   if (board === 'EVENTS') return 'Ended';
@@ -210,8 +259,11 @@ let authResolved = false;
 let currentViewer = null;
 let currentViewerProfile = null;
 let listingRowsData = [];
+let replyRowsData = [];
+let moderationFlagsData = [];
 let userRowsData = [];
 let adminEditingId = null;
+let moderationListingId = null;
 let userSearchTerm = '';
 let userFilterValue = 'PENDING';
 
@@ -226,9 +278,9 @@ onAuthStateChanged(auth, async (user) => {
 
   const profileSnap = await getDoc(doc(db, 'profiles', user.uid)).catch(() => null);
   currentViewerProfile = profileSnap?.exists() ? { id: profileSnap.id, ...profileSnap.data() } : null;
-  const allowed = !!(isProtectedCoreAdmin(user.email) || currentViewerProfile?.isAdmin || isAdmin(user.email));
+  const allowed = !!(isProtectedCoreAdmin(user.email) || currentViewerProfile?.isAdmin || currentViewerProfile?.isModerator || isAdmin(user.email));
   if (!allowed) {
-    alert('Admin access only.');
+    alert('Moderator or admin access only.');
     location.href = 'index.html';
     return;
   }
@@ -241,73 +293,245 @@ onAuthStateChanged(auth, async (user) => {
     userFilterValue = String(e.target.value || 'ALL');
     renderUserRows();
   });
+
+  if (!canManageUsers()) {
+    if ($('userAccessPanel')) $('userAccessPanel').style.display = 'none';
+  }
+
   startListings();
-  startUsers();
+  startReplies();
+  startModerationFlags();
+  if (canManageUsers()) startUsers();
 });
+
+
+function getReplyRowsForListing(listingId) {
+  return replyRowsData
+    .filter((reply) => reply.listingId === listingId)
+    .sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0));
+}
+
+function getOpenFlagsForListing(listingId) {
+  return moderationFlagsData.filter((flag) => flag.listingId === listingId && String(flag.status || 'OPEN').toUpperCase() === 'OPEN');
+}
+
+function mergedRepliesForListing(item) {
+  const legacyReplies = Array.isArray(item?.replies)
+    ? item.replies.map((reply, index) => {
+        const scan = detectModerationIssues(reply?.text || '');
+        return {
+          source: 'legacy',
+          sourceKey: `legacyReply:${item.id}:${index}`,
+          listingId: item.id,
+          listingTitle: item.title || '',
+          legacyIndex: index,
+          displayName: reply?.displayName || reply?.userEmail || 'Unknown',
+          userEmail: reply?.userEmail || '',
+          text: reply?.text || '',
+          textSnippet: buildSnippet(reply?.text || '', 160),
+          createdAtMs: Number(reply?.createdAtMs || reply?.createdAt || Date.now()),
+          deleted: reply?.deleted === true,
+          hidden: reply?.hidden === true,
+          flagged: reply?.flagged === true || scan.flagged,
+          moderationLabels: Array.isArray(reply?.moderationLabels) && reply.moderationLabels.length ? reply.moderationLabels : scan.matchedLabels,
+          moderationMatchedTerms: Array.isArray(reply?.moderationMatchedTerms) && reply.moderationMatchedTerms.length ? reply.moderationMatchedTerms : scan.matchedTerms
+        };
+      })
+    : [];
+
+  const liveReplies = getReplyRowsForListing(item.id).map((reply) => ({
+    ...reply,
+    source: 'doc',
+    sourceKey: reply.sourceKey || `reply:${reply.id}`,
+    listingTitle: reply.listingTitle || item.title || '',
+    displayName: reply.displayName || reply.userEmail || 'Unknown',
+    textSnippet: reply.textSnippet || buildSnippet(reply.text || '', 160),
+    flagged: reply.flagged === true || (Array.isArray(reply.moderationLabels) && reply.moderationLabels.length > 0)
+  }));
+
+  return [...legacyReplies, ...liveReplies].sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0));
+}
+
+function listingThreadStats(item) {
+  const replies = mergedRepliesForListing(item).filter((reply) => reply.deleted !== true);
+  const openFlags = getOpenFlagsForListing(item.id);
+  const flaggedPost = item.moderationFlagged === true;
+  return {
+    replyCount: replies.length,
+    openFlagCount: openFlags.length + (flaggedPost ? 1 : 0),
+    lastReplyAtMs: Number(item.lastReplyAtMs || 0)
+  };
+}
+
+function renderListingRows() {
+  if (!$('listingRows')) return;
+  const adminViewer = canManageUsers();
+  const rows = listingRowsData.slice();
+  $('listingRows').innerHTML = rows.map((item) => {
+    const board = item.board || item.category || 'BUYSELL';
+    const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
+    const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
+    const hiddenPill = item.hidden ? `<div class="note">Hidden from marketplace view</div>` : '';
+    const featuredPill = item.featured ? `<div class="note">Featured on homepage</div>` : '';
+    const stats = listingThreadStats(item);
+    const threadBits = [
+      `<span class="mod-chip ${stats.replyCount ? 'good' : ''}">${stats.replyCount} repl${stats.replyCount === 1 ? 'y' : 'ies'}</span>`,
+      `<span class="mod-chip ${stats.openFlagCount ? 'flagged' : ''}">${stats.openFlagCount} open flag${stats.openFlagCount === 1 ? '' : 's'}</span>`
+    ];
+    if (stats.lastReplyAtMs) threadBits.push(`<span class="mod-chip">Last reply ${esc(fmtDate(stats.lastReplyAtMs))}</span>`);
+    if (item.moderationFlagged) threadBits.push('<span class="mod-chip bad">Post flagged</span>');
+
+    const actions = [];
+    if (adminViewer && item.status !== 'SOLD') actions.push(`<button class="btn" data-sold="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>`);
+    if (adminViewer && item.status === 'SOLD') actions.push(`<button class="btn primary" data-approve="${esc(item.id)}" type="button">Mark Active</button>`);
+    if (adminViewer && item.status === 'SOLD' && item.reactivationRequested) actions.push(`<button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny Request</button>`);
+    if (adminViewer) actions.push(`<button class="btn ghost" data-feature="${esc(item.id)}" data-on="${item.featured ? '1' : '0'}" type="button">${item.featured ? 'Unfeature' : 'Feature'}</button>`);
+    if (adminViewer) actions.push(`<button class="btn ghost" data-edit="${esc(item.id)}" type="button">Edit</button>`);
+    actions.push(`<button class="btn primary" data-thread="${esc(item.id)}" type="button">Moderate Thread</button>`);
+    actions.push(`<button class="btn ghost" data-hide="${esc(item.id)}" data-on="${item.hidden ? '1' : '0'}" type="button">${item.hidden ? 'Unhide' : 'Hide'}</button>`);
+    actions.push(`<button class="btn danger" data-delete="${esc(item.id)}" type="button">Delete</button>`);
+
+    return `
+      <tr>
+        <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}${hiddenPill}${featuredPill}</td>
+        <td>${esc(boardLabels[board] || board)}</td>
+        <td>${esc(item.status === 'SOLD' ? getClosedLabel(item) : (item.status || 'ACTIVE'))}</td>
+        <td>${esc(poster)}</td>
+        <td><div class="mod-stat-stack"><div class="mod-stat-line">${threadBits.join('')}</div></div></td>
+        <td><div class="rowBtns compact-rowBtns">${actions.join('')}</div></td>
+      </tr>`;
+  }).join('');
+
+  document.querySelectorAll('[data-sold]').forEach((btn) => btn.onclick = async () => {
+    await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', reactivationRequested:false });
+  });
+  document.querySelectorAll('[data-approve]').forEach((btn) => btn.onclick = async () => {
+    await updateDoc(doc(db, 'listings', btn.dataset.approve), {
+      status:'ACTIVE',
+      reactivationRequested:false,
+      reactivationRequestedAt:null,
+      reactivationDeniedAt:null
+    });
+  });
+  document.querySelectorAll('[data-deny]').forEach((btn) => btn.onclick = async () => {
+    await updateDoc(doc(db, 'listings', btn.dataset.deny), {
+      reactivationRequested:false,
+      reactivationRequestedAt:null,
+      reactivationDeniedAt: Date.now()
+    });
+  });
+  document.querySelectorAll('[data-feature]').forEach((btn) => btn.onclick = async () => {
+    await updateDoc(doc(db, 'listings', btn.dataset.feature), { featured: btn.dataset.on !== '1' });
+  });
+  document.querySelectorAll('[data-hide]').forEach((btn) => btn.onclick = async () => {
+    await updateDoc(doc(db, 'listings', btn.dataset.hide), { hidden: btn.dataset.on !== '1' });
+  });
+  document.querySelectorAll('[data-edit]').forEach((btn) => btn.onclick = () => openEditModal(btn.dataset.edit));
+  document.querySelectorAll('[data-thread]').forEach((btn) => btn.onclick = () => openModerationModal(btn.dataset.thread));
+  document.querySelectorAll('[data-delete]').forEach((btn) => btn.onclick = async () => {
+    const item = listingRowsData.find((row) => row.id === btn.dataset.delete);
+    if (!item) return;
+    if (!confirm('Delete this post and remove its thread from normal view?')) return;
+    await deleteListingAndResolve(item);
+  });
+}
 
 function startListings() {
   const qRef = query(collection(db, 'listings'), orderBy('createdAtMs', 'desc'));
   onSnapshot(qRef, (snap) => {
-    const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
-    listingRowsData = rows;
-    if ($('adminListingCount')) $('adminListingCount').textContent = String(rows.length);
-    if ($('adminRequestCount')) $('adminRequestCount').textContent = String(rows.filter((r) => r.reactivationRequested).length);
-    if (!$('listingRows')) return;
-    $('listingRows').innerHTML = rows.map((item) => {
-      const board = item.board || item.category || 'BUYSELL';
-      const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
-      const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
-      const hiddenPill = item.hidden ? `<div class="note">Hidden from marketplace view</div>` : '';
-      const featuredPill = item.featured ? `<div class="note">Featured on homepage</div>` : '';
-      return `
-        <tr>
-          <td><strong>${esc(item.title || 'Untitled')}</strong><div class="note">${esc(fmtDate(item.createdAtMs))}</div>${requestPill}${hiddenPill}${featuredPill}</td>
-          <td>${esc(boardLabels[board] || board)}</td>
-          <td>${esc(item.status === 'SOLD' ? getClosedLabel(item) : (item.status || 'ACTIVE'))}</td>
-          <td>${esc(poster)}</td>
-          <td>
-            <div class="rowBtns compact-rowBtns">
-              ${item.status !== 'SOLD' ? `<button class="btn" data-sold="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : ''}
-              ${item.status === 'SOLD' ? `<button class="btn primary" data-approve="${esc(item.id)}" type="button">Mark Active</button>` : ''}
-              ${item.status === 'SOLD' && item.reactivationRequested ? `<button class="btn ghost" data-deny="${esc(item.id)}" type="button">Deny Request</button>` : ''}
-              <button class="btn ghost" data-feature="${esc(item.id)}" data-on="${item.featured ? '1' : '0'}" type="button">${item.featured ? 'Unfeature' : 'Feature'}</button>
-              <button class="btn ghost" data-edit="${esc(item.id)}" type="button">Edit</button>
-              <button class="btn ghost" data-hide="${esc(item.id)}" data-on="${item.hidden ? '1' : '0'}" type="button">${item.hidden ? 'Unhide' : 'Hide'}</button>
-              <button class="btn danger" data-delete="${esc(item.id)}" type="button">Delete</button>
-            </div>
-          </td>
-        </tr>`;
-    }).join('');
+    listingRowsData = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
+    renderListingRows();
+    renderModerationRows();
+    renderModerationModal();
+  });
+}
 
-    document.querySelectorAll('[data-sold]').forEach((btn) => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.sold), { status:'SOLD', reactivationRequested:false });
-    });
-    document.querySelectorAll('[data-approve]').forEach((btn) => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.approve), {
-        status:'ACTIVE',
-        reactivationRequested:false,
-        reactivationRequestedAt:null,
-        reactivationDeniedAt:null
-      });
-    });
-    document.querySelectorAll('[data-deny]').forEach((btn) => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.deny), {
-        reactivationRequested:false,
-        reactivationRequestedAt:null,
-        reactivationDeniedAt: Date.now()
-      });
-    });
-    document.querySelectorAll('[data-feature]').forEach((btn) => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.feature), { featured: btn.dataset.on !== '1' });
-    });
-    document.querySelectorAll('[data-hide]').forEach((btn) => btn.onclick = async () => {
-      await updateDoc(doc(db, 'listings', btn.dataset.hide), { hidden: btn.dataset.on !== '1' });
-    });
-    document.querySelectorAll('[data-edit]').forEach((btn) => btn.onclick = () => openEditModal(btn.dataset.edit));
-    document.querySelectorAll('[data-delete]').forEach((btn) => btn.onclick = async () => {
-      if (!confirm('Delete this post permanently?')) return;
-      await deleteDoc(doc(db, 'listings', btn.dataset.delete));
-    });
+function startReplies() {
+  const qRef = query(collectionGroup(db, 'replies'), orderBy('createdAtMs', 'desc'));
+  onSnapshot(qRef, (snap) => {
+    replyRowsData = snap.docs.map((d) => ({ id: d.id, path: d.ref.path, sourceKey: `reply:${d.id}`, ...d.data() }));
+    if ($('adminReplyCount')) $('adminReplyCount').textContent = `${replyRowsData.filter((reply) => reply.deleted !== true).length} replies`;
+    renderListingRows();
+    renderModerationModal();
+  });
+}
+
+function startModerationFlags() {
+  const qRef = query(collection(db, 'moderationFlags'), orderBy('createdAtMs', 'desc'));
+  onSnapshot(qRef, (snap) => {
+    moderationFlagsData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderModerationRows();
+    renderListingRows();
+    renderModerationModal();
+  });
+}
+
+async function resolveFlagsForSource(sourceKey, resolution = 'reviewed') {
+  const openFlags = moderationFlagsData.filter((flag) => flag.sourceKey === sourceKey && String(flag.status || 'OPEN').toUpperCase() === 'OPEN');
+  await Promise.all(openFlags.map((flag) => updateDoc(doc(db, 'moderationFlags', flag.id), {
+    status: 'RESOLVED',
+    resolvedAtMs: Date.now(),
+    resolvedBy: normalizeEmail(currentViewer?.email),
+    resolution
+  })));
+}
+
+async function resolveFlagsForListing(listingId, resolution = 'reviewed') {
+  const openFlags = moderationFlagsData.filter((flag) => flag.listingId === listingId && String(flag.status || 'OPEN').toUpperCase() === 'OPEN');
+  await Promise.all(openFlags.map((flag) => updateDoc(doc(db, 'moderationFlags', flag.id), {
+    status: 'RESOLVED',
+    resolvedAtMs: Date.now(),
+    resolvedBy: normalizeEmail(currentViewer?.email),
+    resolution
+  })));
+}
+
+async function deleteListingAndResolve(item) {
+  const linkedReplies = getReplyRowsForListing(item.id);
+  await Promise.all(linkedReplies.map((reply) => updateDoc(doc(db, reply.path), {
+    deleted: true,
+    hidden: true,
+    parentDeleted: true,
+    deletedAtMs: Date.now(),
+    deletedBy: normalizeEmail(currentViewer?.email),
+    updatedAt: Date.now()
+  }).catch(() => {})));
+  await resolveFlagsForListing(item.id, 'post_deleted').catch(() => {});
+  await deleteDoc(doc(db, 'listings', item.id));
+  if (moderationListingId === item.id) closeModerationModal();
+}
+
+function renderModerationRows() {
+  const wrap = $('moderationRows');
+  if (!wrap) return;
+  const openFlags = moderationFlagsData.filter((flag) => String(flag.status || 'OPEN').toUpperCase() === 'OPEN');
+  if ($('adminFlagOpenCount')) $('adminFlagOpenCount').textContent = `${openFlags.length} open`;
+  if (!openFlags.length) {
+    wrap.innerHTML = '<tr><td colspan="6"><div class="note">No flagged content is currently waiting for review.</div></td></tr>';
+    return;
+  }
+  wrap.innerHTML = openFlags.slice(0, 100).map((flag) => {
+    const typeLabel = flag.sourceType === 'reply' ? 'Reply' : 'Post';
+    const reasonText = Array.isArray(flag.matchedLabels) && flag.matchedLabels.length ? flag.matchedLabels.join(' • ') : 'Review';
+    return `
+      <tr>
+        <td>${esc(fmtDate(flag.createdAtMs || Date.now()))}</td>
+        <td>${esc(typeLabel)}</td>
+        <td>${esc(flag.listingTitle || 'Untitled post')}</td>
+        <td><div class="moderation-content">${esc(flag.textSnippet || '—')}</div><div class="note">${esc(flag.displayName || flag.userEmail || 'Unknown')}</div></td>
+        <td>${esc(reasonText)}</td>
+        <td>
+          <div class="rowBtns compact-rowBtns">
+            <button class="btn primary" data-flag-open="${esc(flag.listingId || '')}" type="button">Open Thread</button>
+            <button class="btn ghost" data-flag-resolve="${esc(flag.sourceKey || '')}" type="button">Mark Reviewed</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  document.querySelectorAll('[data-flag-open]').forEach((btn) => btn.onclick = () => openModerationModal(btn.dataset.flagOpen));
+  document.querySelectorAll('[data-flag-resolve]').forEach((btn) => btn.onclick = async () => {
+    await resolveFlagsForSource(btn.dataset.flagResolve, 'reviewed');
   });
 }
 
@@ -406,6 +630,7 @@ function buildUserActionButtons(user, dup, protectedUser) {
 }
 
 function renderUserRows() {
+  if (!canManageUsers()) return;
   if (!$('userRows')) return;
   const { filtered, dmeta } = applyUserFilters(userRowsData);
 
@@ -468,6 +693,7 @@ function renderUserRows() {
   }).join('');
 
   document.querySelectorAll('[data-role]').forEach((btn) => btn.onclick = async () => {
+    if (!canManageUsers()) return;
     const user = userRowsData.find((x) => x.id === btn.dataset.id);
     if (!user) return;
 
@@ -571,6 +797,159 @@ function startUsers() {
     const rows = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     userRowsData = rows;
     renderUserRows();
+  });
+}
+
+
+function ensureModerationModal() {
+  if (document.getElementById('moderationOverlay')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+  <div class="overlay" id="moderationOverlay" style="display:none">
+    <div class="modal wide modal-scroll">
+      <div class="modal-h sticky-head">
+        <strong id="moderationThreadTitle">Thread Moderation</strong>
+        <button class="btn ghost" id="moderationClose" type="button">Close</button>
+      </div>
+      <div class="modal-b">
+        <div id="moderationThreadMeta" class="meta"></div>
+        <div id="moderationThreadSummary" class="mod-stat-stack" style="margin:12px 0 16px"></div>
+        <div id="moderationReplyList" class="replyModerationList"></div>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  document.getElementById('moderationClose')?.addEventListener('click', closeModerationModal);
+  document.getElementById('moderationOverlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'moderationOverlay') closeModerationModal();
+  });
+}
+
+function openModerationModal(listingId) {
+  if (!listingId) return;
+  ensureModerationModal();
+  moderationListingId = listingId;
+  renderModerationModal();
+  const overlay = document.getElementById('moderationOverlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function closeModerationModal() {
+  moderationListingId = null;
+  const overlay = document.getElementById('moderationOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function deleteReplyRecord(reply) {
+  if (!reply) return;
+  if (reply.source === 'legacy') {
+    const listing = listingRowsData.find((item) => item.id === reply.listingId);
+    if (!listing || !Array.isArray(listing.replies) || reply.legacyIndex < 0) return;
+    const replies = listing.replies.slice();
+    const existing = replies[reply.legacyIndex] || {};
+    replies[reply.legacyIndex] = {
+      ...existing,
+      deleted: true,
+      hidden: true,
+      deletedAtMs: Date.now(),
+      deletedBy: normalizeEmail(currentViewer?.email),
+      text: ''
+    };
+    await updateDoc(doc(db, 'listings', reply.listingId), { replies, updatedAt: Date.now() });
+  } else if (reply.path) {
+    await updateDoc(doc(db, reply.path), {
+      deleted: true,
+      hidden: true,
+      deletedAtMs: Date.now(),
+      deletedBy: normalizeEmail(currentViewer?.email),
+      updatedAt: Date.now()
+    });
+  }
+  await resolveFlagsForSource(reply.sourceKey, 'reply_deleted').catch(() => {});
+}
+
+function renderModerationModal() {
+  const titleEl = $('moderationThreadTitle');
+  const metaEl = $('moderationThreadMeta');
+  const summaryEl = $('moderationThreadSummary');
+  const listEl = $('moderationReplyList');
+  if (!titleEl || !metaEl || !summaryEl || !listEl) return;
+  if (!moderationListingId) {
+    titleEl.textContent = 'Thread Moderation';
+    metaEl.textContent = '';
+    summaryEl.innerHTML = '';
+    listEl.innerHTML = '<div class="note">Select a thread to moderate.</div>';
+    return;
+  }
+
+  const listing = listingRowsData.find((item) => item.id === moderationListingId);
+  if (!listing) {
+    titleEl.textContent = 'Thread no longer exists';
+    metaEl.textContent = '';
+    summaryEl.innerHTML = '';
+    listEl.innerHTML = '<div class="note">This post was already removed.</div>';
+    return;
+  }
+
+  const replies = mergedRepliesForListing(listing);
+  const openFlags = getOpenFlagsForListing(listing.id);
+  const visibleReplyCount = replies.filter((reply) => reply.deleted !== true).length;
+  titleEl.textContent = listing.title || 'Thread Moderation';
+  metaEl.textContent = `${boardLabels[listing.board || listing.category || 'BUYSELL'] || (listing.board || listing.category || 'BUYSELL')} • ${listing.displayName || listing.userEmail || 'Unknown poster'} • ${fmtDate(listing.createdAtMs)}`;
+  summaryEl.innerHTML = `
+    <div class="mod-stat-line">
+      <span class="mod-chip ${visibleReplyCount ? 'good' : ''}">${visibleReplyCount} active repl${visibleReplyCount === 1 ? 'y' : 'ies'}</span>
+      <span class="mod-chip ${openFlags.length || listing.moderationFlagged ? 'flagged' : ''}">${openFlags.length + (listing.moderationFlagged ? 1 : 0)} open flag${(openFlags.length + (listing.moderationFlagged ? 1 : 0)) === 1 ? '' : 's'}</span>
+      ${listing.moderationFlagged ? '<span class="mod-chip bad">Post flagged</span>' : ''}
+      <span class="mod-chip">Status ${esc(listing.status || 'ACTIVE')}</span>
+    </div>`;
+
+  if (!replies.length) {
+    listEl.innerHTML = '<div class="note">No replies have been posted in this thread yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = replies.map((reply) => {
+    const badges = [];
+    if (reply.flagged) badges.push('<span class="mod-chip flagged">Flagged</span>');
+    if (reply.source === 'legacy') badges.push('<span class="mod-chip">Legacy</span>');
+    if (reply.deleted) badges.push('<span class="mod-chip bad">Removed</span>');
+    if (reply.hidden && !reply.deleted) badges.push('<span class="mod-chip">Hidden</span>');
+    const reasonText = Array.isArray(reply.moderationLabels) && reply.moderationLabels.length ? reply.moderationLabels.join(' • ') : '—';
+    const bodyText = reply.deleted ? 'Reply removed by moderation.' : (reply.hidden ? 'Reply hidden by moderation.' : (reply.text || ''));
+    return `
+      <div class="replyModerationCard ${reply.flagged ? 'flagged' : ''} ${reply.deleted ? 'deleted' : ''}">
+        <div class="replyModerationHead">
+          <div class="replyModerationMeta">
+            <div class="replyModerationAuthor">${esc(reply.displayName || reply.userEmail || 'Unknown')}</div>
+            <div class="replyModerationSub">${esc(reply.userEmail || '—')} • ${esc(fmtDate(reply.createdAtMs || Date.now()))}</div>
+            ${badges.length ? `<div class="mod-stat-line">${badges.join('')}</div>` : ''}
+          </div>
+          <div class="replyModerationMeta" style="justify-items:end">
+            <div class="replyModerationSub">Detected</div>
+            <div class="moderation-content">${esc(reasonText)}</div>
+          </div>
+        </div>
+        <div class="replyModerationText">${esc(bodyText)}</div>
+        <div class="rowBtns compact-rowBtns" style="margin-top:12px">
+          ${!reply.deleted ? `<button class="btn danger" data-reply-delete="${esc(reply.source)}" data-reply-id="${esc(reply.id || '')}" data-reply-listing="${esc(reply.listingId)}" data-reply-legacy-index="${String(reply.legacyIndex ?? '')}" type="button">Delete Reply</button>` : '<span class="pill">Already removed</span>'}
+          ${reply.flagged ? `<button class="btn ghost" data-reply-resolve="${esc(reply.sourceKey)}" type="button">Mark Reviewed</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  document.querySelectorAll('[data-reply-delete]').forEach((btn) => btn.onclick = async () => {
+    const listingId = btn.dataset.replyListing;
+    const repliesForListing = mergedRepliesForListing(listingRowsData.find((item) => item.id === listingId));
+    const reply = btn.dataset.replyDelete === 'legacy'
+      ? repliesForListing.find((item) => item.source === 'legacy' && String(item.legacyIndex) === String(btn.dataset.replyLegacyIndex))
+      : repliesForListing.find((item) => item.source === 'doc' && item.id === btn.dataset.replyId);
+    if (!reply) return;
+    if (!confirm('Delete this reply from employee view?')) return;
+    await deleteReplyRecord(reply);
+  });
+  document.querySelectorAll('[data-reply-resolve]').forEach((btn) => btn.onclick = async () => {
+    await resolveFlagsForSource(btn.dataset.replyResolve, 'reviewed');
   });
 }
 
