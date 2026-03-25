@@ -156,6 +156,40 @@ select option{background:#0b1628; color:#f3f6fb}
 .topicHeader{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
 .topicTitle{font-size:21px; font-weight:950; line-height:1.1}
 .topicMeta{display:flex; gap:10px; flex-wrap:wrap; color:var(--muted); font-size:13px}
+.topicPosterBar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:10px 12px;
+  border-radius:16px;
+  border:1px solid rgba(34,197,94,.24);
+  background:linear-gradient(180deg, rgba(34,197,94,.14), rgba(34,197,94,.08));
+}
+.topicPosterEyebrow{
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:#b9f5c8;
+}
+.topicPosterName{
+  font-size:16px;
+  font-weight:950;
+  color:#f7fbff;
+}
+.topicPosterContact{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:5px 9px;
+  border-radius:999px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.12);
+  color:#dce6f2;
+  font-size:12px;
+  font-weight:800;
+}
 .topicDesc{color:#dce6f2; line-height:1.5}
 .topicSide{display:grid; gap:10px; justify-items:end; min-width:170px}
 .price{font-size:22px; font-weight:950}
@@ -168,6 +202,51 @@ select option{background:#0b1628; color:#f3f6fb}
 .emptyState{padding:0 18px 18px}
 .thread-card-image{width:100%; max-height:420px; object-fit:cover; border-radius:18px; border:1px solid rgba(255,255,255,.08); margin-bottom:14px}
 .thread-body-grid{display:grid; gap:14px}
+.threadPosterCard{
+  display:grid;
+  gap:8px;
+  padding:16px 18px;
+  border-radius:20px;
+  border:1px solid rgba(34,197,94,.26);
+  background:linear-gradient(180deg, rgba(34,197,94,.16), rgba(34,197,94,.09));
+  box-shadow:0 14px 28px rgba(0,0,0,.18);
+}
+.threadPosterEyebrow{
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:#b9f5c8;
+}
+.threadPosterName{
+  font-size:24px;
+  font-weight:950;
+  line-height:1.1;
+  color:#ffffff;
+}
+.threadPosterSub{
+  color:#dce6f2;
+  font-size:14px;
+}
+.threadPosterContact{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+  padding-top:6px;
+}
+.threadPosterContact span{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  color:var(--muted);
+  font-weight:900;
+}
+.threadPosterContact strong{
+  font-size:15px;
+  color:#f8fbff;
+}
 .thread-actions{margin-top:16px}
 .replyItem{padding:14px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); margin-top:10px}
 .replyTop{display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; font-size:13px}
@@ -186,6 +265,8 @@ hr{border:none; border-top:1px solid rgba(255,255,255,.10); margin:18px 0}
   .hero-grid,.content-grid,.admin-grid{grid-template-columns:1fr}
 }
 @media (max-width:780px){
+  .topicPosterBar{align-items:flex-start;flex-direction:column}
+  .threadPosterContact{align-items:flex-start;flex-direction:column}
   .topbar{position:sticky; z-index:18; padding:12px}
   .right{justify-content:flex-start}
   .hero-side{grid-template-columns:1fr}

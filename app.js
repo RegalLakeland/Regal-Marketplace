@@ -2002,6 +2002,16 @@ function canModify(item) {
   return !!currentUser && !!currentProfile && (canModerate() || currentUser.uid === item.uid);
 }
 
+function getPosterDisplayName(item) {
+  return normalizePersonName(item?.authorName || item?.displayName || '') || item?.authorEmail || item?.userEmail || 'Marketplace Member';
+}
+
+function getPosterContactValue(item) {
+  const contact = String(item?.contact || '').trim();
+  if (contact) return contact;
+  return String(item?.authorEmail || item?.userEmail || '').trim();
+}
+
 function resetPostEditor() {
   editingPostId = null;
   const titleEl = $('postOverlay')?.querySelector('.modal-h strong');
@@ -2069,6 +2079,11 @@ function renderListings() {
     const unread = hasUnreadThreadActivity(item);
     const unreadBadge = unread ? '<span class="threadUnreadBadge" title="New activity in this thread">● New</span>' : '';
     const quickDelete = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : '';
+    const posterName = getPosterDisplayName(item);
+    const posterContact = getPosterContactValue(item);
+    const posterContactText = posterContact && normalizeEmail(posterContact) !== normalizeEmail(item.authorEmail || item.userEmail || '')
+      ? `<span class="topicPosterContact">${esc(posterContact)}</span>`
+      : '';
     return `
       <article class="topicRow ${unread ? 'topicRow-unread' : ''}" data-thread-card-id="${esc(item.id)}">
         <div class="topicMain">
@@ -2079,9 +2094,13 @@ function renderListings() {
             </div>
             <span class="status ${statusClass}">${esc(statusText)}</span>${featuredPill}
           </div>
+          <div class="topicPosterBar" title="Thread owner">
+            <span class="topicPosterEyebrow">Posted by</span>
+            <span class="topicPosterName">${esc(posterName)}</span>
+            ${posterContactText}
+          </div>
           <div class="topicMeta">
             <span>${esc(BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board)}</span>
-            <span>${esc(item.authorName || item.authorEmail || '')}</span>
             <span>${esc(formatDate(item.createdAtMs))}</span>
             ${item.lastReplyAtMs ? `<span>${esc(formatDate(item.lastReplyAtMs))} latest reply</span>` : ''}
           </div>
@@ -2287,8 +2306,16 @@ async function openThread(id) {
 
   if ($('threadBody')) {
     const deleteThreadBtn = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete Thread</button>` : '';
+    const posterName = getPosterDisplayName(item);
+    const posterContact = getPosterContactValue(item);
     $('threadBody').innerHTML = `
       <div class="thread-body-grid">
+        <div class="threadPosterCard">
+          <div class="threadPosterEyebrow">Thread owner</div>
+          <div class="threadPosterName">${esc(posterName)}</div>
+          <div class="threadPosterSub">Contact this person first about this thread.</div>
+          ${posterContact ? `<div class="threadPosterContact"><span>Best contact</span><strong>${esc(posterContact)}</strong></div>` : ''}
+        </div>
         ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
         <div>${esc(item.description || '')}</div>
         <div class="topicMeta">
