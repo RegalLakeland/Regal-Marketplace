@@ -1238,26 +1238,15 @@ async function ensureProfile(user) {
   } else {
     currentProfile = { id: snap.id, ...snap.data() };
     const updates = {};
-
-    if (typeof currentProfile.isModerator !== 'boolean') updates.isModerator = false;
-    if (typeof currentProfile.banned !== 'boolean') updates.banned = false;
-    if (typeof currentProfile.manualVerified !== 'boolean') updates.manualVerified = false;
-    if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
-    if (typeof currentProfile.accessApproved !== 'boolean') updates.accessApproved = isProtectedCoreAdmin(user.email) || isAdmin(user.email);
-    if (typeof currentProfile.accessManuallyDenied !== 'boolean') updates.accessManuallyDenied = false;
-    if (typeof currentProfile.approvalStatus !== 'string') updates.approvalStatus = currentProfile.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL';
-    const normalizedApprovalStatus = normalizeApprovalStatus(currentProfile);
-    if (currentProfile.approvalStatus !== normalizedApprovalStatus) updates.approvalStatus = normalizedApprovalStatus;
-    if (typeof currentProfile.signupSource !== 'string') updates.signupSource = 'self-service';
-    if (!Number.isFinite(Number(currentProfile.signupSubmittedAtMs || 0))) updates.signupSubmittedAtMs = Number(currentProfile.createdAtMs || Date.now());
-    if (!(Object.prototype.hasOwnProperty.call(currentProfile, 'pendingApprovalAtMs'))) updates.pendingApprovalAtMs = currentProfile.accessApproved ? null : Number(currentProfile.createdAtMs || Date.now());
-    if (typeof currentProfile.deleted !== 'boolean') updates.deleted = false;
     const authDisplayName = normalizePersonName(user.displayName || '');
+
+    // Only backfill fields that the signed-in owner is allowed to update under Firestore rules.
     if (authDisplayName) {
       if (!normalizePersonName(currentProfile.displayName)) updates.displayName = authDisplayName;
       if (!normalizePersonName(currentProfile.pendingName)) updates.pendingName = authDisplayName;
       if (!normalizePersonName(currentProfile.requestedName)) updates.requestedName = authDisplayName;
     }
+    if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
     if (typeof currentProfile.mustChangePassword !== 'boolean') updates.mustChangePassword = false;
     if (typeof currentProfile.rulesAccepted !== 'boolean') updates.rulesAccepted = false;
@@ -1268,6 +1257,7 @@ async function ensureProfile(user) {
     if (typeof currentProfile.rulesAcceptedByUid !== 'string') updates.rulesAcceptedByUid = '';
     if (typeof currentProfile.rulesAcceptedByEmail !== 'string') updates.rulesAcceptedByEmail = '';
     if (typeof currentProfile.rulesAcceptedDisplayNameSnapshot !== 'string') updates.rulesAcceptedDisplayNameSnapshot = '';
+    if (!Object.prototype.hasOwnProperty.call(currentProfile, 'rulesAcceptedAt')) updates.rulesAcceptedAt = null;
     if (!Number.isFinite(Number(currentProfile.rulesAcceptedAtMs || 0))) updates.rulesAcceptedAtMs = null;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
     if (!Number.isFinite(Number(currentProfile.lastLoginAtMs || 0))) updates.lastLoginAtMs = Number(currentProfile.lastSeenAtMs || Date.now());
@@ -1282,7 +1272,7 @@ async function ensureProfile(user) {
       updates.emailVerified = true;
       updates.emailVerifiedAt = Date.now();
     }
-        if (isProtectedCoreAdmin(user.email) && currentProfile.isAdmin !== true) {
+    if (isProtectedCoreAdmin(user.email) && currentProfile.isAdmin !== true) {
       updates.isAdmin = true;
     }
     if (isProtectedCoreAdmin(user.email) && currentProfile.accessApproved !== true) {
@@ -1293,8 +1283,12 @@ async function ensureProfile(user) {
 
     if (Object.keys(updates).length) {
       updates.updatedAt = serverTimestamp();
-      await updateDoc(profileRef, updates);
-      currentProfile = { ...currentProfile, ...updates };
+      try {
+        await updateDoc(profileRef, updates);
+        currentProfile = { ...currentProfile, ...updates };
+      } catch (err) {
+        console.warn('Profile backfill skipped due to rules mismatch or legacy fields:', err);
+      }
     }
   }
 }
