@@ -1,27 +1,228 @@
-{
-  "hosting": {
-    "public": "functions",
-    "cleanUrls": true,
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**",
-      "gopath/**",
-      "*.zip",
-      "*.md",
-      "*.txt",
-      "firestore.rules",
-      "storage.rules",
-      "*.san.js",
-      "index.js",
-      "package.json",
-      "package-lock.json"
-    ],
-    "headers": [
-      {
-        "source": "**/*.@(js|css|html)",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-        ]
-      }
-    ]
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasEmail() {
+      return signedIn() && request.auth.token.email != null;
+    }
+
+    function employeeEmail() {
+      return hasEmail()
+        && request.auth.token.email.matches('.*@regallakeland\\.com$');
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid));
+    }
+
+    function requesterProfile() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    function emailApproved() {
+      return signedIn()
+        && (
+          request.auth.token.email_verified == true
+          || (hasProfile() && requesterProfile().manualVerified == true)
+          || (hasProfile() && requesterProfile().accessApproved == true)
+        );
+    }
+
+    function accessApproved() {
+      return hasProfile()
+        && requesterProfile().accessApproved == true
+        && requesterProfile().accessManuallyDenied != true
+        && requesterProfile().banned != true
+        && requesterProfile().deleted != true;
+    }
+
+    function isCoreAdmin() {
+      return hasEmail()
+        && (
+          request.auth.token.email == 'michael.h@regallakeland.com'
+          || request.auth.token.email == 'janni.r@regallakeland.com'
+        );
+    }
+
+    function isAdminUser() {
+      return signedIn()
+        && hasProfile()
+        && (isCoreAdmin() || requesterProfile().isAdmin == true);
+    }
+
+    function isModeratorUser() {
+      return signedIn()
+        && hasProfile()
+        && requesterProfile().isModerator == true;
+    }
+
+    function canModerateContent() {
+      return signedIn()
+        && employeeEmail()
+        && hasProfile()
+        && (isCoreAdmin() || requesterProfile().isAdmin == true || requesterProfile().isModerator == true);
+    }
+
+    function marketplaceMember() {
+      return signedIn()
+        && employeeEmail()
+        && hasProfile()
+        && emailApproved()
+        && accessApproved();
+    }
+
+    function ownProfile(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function protectedTarget() {
+      return resource.data.email == 'michael.h@regallakeland.com'
+        || resource.data.email == 'janni.r@regallakeland.com';
+    }
+
+    function ownerProfileCreateAllowed(uid) {
+      return signedIn()
+        && ownProfile(uid)
+        && employeeEmail()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.email.matches('.*@regallakeland\\.com$')
+        && request.resource.data.banned == false
+        && request.resource.data.deleted == false
+        && request.resource.data.accessManuallyDenied == false
+        && request.resource.data.rulesAccepted == false
+        && request.resource.data.rulesAcceptedVersion == ''
+        && request.resource.data.rulesAcceptedName == ''
+        && request.resource.data.rulesAcceptedFirstName == ''
+        && request.resource.data.rulesAcceptedLastName == ''
+        && request.resource.data.rulesAcceptedByUid == ''
+        && request.resource.data.rulesAcceptedByEmail == ''
+        && request.resource.data.rulesAcceptedDisplayNameSnapshot == ''
+        && (
+          (isCoreAdmin()
+            && request.resource.data.isAdmin == true
+            && request.resource.data.manualVerified == true
+            && request.resource.data.accessApproved == true
+            && request.resource.data.approvalStatus == 'APPROVED')
+          ||
+          (!isCoreAdmin()
+            && request.resource.data.isAdmin == false
+            && request.resource.data.manualVerified == false
+            && request.resource.data.accessApproved == false
+            && request.resource.data.approvalStatus == 'PENDING_ADMIN_APPROVAL')
+        );
+    }
+
+    function ownerProfileMutableKeys() {
+      return [
+        'displayName',
+        'pendingName',
+        'requestedName',
+        'updatedAt',
+        'emailVerified',
+        'emailVerifiedAt',
+        'lastSeenAtMs',
+        'lastLoginAtMs',
+        'lastActivityAtMs',
+        'lastActivityLabel',
+        'lastBoardVisited',
+        'lastThreadId',
+        'lastThreadTitle',
+        'currentView',
+        'lastLoginBlockedReason',
+        'lastLoginBlockedAtMs',
+        'mustChangePassword',
+        'tempPasswordActive',
+        'passwordChangedAtMs',
+        'rulesAccepted',
+        'rulesAcceptedVersion',
+        'rulesAcceptedName',
+        'rulesAcceptedFirstName',
+        'rulesAcceptedLastName',
+        'rulesAcceptedAt',
+        'rulesAcceptedAtMs',
+        'rulesAcceptedByUid',
+        'rulesAcceptedByEmail',
+        'rulesAcceptedDisplayNameSnapshot'
+      ];
+    }
+
+    function ownerProfileUpdateAllowed(uid) {
+      return signedIn()
+        && ownProfile(uid)
+        && employeeEmail()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(ownerProfileMutableKeys());
+    }
+
+    match /listings/{id} {
+      allow read: if marketplaceMember();
+
+      allow create: if marketplaceMember()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email;
+
+      allow update: if marketplaceMember()
+        && (resource.data.uid == request.auth.uid || canModerateContent());
+
+      allow delete: if marketplaceMember()
+        && (resource.data.uid == request.auth.uid || canModerateContent());
+    }
+
+    match /listings/{listingId}/replies/{replyId} {
+      allow read: if marketplaceMember();
+
+      allow create: if marketplaceMember()
+        && request.resource.data.listingId == listingId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email
+        && request.resource.data.deleted == false
+        && request.resource.data.hidden == false;
+
+      allow update, delete: if marketplaceMember()
+        && (resource.data.uid == request.auth.uid || canModerateContent());
+    }
+
+    match /moderationFlags/{id} {
+      allow read, update, delete: if canModerateContent();
+
+      allow create: if marketplaceMember()
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdByEmail == request.auth.token.email;
+    }
+
+    match /profiles/{uid} {
+      allow read: if (signedIn() && ownProfile(uid) && employeeEmail())
+        || (signedIn() && employeeEmail() && accessApproved())
+        || isAdminUser();
+
+      allow create: if ownerProfileCreateAllowed(uid);
+
+      allow update: if ownerProfileUpdateAllowed(uid)
+        || (signedIn() && employeeEmail() && isAdminUser());
+
+      allow delete: if isAdminUser()
+        && (!protectedTarget() || request.auth.uid == uid);
+    }
+
+    match /eventResponses/{id} {
+      allow read: if (signedIn() && employeeEmail() && hasProfile() && requesterProfile().banned != true)
+        || isAdminUser();
+
+      allow create, update: if ((signedIn() && employeeEmail() && hasProfile() && requesterProfile().banned != true)
+        || isAdminUser())
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email;
+
+      allow delete: if ((signedIn() && employeeEmail() && hasProfile() && requesterProfile().banned != true)
+        && resource.data.uid == request.auth.uid)
+        || isAdminUser();
+    }
+  }
+}
