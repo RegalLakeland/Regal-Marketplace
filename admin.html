@@ -63,11 +63,47 @@
         </div>
         <div class="admin-summary">
           <span class="pill" id="adminOnlineCount">0 online</span>
-          <span class="pill" id="adminUserCount">0</span>
+          <span class="pill" id="adminUserCount">0 users</span>
         </div>
       </div>
       <div class="panel-b">
         <div id="adminOnlineNames" class="online-chip-list"></div>
+      </div>
+    </section>
+
+    <section class="panel admin-section-card">
+      <div class="panel-h">
+        <div>
+          <div class="panel-title">Recent Activity</div>
+          <div class="meta">A rolling admin feed of who was on the website most recently, when they were last seen, and what they were doing.</div>
+        </div>
+        <div class="admin-summary">
+          <span class="pill" id="adminRecent24hCount">0 active today</span>
+          <span class="pill" id="adminRecent7dCount">0 active this week</span>
+        </div>
+      </div>
+      <div class="panel-b">
+        <div class="admin-activity-layout">
+          <div>
+            <div id="adminRecentActivityFeed" class="activity-feed"></div>
+          </div>
+          <aside class="activity-side-stack">
+            <div class="activity-side-card">
+              <div class="activity-side-label">Most Recent Visitor</div>
+              <div class="activity-side-value" id="adminMostRecentUser">—</div>
+              <div class="activity-side-sub" id="adminMostRecentMeta">No recent activity recorded yet.</div>
+            </div>
+            <div class="activity-side-card">
+              <div class="activity-side-label">Last Sign-In</div>
+              <div class="activity-side-value" id="adminLastLoginUser">—</div>
+              <div class="activity-side-sub" id="adminLastLoginMeta">No login activity recorded yet.</div>
+            </div>
+            <div class="activity-side-card">
+              <div class="activity-side-label">Admin View</div>
+              <div class="activity-side-sub">Online users still appear above for live monitoring. This screen adds a recent timeline so admins can also review who was on most recently even after they go offline.</div>
+            </div>
+          </aside>
+        </div>
       </div>
     </section>
 
@@ -160,6 +196,6 @@
     </section>
   </main>
 
-  <script type="module" src="admin.js?v=7"></script>
+  <script type="module" src="admin.js?v=8"></script>
 </body>
 </html>

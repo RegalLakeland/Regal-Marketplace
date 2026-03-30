@@ -101,6 +101,53 @@ const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sa
 function fmtDate(ms) {
   try { return new Date(Number(ms || Date.now())).toLocaleString(); } catch { return '—'; }
 }
+function fmtAgo(ms) {
+  const stamp = Number(ms || 0);
+  if (!stamp) return '—';
+  const diff = Math.max(0, Date.now() - stamp);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(days / 365);
+  return `${years}y ago`;
+}
+function activityPrimaryMs(user) {
+  const candidates = [user?.lastActivityAtMs, user?.lastSeenAtMs, user?.lastLoginAtMs, user?.createdAtMs];
+  for (const value of candidates) {
+    const numeric = Number(value || 0);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+  return 0;
+}
+function activityStatusMeta(user) {
+  const seen = Number(user?.lastSeenAtMs || 0);
+  if (seen >= Date.now() - ONLINE_WINDOW_MS) return { label: 'Online now', tone: 'online' };
+  if (seen >= Date.now() - (60 * 60 * 1000)) return { label: 'Recently active', tone: 'recent' };
+  return { label: 'Offline', tone: 'offline' };
+}
+function activityBoardText(user) {
+  const view = String(user?.currentView || '').toUpperCase();
+  if (view === 'THREAD' && user?.lastThreadTitle) return `Thread • ${user.lastThreadTitle}`;
+  const boardKey = String(user?.lastBoardVisited || '').toUpperCase();
+  if (boardLabels[boardKey]) return `Board • ${boardLabels[boardKey]}`;
+  if (view && boardLabels[view]) return `View • ${boardLabels[view]}`;
+  if (view === 'POST') return 'Action • Posting';
+  return 'Marketplace activity';
+}
+function activitySummaryText(user) {
+  const label = String(user?.lastActivityLabel || '').trim();
+  if (label) return label;
+  if (user?.lastSeenAtMs) return 'Active on marketplace';
+  return 'No recent activity recorded';
+}
 function approvalStateLabel(user) {
   if (user?.banned) return 'Blocked';
   if (user?.accessApproved) return 'Approved';
@@ -699,6 +746,70 @@ function buildUserActionButtons(user, dup, protectedUser) {
   return buttons.join('');
 }
 
+function renderRecentActivity() {
+  if (!$('adminRecentActivityFeed')) return;
+
+  const rows = userRowsData
+    .filter((user) => !!activityPrimaryMs(user))
+    .sort((a, b) => activityPrimaryMs(b) - activityPrimaryMs(a));
+
+  const last24h = rows.filter((user) => Number(user?.lastSeenAtMs || activityPrimaryMs(user) || 0) >= Date.now() - (24 * 60 * 60 * 1000));
+  const last7d = rows.filter((user) => Number(user?.lastSeenAtMs || activityPrimaryMs(user) || 0) >= Date.now() - (7 * 24 * 60 * 60 * 1000));
+
+  if ($('adminRecent24hCount')) $('adminRecent24hCount').textContent = `${last24h.length} active today`;
+  if ($('adminRecent7dCount')) $('adminRecent7dCount').textContent = `${last7d.length} active this week`;
+
+  const newestVisit = rows[0] || null;
+  if ($('adminMostRecentUser')) $('adminMostRecentUser').textContent = newestVisit ? (preferredUserName(newestVisit, false) || newestVisit.email || '—') : '—';
+  if ($('adminMostRecentMeta')) $('adminMostRecentMeta').textContent = newestVisit
+    ? `${fmtAgo(activityPrimaryMs(newestVisit))} • ${fmtDate(activityPrimaryMs(newestVisit))}`
+    : 'No recent activity recorded yet.';
+
+  const newestLogin = rows
+    .filter((user) => Number(user?.lastLoginAtMs || 0) > 0)
+    .sort((a, b) => Number(b.lastLoginAtMs || 0) - Number(a.lastLoginAtMs || 0))[0] || null;
+  if ($('adminLastLoginUser')) $('adminLastLoginUser').textContent = newestLogin ? (preferredUserName(newestLogin, false) || newestLogin.email || '—') : '—';
+  if ($('adminLastLoginMeta')) $('adminLastLoginMeta').textContent = newestLogin
+    ? `${fmtAgo(newestLogin.lastLoginAtMs)} • ${fmtDate(newestLogin.lastLoginAtMs)}`
+    : 'No login activity recorded yet.';
+
+  const feedRows = rows.slice(0, 18);
+  if (!feedRows.length) {
+    $('adminRecentActivityFeed').innerHTML = '<div class="admin-empty-note">No recent activity recorded yet.</div>';
+    return;
+  }
+
+  $('adminRecentActivityFeed').innerHTML = feedRows.map((user) => {
+    const status = activityStatusMeta(user);
+    const name = esc(preferredUserName(user, false) || user.email || '—');
+    const email = esc(user.email || '');
+    const activityAt = activityPrimaryMs(user);
+    const summary = esc(activitySummaryText(user));
+    const board = esc(activityBoardText(user));
+    const lastSeen = user?.lastSeenAtMs ? `${fmtAgo(user.lastSeenAtMs)} • ${fmtDate(user.lastSeenAtMs)}` : 'No presence heartbeat yet';
+    const loginMeta = user?.lastLoginAtMs ? `${fmtAgo(user.lastLoginAtMs)} • ${fmtDate(user.lastLoginAtMs)}` : 'No login recorded';
+    return `
+      <article class="activity-card">
+        <div class="activity-card-top">
+          <div class="activity-user-block">
+            <div class="activity-name">${status.tone === 'online' ? '<span class="activity-icon-dot"></span>' : ''}${name}</div>
+            <div class="activity-email">${email || 'No email available'}</div>
+          </div>
+          <span class="activity-status-badge ${status.tone}">${esc(status.label)}</span>
+        </div>
+        <div class="activity-card-body">
+          <div class="activity-line"><strong>Recent action:</strong> ${summary}</div>
+          <div class="activity-meta-row">
+            <span class="activity-pill">${board}</span>
+            <span class="activity-pill">Seen ${esc(lastSeen)}</span>
+            <span class="activity-pill">Login ${esc(loginMeta)}</span>
+            <span class="activity-pill">Updated ${esc(fmtAgo(activityAt))}</span>
+          </div>
+        </div>
+      </article>`;
+  }).join('');
+}
+
 function renderUserRows() {
   if (!canManageUsers()) return;
   if (!$('userRows')) return;
@@ -706,7 +817,7 @@ function renderUserRows() {
 
   const onlineUsers = userRowsData.filter((u) => u.accessApproved && !u.banned && Number(u.lastSeenAtMs || 0) >= (Date.now() - ONLINE_WINDOW_MS));
   if ($('adminOnlineCount')) $('adminOnlineCount').textContent = `${onlineUsers.length} online`;
-  if ($('adminUserCount')) $('adminUserCount').textContent = String(userRowsData.length);
+  if ($('adminUserCount')) $('adminUserCount').textContent = `${userRowsData.length} users`;
   if ($('adminPendingCount')) $('adminPendingCount').textContent = `${userRowsData.filter(userPending).length} pending`;
 
   const pendingCount = userRowsData.filter(userPending).length;
@@ -720,6 +831,7 @@ function renderUserRows() {
   setText('adminDeletedCount', String(deletedCount));
   setText('adminDuplicateCount', String(duplicateCount));
   syncAdminFilterUi();
+  renderRecentActivity();
 
   if ($('adminOnlineNames')) {
     if (onlineUsers.length > 0) {

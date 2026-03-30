@@ -386,9 +386,12 @@ let loginInFlight = false;
 let signupInFlight = false;
 let signupFlowContext = null;
 let forcedAccessExitInFlight = false;
+let lastActivityWriteAt = 0;
+let lastActivityWriteKey = '';
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
+const ACTIVITY_WRITE_THROTTLE_MS = 15 * 1000;
 
 
 function getClosedLabel(item) {
@@ -490,6 +493,11 @@ document.addEventListener('DOMContentLoaded', () => {
     startParticipantRepliesListener();
     startUserProfileGuard(user);
     startEventResponsesListener();
+    void logMarketplaceActivity('Signed in to marketplace', {
+      lastLoginAtMs: Date.now(),
+      lastBoardVisited: activeBoard,
+      currentView: activeBoard
+    }, { force: true });
     touchPresence();
     if (!presenceTimer) presenceTimer = setInterval(touchPresence, PRESENCE_HEARTBEAT_MS);
 
@@ -1208,6 +1216,13 @@ async function ensureProfile(user) {
     rulesAcceptedByEmail: '',
     rulesAcceptedDisplayNameSnapshot: '',
     lastSeenAtMs: Date.now(),
+    lastLoginAtMs: Date.now(),
+    lastActivityAtMs: Date.now(),
+    lastActivityLabel: 'Signed in to marketplace',
+    lastBoardVisited: 'ALL',
+    lastThreadId: '',
+    lastThreadTitle: '',
+    currentView: 'ALL',
     updatedAt: serverTimestamp()
   };
 
@@ -1255,6 +1270,13 @@ async function ensureProfile(user) {
     if (typeof currentProfile.rulesAcceptedDisplayNameSnapshot !== 'string') updates.rulesAcceptedDisplayNameSnapshot = '';
     if (!Number.isFinite(Number(currentProfile.rulesAcceptedAtMs || 0))) updates.rulesAcceptedAtMs = null;
     if (!Number.isFinite(Number(currentProfile.lastSeenAtMs || 0))) updates.lastSeenAtMs = Date.now();
+    if (!Number.isFinite(Number(currentProfile.lastLoginAtMs || 0))) updates.lastLoginAtMs = Number(currentProfile.lastSeenAtMs || Date.now());
+    if (!Number.isFinite(Number(currentProfile.lastActivityAtMs || 0))) updates.lastActivityAtMs = Number(currentProfile.lastSeenAtMs || Date.now());
+    if (typeof currentProfile.lastActivityLabel !== 'string') updates.lastActivityLabel = 'Active on marketplace';
+    if (typeof currentProfile.lastBoardVisited !== 'string') updates.lastBoardVisited = 'ALL';
+    if (typeof currentProfile.lastThreadId !== 'string') updates.lastThreadId = '';
+    if (typeof currentProfile.lastThreadTitle !== 'string') updates.lastThreadTitle = '';
+    if (typeof currentProfile.currentView !== 'string') updates.currentView = currentProfile.lastBoardVisited || 'ALL';
 
     if (user.emailVerified && currentProfile.emailVerified !== true) {
       updates.emailVerified = true;
@@ -1717,15 +1739,62 @@ async function handleSaveName() {
 }
 
 
+function getActiveViewKey() {
+  if (activeThread && $('threadOverlay') && $('threadOverlay').style.display !== 'none') return 'THREAD';
+  return activeBoard || 'ALL';
+}
+
+async function logMarketplaceActivity(label = '', extra = {}, options = {}) {
+  if (!currentUser) return;
+  const force = options?.force === true;
+  const now = Date.now();
+  const cleanLabel = String(label || '').trim();
+  const viewKey = String(extra?.currentView || getActiveViewKey() || 'ALL');
+  const boardKey = String(extra?.lastBoardVisited || activeBoard || 'ALL');
+  const dedupeKey = [cleanLabel, viewKey, boardKey, extra?.lastThreadId || '', extra?.lastThreadTitle || ''].join('|');
+
+  if (!force && now - lastActivityWriteAt < ACTIVITY_WRITE_THROTTLE_MS && dedupeKey === lastActivityWriteKey) {
+    return;
+  }
+
+  const payload = {
+    ...extra,
+    lastSeenAtMs: now,
+    updatedAt: serverTimestamp()
+  };
+
+  if (!Object.prototype.hasOwnProperty.call(payload, 'lastBoardVisited')) payload.lastBoardVisited = boardKey;
+  if (!Object.prototype.hasOwnProperty.call(payload, 'currentView')) payload.currentView = viewKey;
+  if (cleanLabel) {
+    payload.lastActivityLabel = cleanLabel;
+    payload.lastActivityAtMs = now;
+  }
+
+  try {
+    await updateDoc(doc(db, 'profiles', currentUser.uid), payload);
+    if (currentProfile) Object.assign(currentProfile, { ...extra, ...payload, updatedAt: now });
+    lastActivityWriteAt = now;
+    lastActivityWriteKey = dedupeKey;
+  } catch (err) {
+    console.warn('activity update failed', err);
+  }
+}
+
 async function touchPresence() {
   if (!currentUser) return;
   const stamp = Date.now();
   try {
     await updateDoc(doc(db, 'profiles', currentUser.uid), {
       lastSeenAtMs: stamp,
+      lastBoardVisited: activeBoard || 'ALL',
+      currentView: getActiveViewKey(),
       updatedAt: serverTimestamp()
     });
-    if (currentProfile) currentProfile.lastSeenAtMs = stamp;
+    if (currentProfile) {
+      currentProfile.lastSeenAtMs = stamp;
+      currentProfile.lastBoardVisited = activeBoard || 'ALL';
+      currentProfile.currentView = getActiveViewKey();
+    }
   } catch (err) {
     console.warn('presence update failed', err);
   }
@@ -1943,6 +2012,13 @@ function renderBoards() {
       activeBoard = btn.dataset.board;
       renderBoards();
       renderListings();
+      const boardMeta = BOARD_DEFS.find((b) => b.key === activeBoard);
+      void logMarketplaceActivity(`Opened ${boardMeta?.label || activeBoard} board`, {
+        lastBoardVisited: activeBoard,
+        currentView: activeBoard,
+        lastThreadId: '',
+        lastThreadTitle: ''
+      }, { force: true });
     });
   });
 
@@ -2228,6 +2304,13 @@ async function handleSavePost() {
       listingId = createdRef.id;
     }
 
+    void logMarketplaceActivity(editingPostId ? `Updated post: ${title}` : `Created post: ${title}`, {
+      lastBoardVisited: board,
+      currentView: 'POST',
+      lastThreadId: listingId || '',
+      lastThreadTitle: title
+    }, { force: true });
+
     if (moderationScan.flagged && listingId && (!editingPostId || !existing?.moderationFlagged)) {
       await createModerationFlag({
         sourceType: 'listing',
@@ -2339,6 +2422,12 @@ async function openThread(id) {
   renderReplies(mergedRepliesForThread(item));
   if ($('replyText')) $('replyText').value = '';
   show('threadOverlay');
+  void logMarketplaceActivity(`Opened thread: ${item.title || 'Thread'}`, {
+    lastBoardVisited: item.board || activeBoard || 'ALL',
+    currentView: 'THREAD',
+    lastThreadId: item.id || '',
+    lastThreadTitle: item.title || ''
+  }, { force: true });
 }
 
 function renderReplies(replies) {
@@ -2433,6 +2522,13 @@ async function handleSendReply() {
       lastReplyByEmail: currentUser.email || '',
       updatedAt: serverTimestamp()
     }).catch(() => {});
+
+    void logMarketplaceActivity(`Replied to: ${activeThread.title || 'Thread'}`, {
+      lastBoardVisited: activeThread.board || activeBoard || 'ALL',
+      currentView: 'THREAD',
+      lastThreadId: activeThread.id || '',
+      lastThreadTitle: activeThread.title || ''
+    }, { force: true });
 
     if (moderationScan.flagged) {
       await createModerationFlag({
