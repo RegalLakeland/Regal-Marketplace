@@ -1695,10 +1695,32 @@ async function handleRulesAgreement() {
     }
   } catch (err) {
     console.error(err);
-    if (msg) {
-      msg.textContent = `${err?.code || 'rules_save_error'} — ${err?.message || 'Could not save your agreement.'}`;
-      msg.dataset.state = 'error';
-      msg.style.display = 'block';
+    try {
+      const minimalPayload = {
+        rulesAccepted: true,
+        rulesAcceptedVersion: MARKETPLACE_RULES_VERSION,
+        rulesAcceptedName: cleanedTyped,
+        rulesAcceptedFirstName: firstName,
+        rulesAcceptedLastName: lastName,
+        rulesAcceptedAtMs: now,
+        updatedAt: serverTimestamp()
+      };
+      await updateDoc(doc(db, 'profiles', currentUser.uid), minimalPayload);
+      currentProfile = { ...currentProfile, ...minimalPayload };
+      hideRulesOverlay();
+      updateAuthUI();
+      if (!currentProfile.displayName) {
+        $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+        show('nameOverlay');
+      }
+      return;
+    } catch (retryErr) {
+      console.error('Rules agreement retry failed:', retryErr);
+      if (msg) {
+        msg.textContent = `${retryErr?.code || err?.code || 'rules_save_error'} — ${retryErr?.message || err?.message || 'Could not save your agreement.'}`;
+        msg.dataset.state = 'error';
+        msg.style.display = 'block';
+      }
     }
   }
 }

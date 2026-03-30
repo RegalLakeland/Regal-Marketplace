@@ -118,58 +118,47 @@ service cloud.firestore {
         );
     }
 
+    function ownerProfileMutableKeys() {
+      return [
+        'displayName',
+        'pendingName',
+        'requestedName',
+        'updatedAt',
+        'emailVerified',
+        'emailVerifiedAt',
+        'lastSeenAtMs',
+        'lastLoginAtMs',
+        'lastActivityAtMs',
+        'lastActivityLabel',
+        'lastBoardVisited',
+        'lastThreadId',
+        'lastThreadTitle',
+        'currentView',
+        'lastLoginBlockedReason',
+        'lastLoginBlockedAtMs',
+        'mustChangePassword',
+        'tempPasswordActive',
+        'passwordChangedAtMs',
+        'rulesAccepted',
+        'rulesAcceptedVersion',
+        'rulesAcceptedName',
+        'rulesAcceptedFirstName',
+        'rulesAcceptedLastName',
+        'rulesAcceptedAt',
+        'rulesAcceptedAtMs',
+        'rulesAcceptedByUid',
+        'rulesAcceptedByEmail',
+        'rulesAcceptedDisplayNameSnapshot'
+      ];
+    }
+
     function ownerProfileUpdateAllowed(uid) {
       return signedIn()
         && ownProfile(uid)
         && employeeEmail()
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.email == resource.data.email
-        && request.resource.data.isAdmin == resource.data.isAdmin
-        && request.resource.data.isModerator == resource.data.isModerator
-        && request.resource.data.banned == resource.data.banned
-        && request.resource.data.deleted == resource.data.deleted
-        && request.resource.data.manualVerified == resource.data.manualVerified
-        && request.resource.data.accessApproved == resource.data.accessApproved
-        && request.resource.data.accessManuallyDenied == resource.data.accessManuallyDenied
-        && request.resource.data.approvalStatus == resource.data.approvalStatus
-        && request.resource.data.signupSource == resource.data.signupSource
-        && request.resource.data.signupSubmittedAtMs == resource.data.signupSubmittedAtMs
-        && request.resource.data.pendingApprovalAtMs == resource.data.pendingApprovalAtMs
-        && request.resource.data.approvedAt == resource.data.approvedAt
-        && request.resource.data.approvedBy == resource.data.approvedBy
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.createdAtMs == resource.data.createdAtMs
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          'displayName',
-          'pendingName',
-          'requestedName',
-          'updatedAt',
-          'emailVerified',
-          'emailVerifiedAt',
-          'lastSeenAtMs',
-          'lastLoginAtMs',
-          'lastActivityAtMs',
-          'lastActivityLabel',
-          'lastBoardVisited',
-          'lastThreadId',
-          'lastThreadTitle',
-          'currentView',
-          'lastLoginBlockedReason',
-          'lastLoginBlockedAtMs',
-          'mustChangePassword',
-          'tempPasswordActive',
-          'passwordChangedAtMs',
-          'rulesAccepted',
-          'rulesAcceptedVersion',
-          'rulesAcceptedName',
-          'rulesAcceptedFirstName',
-          'rulesAcceptedLastName',
-          'rulesAcceptedAt',
-          'rulesAcceptedAtMs',
-          'rulesAcceptedByUid',
-          'rulesAcceptedByEmail',
-          'rulesAcceptedDisplayNameSnapshot'
-        ]);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(ownerProfileMutableKeys());
     }
 
     match /listings/{id} {
@@ -210,7 +199,7 @@ service cloud.firestore {
 
     match /profiles/{uid} {
       allow read: if (signedIn() && ownProfile(uid) && employeeEmail())
-        || marketplaceMember()
+        || (signedIn() && employeeEmail() && accessApproved())
         || isAdminUser();
 
       allow create: if ownerProfileCreateAllowed(uid);
