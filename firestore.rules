@@ -36,7 +36,7 @@ service cloud.firestore {
     function accessApproved() {
       return hasProfile()
         && requesterProfile().accessApproved == true
-        && requesterProfile().approvalStatus == 'APPROVED'
+        && requesterProfile().accessManuallyDenied != true
         && requesterProfile().banned != true
         && requesterProfile().deleted != true;
     }
