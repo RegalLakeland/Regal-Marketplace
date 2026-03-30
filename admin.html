@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marketplace Admin</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body class="admin-page">
   <header class="topbar admin-topbar">
@@ -71,11 +71,11 @@
       </div>
     </section>
 
-    <section class="panel admin-section-card">
+    <section class="panel admin-section-card admin-activity-section">
       <div class="panel-h">
         <div>
           <div class="panel-title">Recent Activity</div>
-          <div class="meta">A rolling admin feed of who was on the website most recently, when they were last seen, and what they were doing.</div>
+          <div class="meta">A compact admin-only activity section that shows who has been on recently, even after they go offline, without taking over the full page.</div>
         </div>
         <div class="admin-summary">
           <span class="pill" id="adminRecent24hCount">0 active today</span>
@@ -83,10 +83,44 @@
         </div>
       </div>
       <div class="panel-b">
-        <div class="admin-activity-layout">
-          <div>
-            <div id="adminRecentActivityFeed" class="activity-feed"></div>
+        <div class="admin-activity-layout compact">
+          <div class="activity-main-card">
+            <div class="activity-toolbar">
+              <input id="adminActivitySearch" class="adminSearch activity-search" type="search" placeholder="Search recent activity by name, email, board, or action" />
+              <select id="adminActivityFilter" class="adminFilter activity-filter">
+                <option value="RECENT">All recent</option>
+                <option value="ONLINE">Online now</option>
+                <option value="OFFLINE_RECENT">Offline but recent</option>
+                <option value="TODAY">Last 24 hours</option>
+                <option value="WEEK">Last 7 days</option>
+                <option value="LOGINS">Has login record</option>
+              </select>
+              <select id="adminActivityLimit" class="adminFilter activity-filter">
+                <option value="25">Show 25</option>
+                <option value="50" selected>Show 50</option>
+                <option value="100">Show 100</option>
+                <option value="ALL">Show all</option>
+              </select>
+              <span class="pill" id="adminActivityResultsCount">0 shown</span>
+            </div>
+
+            <div class="activity-table-shell">
+              <table class="activity-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Recent Action</th>
+                    <th>Board / Thread</th>
+                    <th>Last Seen</th>
+                    <th>Last Login</th>
+                  </tr>
+                </thead>
+                <tbody id="adminRecentActivityFeed"></tbody>
+              </table>
+            </div>
           </div>
+
           <aside class="activity-side-stack">
             <div class="activity-side-card">
               <div class="activity-side-label">Most Recent Visitor</div>
@@ -99,8 +133,13 @@
               <div class="activity-side-sub" id="adminLastLoginMeta">No login activity recorded yet.</div>
             </div>
             <div class="activity-side-card">
+              <div class="activity-side-label">Offline Recently</div>
+              <div class="activity-side-value" id="adminOfflineRecentCount">0</div>
+              <div class="activity-side-sub">Users active in the last 24 hours who are not currently online.</div>
+            </div>
+            <div class="activity-side-card">
               <div class="activity-side-label">Admin View</div>
-              <div class="activity-side-sub">Online users still appear above for live monitoring. This screen adds a recent timeline so admins can also review who was on most recently even after they go offline.</div>
+              <div class="activity-side-sub">Live presence stays above. This section is now its own compact review area with a fixed scroll body so admins can handle large user counts without the page getting buried.</div>
             </div>
           </aside>
         </div>
@@ -196,6 +235,6 @@
     </section>
   </main>
 
-  <script type="module" src="admin.js?v=8"></script>
+  <script type="module" src="admin.js?v=9"></script>
 </body>
 </html>
