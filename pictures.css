@@ -129,9 +129,9 @@ body.viewer-open .pictures-shell{min-height:auto}
 body.viewer-open .designer-main{width:100%}
 body.viewer-open .designer-sidebar{display:none!important}
 body.viewer-open .status-banner{top:96px;width:auto}
-body.viewer-open .stage-scroll{padding:24px 24px 56px;overflow:auto}
-body.viewer-open .stage-shell{display:flex;justify-content:center;align-items:flex-start;min-height:calc(var(--canvas-height-px) * 1px * var(--viewer-scale));width:100%}
-body.viewer-open .page-frame{width:calc(var(--canvas-width-px) * 1px);max-width:none;margin:0 auto;transform:scale(var(--viewer-scale)) !important;transform-origin:top center}
+body.viewer-open .stage-scroll{padding:24px 24px 56px;overflow-x:hidden;overflow-y:auto}
+body.viewer-open .stage-shell{display:flex;justify-content:center;align-items:flex-start;min-height:auto;width:100%}
+body.viewer-open .page-frame{width:min(100%, calc(var(--canvas-width-px) * 1px * var(--viewer-scale)));max-width:100%;margin:0 auto;transform:none !important;transform-origin:top center}
 body.viewer-open .page-canvas{width:100%;max-width:none;border-radius:30px;border-color:rgba(255,255,255,.18);box-shadow:0 28px 80px rgba(0,0,0,.45)}
 body.viewer-open .designer-element{transition:transform .18s ease, box-shadow .18s ease}
 body.viewer-open .designer-element.image-element:hover{transform:translateY(-3px);box-shadow:0 18px 50px rgba(0,0,0,.35)}
@@ -158,8 +158,8 @@ body.editor-open .stage-shell{display:flex;justify-content:center;align-items:fl
   .topbar-left{justify-content:space-between;align-items:flex-start}
   .topbar-right{justify-content:flex-end;gap:10px}
   .topbar-link,.topbar-btn,.user-pill{padding:10px 12px}
-  body.viewer-open .stage-scroll{padding:12px 10px 34px;overflow-x:hidden}
-  body.viewer-open .page-frame{transform-origin:top left}
+  body.viewer-open .stage-scroll{padding:12px 10px 34px;overflow-x:hidden;overflow-y:auto}
+  body.viewer-open .page-frame{width:100%;max-width:100%;transform-origin:top center}
   body.viewer-open .designer-text{text-shadow:0 1px 10px rgba(0,0,0,.28)}
 }
 
