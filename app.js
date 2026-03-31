@@ -834,7 +834,7 @@ function bindStaticEvents() {
     const blockId = studioField.dataset.blockId || '';
     const field = studioField.dataset.studioField || '';
     if (!blockId || !field) return;
-    updatePicturesDesignerBlock(blockId, { [field]: studioField.value });
+    updatePicturesDesignerBlock(blockId, { [field]: studioField.value }, { render: false });
   });
 
   document.body.addEventListener('change', (e) => {
@@ -1269,7 +1269,15 @@ function addTextBlockToPicturesDesigner(insertIndex = null, style = 'body') {
   insertPicturesDesignerBlocks(createPicturesDesignerTextBlock({ style, size: style === 'hero' ? 'hero' : 'wide' }), insertIndex);
 }
 
-function updatePicturesDesignerBlock(blockId, patch = {}) {
+function rerenderPicturesDesignerPreserveScroll() {
+  const canvas = $('picturesDesignerCanvas');
+  const top = canvas ? canvas.scrollTop : 0;
+  renderPicturesDesigner();
+  if (canvas) canvas.scrollTop = top;
+}
+
+function updatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
+  const shouldRender = options.render !== false;
   pictureDesignerBlocks = pictureDesignerBlocks.map((block) => {
     if (block.id !== blockId) return block;
     const next = { ...block, ...patch };
@@ -1286,6 +1294,7 @@ function updatePicturesDesignerBlock(blockId, patch = {}) {
     return next;
   });
   updatePicturesDesignerStatus();
+  if (shouldRender) rerenderPicturesDesignerPreserveScroll();
 }
 
 function movePicturesDesignerBlock(blockId, direction = 'down') {
@@ -1332,9 +1341,19 @@ function bindPicturesDesignerDrag() {
   document.querySelectorAll('.studioCanvasBlock').forEach((card) => {
     card.draggable = true;
     card.ondragstart = (event) => {
+      const target = event.target;
+      if (target?.closest('button, input, textarea, select, option, label, .studioResizeHandle, .studioBlockField')) {
+        event.preventDefault();
+        return false;
+      }
+      if (!target?.closest('.studioBlockToolbar, .studioBlockLabel')) {
+        event.preventDefault();
+        return false;
+      }
       pictureDesignerDragId = card.dataset.blockId || '';
       card.classList.add('is-dragging');
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      return true;
     };
     card.ondragend = () => {
       pictureDesignerDragId = '';
@@ -1352,8 +1371,17 @@ function bindPicturesDesignerDrag() {
       reorderPicturesDesignerBlocks(pictureDesignerDragId, card.dataset.blockId || '');
     };
   });
+  document.querySelectorAll('.studioCanvasBlock button, .studioCanvasBlock input, .studioCanvasBlock textarea, .studioCanvasBlock select').forEach((el) => {
+    el.draggable = false;
+    el.onmousedown = (event) => event.stopPropagation();
+  });
   document.querySelectorAll('.studioResizeHandle').forEach((handle) => {
-    handle.onpointerdown = (event) => startPicturesDesignerResize(event, handle.dataset.blockId || '');
+    handle.draggable = false;
+    handle.onmousedown = (event) => event.stopPropagation();
+    handle.onpointerdown = (event) => {
+      event.stopPropagation();
+      startPicturesDesignerResize(event, handle.dataset.blockId || '');
+    };
   });
 }
 
