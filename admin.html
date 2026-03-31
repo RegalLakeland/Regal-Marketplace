@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marketplace Admin</title>
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body class="admin-page">
   <header class="topbar admin-topbar">
@@ -23,7 +23,7 @@
 
   <main class="admin-wrap admin-workspace">
     <section class="admin-overview-grid">
-      <article class="admin-stat-card">
+      <article class="admin-stat-card admin-stat-card-hero">
         <div class="admin-stat-label">Online Now</div>
         <div class="admin-stat-value" id="adminOnlineCountHero">0</div>
         <div class="admin-stat-sub">Employees currently active on the site</div>
@@ -55,11 +55,11 @@
       </article>
     </section>
 
-    <section class="panel admin-section-card">
+    <section class="panel admin-section-card admin-presence-panel">
       <div class="panel-h">
         <div>
           <div class="panel-title">Live Website Activity</div>
-          <div class="meta">Immediately see who is online without digging through filters.</div>
+          <div class="meta">Instant presence view for admins without taking over the full page.</div>
         </div>
         <div class="admin-summary">
           <span class="pill" id="adminOnlineCount">0 online</span>
@@ -71,7 +71,97 @@
       </div>
     </section>
 
-    <section class="panel admin-section-card admin-activity-section">
+    <section class="admin-control-grid">
+      <section class="panel admin-section-card" id="userAccessPanel">
+        <div class="panel-h admin-section-head">
+          <div>
+            <div class="panel-title">Access Review</div>
+            <div class="meta">Pending approvals, blocked users, deleted accounts, duplicates, and account controls in one clean workspace.</div>
+          </div>
+        </div>
+        <div class="panel-b">
+          <div class="admin-filter-bar" id="adminQuickFilters">
+            <button class="admin-filter-chip active" data-admin-filter="PENDING" type="button">Pending</button>
+            <button class="admin-filter-chip" data-admin-filter="ONLINE" type="button">Online</button>
+            <button class="admin-filter-chip" data-admin-filter="BANNED" type="button">Blocked</button>
+            <button class="admin-filter-chip" data-admin-filter="DELETED" type="button">Deleted</button>
+            <button class="admin-filter-chip" data-admin-filter="DUPLICATES" type="button">Duplicates</button>
+            <button class="admin-filter-chip" data-admin-filter="ADMIN" type="button">Admins</button>
+            <button class="admin-filter-chip" data-admin-filter="MODERATOR" type="button">Moderators</button>
+            <button class="admin-filter-chip" data-admin-filter="ALL" type="button">All Users</button>
+          </div>
+
+          <div class="admin-tools admin-tools-clean">
+            <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
+            <select id="userFilter" class="adminFilter">
+              <option value="ALL">All Users</option>
+              <option value="PENDING" selected>Pending Access</option>
+              <option value="ONLINE">Online Now</option>
+              <option value="ADMIN">Admins</option>
+              <option value="MODERATOR">Moderators</option>
+              <option value="BANNED">Blocked</option>
+              <option value="DUPLICATES">Duplicates</option>
+              <option value="DELETED">Deleted Accounts</option>
+            </select>
+            <div class="admin-summary">
+              <span class="pill" id="adminPendingCount">0 pending</span>
+              <span class="pill" id="adminActiveFilterLabel">Showing pending approvals</span>
+            </div>
+          </div>
+
+          <div class="table-scroll admin-table-shell admin-table-shell-tall">
+            <table class="adminTable">
+              <thead>
+                <tr><th>User</th><th>Full Name</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-grid admin-grid-clean admin-right-rail">
+        <section class="panel admin-section-card">
+          <div class="panel-h">
+            <div>
+              <div class="panel-title">Listings</div>
+              <div class="meta">Per-post thread controls, hard delete, feature, hide, and status changes.</div>
+            </div>
+          </div>
+          <div class="panel-b table-scroll admin-table-shell admin-table-shell-compact">
+            <table class="adminTable">
+              <thead>
+                <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Thread</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="listingRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel admin-section-card">
+          <div class="panel-h">
+            <div>
+              <div class="panel-title">Moderation Queue</div>
+              <div class="meta">Flagged posts and replies appear here for admin or moderator review.</div>
+            </div>
+            <div class="admin-summary">
+              <span class="pill" id="adminFlagOpenCount">0 open</span>
+              <span class="pill" id="adminReplyCount">0 replies</span>
+            </div>
+          </div>
+          <div class="panel-b table-scroll admin-table-shell admin-table-shell-compact">
+            <table class="adminTable">
+              <thead>
+                <tr><th>When</th><th>Type</th><th>Post</th><th>Content</th><th>Flags</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="moderationRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </section>
+
+    <section class="panel admin-section-card admin-activity-section admin-activity-bottom">
       <div class="panel-h">
         <div>
           <div class="panel-title">Recent Activity</div>
@@ -139,102 +229,14 @@
             </div>
             <div class="activity-side-card">
               <div class="activity-side-label">Admin View</div>
-              <div class="activity-side-sub">Live presence stays above. This section is now its own compact review area with a fixed scroll body so admins can handle large user counts without the page getting buried.</div>
+              <div class="activity-side-sub">Live presence stays near the top. Recent activity now sits at the bottom so approvals and listing controls stay front and center for daily admin work.</div>
             </div>
           </aside>
         </div>
       </div>
     </section>
-
-    <section class="panel admin-section-card" id="userAccessPanel">
-      <div class="panel-h admin-section-head">
-        <div>
-          <div class="panel-title">Access Review</div>
-          <div class="meta">Pending approvals, blocked users, deleted accounts, duplicates, and account controls in one clean workspace.</div>
-        </div>
-      </div>
-      <div class="panel-b">
-        <div class="admin-filter-bar" id="adminQuickFilters">
-          <button class="admin-filter-chip active" data-admin-filter="PENDING" type="button">Pending</button>
-          <button class="admin-filter-chip" data-admin-filter="ONLINE" type="button">Online</button>
-          <button class="admin-filter-chip" data-admin-filter="BANNED" type="button">Blocked</button>
-          <button class="admin-filter-chip" data-admin-filter="DELETED" type="button">Deleted</button>
-          <button class="admin-filter-chip" data-admin-filter="DUPLICATES" type="button">Duplicates</button>
-          <button class="admin-filter-chip" data-admin-filter="ADMIN" type="button">Admins</button>
-          <button class="admin-filter-chip" data-admin-filter="MODERATOR" type="button">Moderators</button>
-          <button class="admin-filter-chip" data-admin-filter="ALL" type="button">All Users</button>
-        </div>
-
-        <div class="admin-tools admin-tools-clean">
-          <input id="userSearch" class="adminSearch" type="search" placeholder="Search by email or name" />
-          <select id="userFilter" class="adminFilter">
-            <option value="ALL">All Users</option>
-            <option value="PENDING" selected>Pending Access</option>
-            <option value="ONLINE">Online Now</option>
-            <option value="ADMIN">Admins</option>
-            <option value="MODERATOR">Moderators</option>
-            <option value="BANNED">Blocked</option>
-            <option value="DUPLICATES">Duplicates</option>
-            <option value="DELETED">Deleted Accounts</option>
-          </select>
-          <div class="admin-summary">
-            <span class="pill" id="adminPendingCount">0 pending</span>
-            <span class="pill" id="adminActiveFilterLabel">Showing pending approvals</span>
-          </div>
-        </div>
-
-        <div class="table-scroll admin-table-shell">
-          <table class="adminTable">
-            <thead>
-              <tr><th>User</th><th>Full Name</th><th>Status</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="userRows"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="admin-grid admin-grid-clean">
-      <section class="panel admin-section-card">
-        <div class="panel-h">
-          <div>
-            <div class="panel-title">Listings</div>
-            <div class="meta">Per-post thread controls, hard delete, feature, hide, and status changes.</div>
-          </div>
-        </div>
-        <div class="panel-b table-scroll admin-table-shell">
-          <table class="adminTable">
-            <thead>
-              <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Thread</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="listingRows"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel admin-section-card">
-        <div class="panel-h">
-          <div>
-            <div class="panel-title">Moderation Queue</div>
-            <div class="meta">Flagged posts and replies appear here for admin or moderator review.</div>
-          </div>
-          <div class="admin-summary">
-            <span class="pill" id="adminFlagOpenCount">0 open</span>
-            <span class="pill" id="adminReplyCount">0 replies</span>
-          </div>
-        </div>
-        <div class="panel-b table-scroll admin-table-shell">
-          <table class="adminTable">
-            <thead>
-              <tr><th>When</th><th>Type</th><th>Post</th><th>Content</th><th>Flags</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="moderationRows"></tbody>
-          </table>
-        </div>
-      </section>
-    </section>
   </main>
 
-  <script type="module" src="admin.js?v=9"></script>
+  <script type="module" src="admin.js?v=10"></script>
 </body>
 </html>
