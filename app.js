@@ -382,6 +382,8 @@ let eventResponsesUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
+let pictureStudioItems = [];
+let pictureStudioDragId = '';
 let lastStatusMessageShown = '';
 let loginInFlight = false;
 let signupInFlight = false;
@@ -644,32 +646,57 @@ function bindStaticEvents() {
   $('eventImageOverlay')?.addEventListener('click', (e) => { if (e.target === $('eventImageOverlay')) hide('eventImageOverlay'); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('eventImageOverlay')?.style.display === 'flex') hide('eventImageOverlay'); });
 
-  const openPost = () => {
-  if (!currentUser) {
-    alert('Please log in first.');
-    return;
-  }
-  if (!hasRulesAcceptance(currentProfile)) {
-    showRulesOverlay();
-    alert('You must accept the marketplace rules before using the marketplace.');
-    return;
-  }
-  resetPostEditor();
-  configurePostBoardOptions();
-  const preferredBoard = (activeBoard && activeBoard !== 'ALL') ? activeBoard : 'FREE';
-  if ($('fBoard')) {
-    $('fBoard').value = preferredBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : preferredBoard;
-  }
-  refreshPhotoFieldHint();
-  show('postOverlay');
-};
+  const openPost = (preferredBoardOverride = '') => {
+    if (!currentUser) {
+      alert('Please log in first.');
+      return;
+    }
+    if (!hasRulesAcceptance(currentProfile)) {
+      showRulesOverlay();
+      alert('You must accept the marketplace rules before using the marketplace.');
+      return;
+    }
+    resetPostEditor();
+    configurePostBoardOptions();
+    const fallbackBoard = (activeBoard && activeBoard !== 'ALL') ? activeBoard : 'FREE';
+    const preferredBoard = preferredBoardOverride || fallbackBoard;
+    if ($('fBoard')) {
+      $('fBoard').value = preferredBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : preferredBoard;
+    }
+    refreshPhotoFieldHint();
+    refreshPostComposerMode();
+    show('postOverlay');
+  };
 
-  $('btnNew')?.addEventListener('click', openPost);
-  $('heroPostBtn')?.addEventListener('click', openPost);
+  $('btnNew')?.addEventListener('click', () => openPost(activeBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : ''));
+  $('heroPostBtn')?.addEventListener('click', () => openPost(activeBoard === 'PICTURES' ? 'FREE' : ''));
+  $('heroPicturesBtn')?.addEventListener('click', () => openPost('PICTURES'));
   $('heroFreeBtn')?.addEventListener('click', () => {
     activeBoard = 'FREE';
     renderBoards();
     renderListings();
+  });
+
+  $('pictureStudioBrowseBtn')?.addEventListener('click', () => $('pictureDropInput')?.click());
+  $('pictureDropZone')?.addEventListener('click', () => $('pictureDropInput')?.click());
+  $('pictureStudioClearBtn')?.addEventListener('click', () => resetPictureStudioItems());
+  $('pictureDropInput')?.addEventListener('change', (event) => {
+    enqueuePictureStudioFiles(Array.from(event.target.files || []));
+    event.target.value = '';
+  });
+  ['dragenter', 'dragover'].forEach((eventName) => {
+    $('pictureDropZone')?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      $('pictureDropZone')?.classList.add('is-dragover');
+    });
+  });
+  ['dragleave', 'dragend'].forEach((eventName) => {
+    $('pictureDropZone')?.addEventListener(eventName, () => $('pictureDropZone')?.classList.remove('is-dragover'));
+  });
+  $('pictureDropZone')?.addEventListener('drop', (event) => {
+    event.preventDefault();
+    $('pictureDropZone')?.classList.remove('is-dragover');
+    enqueuePictureStudioFiles(Array.from(event.dataTransfer?.files || []));
   });
 
   $('btnSavePost')?.addEventListener('click', handleSavePost);
@@ -691,13 +718,27 @@ function bindStaticEvents() {
   $('q')?.addEventListener('input', renderListings);
   $('st')?.addEventListener('change', renderListings);
   $('sort')?.addEventListener('change', renderListings);
-  $('fBoard')?.addEventListener('change', refreshPhotoFieldHint);
+  $('fBoard')?.addEventListener('change', () => { refreshPhotoFieldHint(); refreshPostComposerMode(); });
 
   document.body.addEventListener('click', async (e) => {
     const actionEl = e.target.closest('[data-action]');
     if (!actionEl) return;
 
     const action = actionEl.dataset.action;
+    const pictureId = actionEl.dataset.pictureId || '';
+    if (action === 'pictureMoveLeft') {
+      movePictureStudioItem(pictureId, 'left');
+      return;
+    }
+    if (action === 'pictureMoveRight') {
+      movePictureStudioItem(pictureId, 'right');
+      return;
+    }
+    if (action === 'pictureRemove') {
+      removePictureStudioItem(pictureId);
+      return;
+    }
+
     const id = actionEl.dataset.id;
     if (!id) return;
 
@@ -720,6 +761,17 @@ function bindStaticEvents() {
       markThreadSeen(id, Date.now());
     }
   });
+
+  document.body.addEventListener('change', (e) => {
+    const layoutSelect = e.target.closest('[data-picture-layout]');
+    if (!layoutSelect) return;
+    const pictureId = layoutSelect.dataset.pictureLayout || '';
+    const target = pictureStudioItems.find((item) => item.id === pictureId);
+    if (!target) return;
+    target.layout = normalizePictureLayout(layoutSelect.value);
+  });
+
+  syncHeroComposerButtons();
 }
 
 function showPane(which) {
@@ -801,6 +853,206 @@ function canPostPicturesBoard() {
   return !!currentUser && (canModerate() || PICTURES_CURATORS.has(normalizeEmail(currentUser?.email)));
 }
 
+function normalizePictureLayout(value) {
+  const layout = String(value || '').toLowerCase();
+  if (['hero', 'wide', 'tall'].includes(layout)) return layout;
+  return 'standard';
+}
+
+function releasePictureStudioItem(item) {
+  if (item?.previewUrl && item?.previewObjectUrl) {
+    try { URL.revokeObjectURL(item.previewUrl); } catch (_) {}
+  }
+}
+
+function createPictureStudioItem({ file = null, url = '', name = '', layout = 'standard' } = {}) {
+  const previewUrl = url || (file ? URL.createObjectURL(file) : '');
+  return {
+    id: `pic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    file,
+    sourceUrl: url || '',
+    previewUrl,
+    previewObjectUrl: !url && !!file,
+    name: name || file?.name || 'Photo',
+    layout: normalizePictureLayout(layout)
+  };
+}
+
+function resetPictureStudioItems() {
+  pictureStudioItems.forEach(releasePictureStudioItem);
+  pictureStudioItems = [];
+  pictureStudioDragId = '';
+  renderPictureStudioList();
+}
+
+function enqueuePictureStudioFiles(files = []) {
+  const incoming = Array.from(files || []).filter((file) => String(file?.type || '').startsWith('image/'));
+  if (!incoming.length) return;
+  const next = incoming.map((file) => createPictureStudioItem({ file }));
+  pictureStudioItems = [...pictureStudioItems, ...next];
+  renderPictureStudioList();
+}
+
+function setPictureStudioItems(items = []) {
+  resetPictureStudioItems();
+  pictureStudioItems = items.map((item) => createPictureStudioItem(item));
+  renderPictureStudioList();
+}
+
+function movePictureStudioItem(itemId, direction) {
+  const index = pictureStudioItems.findIndex((item) => item.id === itemId);
+  if (index < 0) return;
+  const swapIndex = direction === 'left' ? index - 1 : index + 1;
+  if (swapIndex < 0 || swapIndex >= pictureStudioItems.length) return;
+  const clone = pictureStudioItems.slice();
+  [clone[index], clone[swapIndex]] = [clone[swapIndex], clone[index]];
+  pictureStudioItems = clone;
+  renderPictureStudioList();
+}
+
+function reorderPictureStudioItems(fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+  const fromIndex = pictureStudioItems.findIndex((item) => item.id === fromId);
+  const toIndex = pictureStudioItems.findIndex((item) => item.id === toId);
+  if (fromIndex < 0 || toIndex < 0) return;
+  const clone = pictureStudioItems.slice();
+  const [moved] = clone.splice(fromIndex, 1);
+  clone.splice(toIndex, 0, moved);
+  pictureStudioItems = clone;
+  renderPictureStudioList();
+}
+
+function removePictureStudioItem(itemId) {
+  const target = pictureStudioItems.find((item) => item.id === itemId);
+  if (!target) return;
+  releasePictureStudioItem(target);
+  pictureStudioItems = pictureStudioItems.filter((item) => item.id !== itemId);
+  renderPictureStudioList();
+}
+
+function attachPictureStudioDragHandlers() {
+  const cards = document.querySelectorAll('.pictureStudioItem');
+  cards.forEach((card) => {
+    card.addEventListener('dragstart', () => {
+      pictureStudioDragId = card.dataset.pictureId || '';
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      pictureStudioDragId = '';
+      cards.forEach((entry) => entry.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+    card.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const targetId = card.dataset.pictureId || '';
+      card.classList.remove('drag-over');
+      reorderPictureStudioItems(pictureStudioDragId, targetId);
+    });
+  });
+}
+
+function renderPictureStudioList() {
+  const wrap = $('pictureStudioList');
+  const count = $('pictureStudioCount');
+  if (count) {
+    count.textContent = `${pictureStudioItems.length} photo${pictureStudioItems.length === 1 ? '' : 's'} ready`;
+  }
+  if (!wrap) return;
+  if (!pictureStudioItems.length) {
+    wrap.innerHTML = '<div class="pictureStudioEmpty">Drop images here to build the gallery. You can drag cards to reorder them after upload.</div>';
+    return;
+  }
+  wrap.innerHTML = pictureStudioItems.map((item, index) => `
+    <article class="pictureStudioItem" data-picture-id="${esc(item.id)}" draggable="true">
+      <div class="pictureStudioItemMedia">
+        <img src="${esc(item.previewUrl)}" alt="${esc(item.name)}" loading="lazy" />
+        <span class="pictureStudioBadge">${index === 0 ? 'Cover' : `#${index + 1}`}</span>
+      </div>
+      <div class="pictureStudioItemBody">
+        <div class="pictureStudioItemTop">
+          <strong>${esc(item.name)}</strong>
+          <span>Drag to reorder</span>
+        </div>
+        <div class="pictureStudioControls">
+          <label>Display size</label>
+          <select data-picture-layout="${esc(item.id)}">
+            <option value="standard" ${item.layout === 'standard' ? 'selected' : ''}>Standard</option>
+            <option value="wide" ${item.layout === 'wide' ? 'selected' : ''}>Wide</option>
+            <option value="tall" ${item.layout === 'tall' ? 'selected' : ''}>Tall</option>
+            <option value="hero" ${item.layout === 'hero' ? 'selected' : ''}>Hero</option>
+          </select>
+        </div>
+        <div class="rowBtns pictureStudioItemActions">
+          <button class="btn ghost" data-action="pictureMoveLeft" data-picture-id="${esc(item.id)}" type="button">Move Left</button>
+          <button class="btn ghost" data-action="pictureMoveRight" data-picture-id="${esc(item.id)}" type="button">Move Right</button>
+          <button class="btn danger" data-action="pictureRemove" data-picture-id="${esc(item.id)}" type="button">Remove</button>
+        </div>
+      </div>
+    </article>
+  `).join('');
+  attachPictureStudioDragHandlers();
+}
+
+function setFieldMode(inputId, visible, { label = '', placeholder = '', disabled = false } = {}) {
+  const input = $(inputId);
+  if (!input) return;
+  const field = input.closest('.field');
+  if (field) field.style.display = visible ? '' : 'none';
+  if (label && field?.querySelector('label')) field.querySelector('label').textContent = label;
+  if (placeholder) input.placeholder = placeholder;
+  input.disabled = !!disabled;
+}
+
+function refreshPostComposerMode() {
+  const board = $('fBoard')?.value || 'FREE';
+  const pictureMode = board === 'PICTURES';
+  const overlayModal = $('postOverlay')?.querySelector('.modal');
+  overlayModal?.classList.toggle('pictureStudioMode', pictureMode);
+  const titleEl = $('postOverlay')?.querySelector('.modal-h strong');
+  const isEditing = !!editingPostId;
+  if (titleEl) titleEl.textContent = pictureMode ? (isEditing ? 'Edit Picture Gallery' : 'Create Picture Gallery') : (isEditing ? 'Edit Post' : 'Create Post');
+  if ($('btnSavePost')) $('btnSavePost').textContent = pictureMode ? (isEditing ? 'Save Gallery' : 'Publish Gallery') : (isEditing ? 'Save Changes' : 'Post Listing');
+  if ($('pictureStudioShell')) $('pictureStudioShell').style.display = pictureMode ? 'grid' : 'none';
+
+  setFieldMode('fStatus', !pictureMode, { label: 'Status' });
+  setFieldMode('fPrice', !pictureMode, { label: 'Price (optional)', placeholder: '0 for free, 25, 100…' });
+  setFieldMode('fDesc', !pictureMode, { label: 'Description', placeholder: 'Condition, pickup window, details…' });
+  setFieldMode('fPhoto', !pictureMode, { label: 'Photos (optional)' });
+  setFieldMode('fTitle', true, { label: pictureMode ? 'Gallery title (optional)' : 'Title', placeholder: pictureMode ? 'Employee appreciation lunch • New inventory shoot…' : 'e.g. Free couch • Garage sale Saturday…' });
+  setFieldMode('fLocation', true, { label: pictureMode ? 'Event / location (optional)' : 'Location (optional)', placeholder: pictureMode ? 'Regal Honda showroom • Lakeland • March 2026' : 'Lakeland, Plant City…' });
+  setFieldMode('fContact', true, { label: pictureMode ? 'Photographer credit / contact (optional)' : 'Contact person name / details (optional)', placeholder: pictureMode ? 'Ariel Restituyo Garcia • Regal Lakeland' : 'Contact name | text/call/email or where to find you at work' });
+
+  const boardSelect = $('fBoard');
+  if (boardSelect) boardSelect.disabled = false;
+}
+
+function hydratePictureStudioFromListing(item) {
+  const urls = getListingImageUrls(item);
+  const layouts = Array.isArray(item?.imageLayouts) ? item.imageLayouts : [];
+  if (!urls.length) {
+    resetPictureStudioItems();
+    return;
+  }
+  setPictureStudioItems(urls.map((url, index) => ({
+    url,
+    name: `${item?.title || 'Gallery'} ${index + 1}`,
+    layout: layouts[index] || 'standard'
+  })));
+}
+
+function syncHeroComposerButtons() {
+  const heroPostBtn = $('heroPostBtn');
+  const heroPicturesBtn = $('heroPicturesBtn');
+  const onPicturesBoard = activeBoard === 'PICTURES';
+  if (heroPostBtn) heroPostBtn.style.display = onPicturesBoard ? 'none' : '';
+  if (heroPicturesBtn) heroPicturesBtn.style.display = onPicturesBoard && canPostPicturesBoard() ? '' : 'none';
+}
+
 function configurePostBoardOptions() {
   const boardSelect = $('fBoard');
   if (!boardSelect) return;
@@ -812,6 +1064,8 @@ function configurePostBoardOptions() {
     if (!allowed && boardSelect.value === 'PICTURES') boardSelect.value = 'FREE';
   }
   refreshPhotoFieldHint();
+  refreshPostComposerMode();
+  syncHeroComposerButtons();
 }
 
 function refreshPhotoFieldHint() {
@@ -820,8 +1074,8 @@ function refreshPhotoFieldHint() {
   const board = $('fBoard')?.value || 'FREE';
   if (board === 'PICTURES') {
     hint.textContent = canPostPicturesBoard()
-      ? 'Pictures is a curated gallery board for admins and Ariel Restituyo Garcia. Upload one or more images and the gallery page will display them in a photography-style layout.'
-      : 'Pictures is a curated gallery board managed by admins and Ariel Restituyo Garcia.';
+      ? 'Pictures is a curated gallery board for admins, moderators, and Ariel Restituyo Garcia. Drag photos into the studio, reorder them, and control how large each image appears.'
+      : 'Pictures is a curated gallery board managed by admins, moderators, and Ariel Restituyo Garcia.';
     return;
   }
   hint.textContent = 'Normal posts stay compact in the feed with a standard preview image. Open the thread to view the full photo.';
@@ -2151,6 +2405,17 @@ function getListingImageUrls(item) {
   return urls.filter(Boolean);
 }
 
+function getListingImageLayouts(item) {
+  if (!Array.isArray(item?.imageLayouts)) return [];
+  return item.imageLayouts.map((layout) => normalizePictureLayout(layout));
+}
+
+function getPictureGalleryImages(item) {
+  const urls = getListingImageUrls(item);
+  const layouts = getListingImageLayouts(item);
+  return urls.map((url, index) => ({ url, layout: layouts[index] || 'standard' }));
+}
+
 function getListingDisplayValue(item) {
   const board = String(item?.board || item?.category || '').toUpperCase();
   if (board === 'PICTURES') {
@@ -2163,23 +2428,23 @@ function getListingDisplayValue(item) {
 }
 
 function buildGalleryPreview(item) {
-  const images = getListingImageUrls(item);
+  const images = getPictureGalleryImages(item);
   if (!images.length) return '';
   const preview = images.slice(0, 4);
   const extra = images.length - preview.length;
-  return `<div class="galleryPreview galleryPreview-${preview.length}">${preview.map((url, idx) => `<div class="galleryPreviewCell ${idx === 0 ? 'primary' : ''}"><img src="${esc(url)}" alt="${esc(item?.title || 'Gallery image')}" loading="lazy" /></div>`).join('')}${extra > 0 ? `<div class="galleryPreviewMore">+${extra}</div>` : ''}</div>`;
+  return `<div class="galleryPreview galleryPreview-${preview.length}">${preview.map((image, idx) => `<div class="galleryPreviewCell ${idx === 0 ? 'primary' : ''} layout-${esc(image.layout)}"><img src="${esc(image.url)}" alt="${esc(item?.title || 'Gallery image')}" loading="lazy" /></div>`).join('')}${extra > 0 ? `<div class="galleryPreviewMore">+${extra}</div>` : ''}</div>`;
 }
 
 function buildThreadGallery(item) {
-  const images = getListingImageUrls(item);
+  const images = getPictureGalleryImages(item);
   if (!images.length) return '';
-  return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((url, idx) => `<div class="thread-gallery-item"><img class="thread-gallery-image" src="${esc(url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
+  return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((image, idx) => `<div class="thread-gallery-item layout-${esc(image.layout)}"><img class="thread-gallery-image" src="${esc(image.url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
 }
 
 function buildPictureGalleryFeed(items) {
   return `<div class="pictureGalleryGrid">${items.map((item) => {
-    const imageUrls = getListingImageUrls(item);
-    const preview = imageUrls.slice(0, 4);
+    const images = getPictureGalleryImages(item);
+    const preview = images.slice(0, 4);
     const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
     const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
     const posterName = getPosterDisplayName(item);
@@ -2190,7 +2455,7 @@ function buildPictureGalleryFeed(items) {
     const markButton = canEdit && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : '';
     const mosaicClass = `pictureMosaic pictureMosaic-${Math.min(Math.max(preview.length, 1), 4)}`;
     const mosaic = preview.length
-      ? `<div class="${mosaicClass}">${preview.map((url, idx) => `<div class="pictureMosaicCell ${idx === 0 ? 'lead' : ''}"><img src="${esc(url)}" alt="${esc((item?.title || 'Picture') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}${imageUrls.length > preview.length ? `<div class="pictureMosaicMore">+${imageUrls.length - preview.length}</div>` : ''}</div>`
+      ? `<div class="${mosaicClass}">${preview.map((image, idx) => `<div class="pictureMosaicCell ${idx === 0 ? 'lead' : ''} layout-${esc(image.layout)}"><img src="${esc(image.url)}" alt="${esc((item?.title || 'Picture') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}${images.length > preview.length ? `<div class="pictureMosaicMore">+${images.length - preview.length}</div>` : ''}</div>`
       : `<div class="${mosaicClass}"><div class="pictureMosaicCell lead pictureMosaicPlaceholder"><span>No image</span></div></div>`;
     return `
       <article class="pictureGalleryCard ${item.featured ? 'pictureGalleryCard-featured' : ''}" data-thread-card-id="${esc(item.id)}">
@@ -2198,7 +2463,7 @@ function buildPictureGalleryFeed(items) {
           ${mosaic}
           <div class="pictureGalleryOverlay">
             <span class="pictureGalleryTag">Pictures</span>
-            <span class="pictureGalleryCount">${esc(imageUrls.length ? `${imageUrls.length} photo${imageUrls.length === 1 ? '' : 's'}` : 'Gallery')}</span>
+            <span class="pictureGalleryCount">${esc(images.length ? `${images.length} photo${images.length === 1 ? '' : 's'}` : 'Gallery')}</span>
           </div>
         </button>
         <div class="pictureGalleryCardBody">
@@ -2241,8 +2506,10 @@ function resetPostEditor() {
   if ($('fDesc')) $('fDesc').value = '';
   if ($('fContact')) $('fContact').value = '';
   if ($('fPhoto')) $('fPhoto').value = '';
+  resetPictureStudioItems();
   configurePostBoardOptions();
   refreshPhotoFieldHint();
+  refreshPostComposerMode();
 }
 
 function openPostEditor(id) {
@@ -2260,8 +2527,14 @@ function openPostEditor(id) {
   if ($('fDesc')) $('fDesc').value = item.description || item.desc || '';
   if ($('fContact')) $('fContact').value = item.contact || '';
   if ($('fPhoto')) $('fPhoto').value = '';
+  if (String(item.board || '').toUpperCase() === 'PICTURES') {
+    hydratePictureStudioFromListing(item);
+  } else {
+    resetPictureStudioItems();
+  }
   configurePostBoardOptions();
   refreshPhotoFieldHint();
+  refreshPostComposerMode();
   show('postOverlay');
 }
 
@@ -2285,6 +2558,8 @@ function renderListings() {
   updateHeroPeopleStats();
   renderEventSpotlight();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
+  if ($('heroFreeBtn')) $('heroFreeBtn').textContent = activeBoard === 'PICTURES' ? 'Browse Free Items' : 'Browse Free Items';
+  syncHeroComposerButtons();
 
   if (!data.length) {
     wrap.innerHTML = '';
@@ -2384,24 +2659,28 @@ async function handleSavePost() {
     return;
   }
 
-  const title = $('fTitle')?.value.trim();
-  const description = $('fDesc')?.value.trim();
+  const rawTitle = $('fTitle')?.value.trim() || '';
+  const rawDescription = $('fDesc')?.value.trim() || '';
   const board = $('fBoard')?.value || 'BUYSELL';
-  const status = $('fStatus')?.value || 'ACTIVE';
-  if (board === 'PICTURES' && !canPostPicturesBoard()) {
+  const pictureMode = board === 'PICTURES';
+  const status = pictureMode ? 'ACTIVE' : ($('fStatus')?.value || 'ACTIVE');
+  if (pictureMode && !canPostPicturesBoard()) {
     alert('Only approved gallery managers can post in Pictures.');
     return;
   }
   const location = $('fLocation')?.value.trim() || '';
   const contact = $('fContact')?.value.trim() || '';
-  const priceRaw = $('fPrice')?.value.trim() || '';
+  const priceRaw = pictureMode ? '0' : ($('fPrice')?.value.trim() || '');
   const files = Array.from($('fPhoto')?.files || []);
+
+  const title = rawTitle || (pictureMode ? `Gallery • ${new Date().toLocaleDateString()}` : '');
+  const description = pictureMode ? rawDescription : rawDescription;
 
   if (!title) {
     alert('Enter a title.');
     return;
   }
-  if (!description) {
+  if (!pictureMode && !description) {
     alert('Enter a description.');
     return;
   }
@@ -2409,6 +2688,7 @@ async function handleSavePost() {
   const moderationScan = detectModerationIssues([title, description, location, contact].join(' '));
   let imageUrl = '';
   let imageUrls = [];
+  let imageLayouts = [];
   isSavingPost = true;
   if ($('btnSavePost')) $('btnSavePost').disabled = true;
   try {
@@ -2421,8 +2701,32 @@ async function handleSavePost() {
       }
       imageUrl = existing.imageUrl || existing.photo || '';
       imageUrls = getListingImageUrls(existing);
+      imageLayouts = getListingImageLayouts(existing);
     }
-    if (files.length) {
+
+    if (pictureMode) {
+      const studioItems = pictureStudioItems.slice();
+      if (!studioItems.length) {
+        alert('Please add at least one photo for the Pictures board.');
+        return;
+      }
+      const finalUrls = [];
+      const finalLayouts = [];
+      for (const [index, item] of studioItems.entries()) {
+        if (item.file) {
+          const safeName = `${Date.now()}-${index}-${String(item.file.name || 'photo').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
+          await uploadBytes(storageRef, item.file);
+          finalUrls.push(await getDownloadURL(storageRef));
+        } else if (item.sourceUrl || item.previewUrl) {
+          finalUrls.push(item.sourceUrl || item.previewUrl);
+        }
+        finalLayouts.push(normalizePictureLayout(item.layout));
+      }
+      imageUrls = finalUrls;
+      imageLayouts = finalLayouts;
+      imageUrl = finalUrls[0] || '';
+    } else if (files.length) {
       const uploadedUrls = [];
       for (const [index, file] of files.entries()) {
         const safeName = `${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
@@ -2432,9 +2736,10 @@ async function handleSavePost() {
       }
       imageUrls = uploadedUrls;
       imageUrl = uploadedUrls[0] || '';
+      imageLayouts = [];
     }
 
-    if (board === 'PICTURES' && !imageUrls.length && !imageUrl) {
+    if (pictureMode && !imageUrls.length && !imageUrl) {
       alert('Please upload at least one photo for the Pictures board.');
       return;
     }
@@ -2453,6 +2758,7 @@ async function handleSavePost() {
       photo: imageUrl,
       imageUrl,
       imageUrls,
+      imageLayouts,
       moderationFlagged: moderationScan.flagged,
       moderationLabels: moderationScan.matchedLabels,
       moderationMatchedTerms: moderationScan.matchedTerms,
@@ -2489,62 +2795,14 @@ async function handleSavePost() {
       lastThreadTitle: title
     }, { force: true });
 
-    if (moderationScan.flagged && listingId && (!editingPostId || !existing?.moderationFlagged)) {
-      await createModerationFlag({
-        sourceType: 'listing',
-        sourceKey: `listing:${listingId}`,
-        listingId,
-        listingTitle: title,
-        userEmail: currentUser.email || '',
-        displayName: currentProfile.displayName || currentUser.email || '',
-        textSnippet: buildModerationSnippet(`${title} — ${description}`),
-        matchedLabels: moderationScan.matchedLabels,
-        matchedTerms: moderationScan.matchedTerms,
-        severity: moderationScan.severity,
-        createdByUid: currentUser.uid,
-        createdByEmail: currentUser.email || ''
-      });
-    }
-
     resetPostEditor();
     hide('postOverlay');
-  } catch (err) {
-    console.error(err);
-    alert(`${err?.code || 'post_error'} — ${err?.message || 'Unable to save post.'}`);
+  } catch (error) {
+    console.error('Save post error', error);
+    alert(error?.message || 'Could not save post.');
   } finally {
     isSavingPost = false;
     if ($('btnSavePost')) $('btnSavePost').disabled = false;
-  }
-}
-
-async function handleMarkSold(id) {
-  const item = listings.find((x) => x.id === id);
-  if (!item || !canModify(item)) return;
-
-  try {
-    await updateDoc(doc(db, 'listings', id), {
-      status: 'SOLD',
-      reactivationRequested: false,
-      updatedAt: serverTimestamp()
-    });
-  } catch (err) {
-    console.error(err);
-    alert(err?.message || 'Unable to update post.');
-  }
-}
-
-async function handleRequestActive(id) {
-  const item = listings.find((x) => x.id === id);
-  if (!item || !currentUser || currentUser.uid !== item.uid) return;
-  try {
-    await updateDoc(doc(db, 'listings', id), {
-      reactivationRequested: true,
-      reactivationRequestedAt: Date.now(),
-      updatedAt: serverTimestamp()
-    });
-  } catch (err) {
-    console.error(err);
-    alert(err?.message || 'Unable to request reactivation.');
   }
 }
 

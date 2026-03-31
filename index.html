@@ -207,6 +207,7 @@
           <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share events, upload photo galleries, and keep useful finds inside the dealership community.</p>
           <div class="rowBtns hero-actions">
             <button class="btn primary" id="heroPostBtn" type="button">Post Item</button>
+            <button class="btn primary" id="heroPicturesBtn" type="button" style="display:none">Upload Pictures</button>
             <button class="btn ghost" id="heroFreeBtn" type="button">Browse Free Items</button>
             <button class="btn ghost notifBtn" id="heroThreadAlert" type="button" style="display:none">0 threads have new activity</button>
           </div>
@@ -363,10 +364,46 @@
             <label>Contact person name / details (optional)</label>
             <input id="fContact" placeholder="Contact name | text/call/email or where to find you at work" />
           </div>
-          <div class="field">
+          <div class="field" id="standardPhotoField">
             <label>Photos (optional)</label>
             <input id="fPhoto" type="file" accept="image/*" multiple />
             <div class="note" id="photoFieldHint">Normal posts stay compact in the feed with a standard preview image. Open the thread to view the full photo.</div>
+          </div>
+        </div>
+
+        <div class="pictureStudioShell" id="pictureStudioShell" style="display:none">
+          <div class="pictureStudioHeader">
+            <div>
+              <div class="pictureStudioEyebrow">Pictures Studio</div>
+              <h3>Photographer-friendly gallery uploader</h3>
+              <p>Drag photos in, reorder them, and choose how large each image should display in the gallery.</p>
+            </div>
+            <div class="rowBtns">
+              <button class="btn ghost" id="pictureStudioBrowseBtn" type="button">Add Photos</button>
+              <button class="btn ghost" id="pictureStudioClearBtn" type="button">Clear All</button>
+            </div>
+            <input id="pictureDropInput" type="file" accept="image/*" multiple hidden />
+          </div>
+          <div class="pictureStudioGrid">
+            <section class="pictureStudioPanel">
+              <div class="pictureStudioPanelHead">
+                <strong>Upload area</strong>
+                <span id="pictureStudioCount">0 photos ready</span>
+              </div>
+              <button class="pictureDropZone" id="pictureDropZone" type="button">
+                <span class="pictureDropZoneIcon">🖼️</span>
+                <strong>Drop photos here</strong>
+                <span>or click to browse. First photo becomes the gallery cover.</span>
+              </button>
+              <div class="note pictureStudioNote">This board is for curated image sets like work events, store photos, and featured vehicle shoots. Description is optional here.</div>
+            </section>
+            <section class="pictureStudioPanel">
+              <div class="pictureStudioPanelHead">
+                <strong>Photo order & display size</strong>
+                <span>Drag cards to reorder them</span>
+              </div>
+              <div class="pictureStudioList" id="pictureStudioList"></div>
+            </section>
           </div>
         </div>
 
@@ -410,6 +447,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=23"></script>
 </body>
 </html>
