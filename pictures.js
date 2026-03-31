@@ -461,6 +461,15 @@ async function loadProfile(uid) {
   currentProfile = snap.exists() ? snap.data() : null;
 }
 
+function syncStudioUrl(open) {
+  try {
+    const url = new URL(window.location.href);
+    if (open) url.searchParams.set('edit', '1');
+    else url.searchParams.delete('edit');
+    history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+  } catch (_) {}
+}
+
 async function savePage() {
   if (!isEditor() || saveInFlight) return;
   if (!canSavePage()) {
@@ -477,7 +486,14 @@ async function savePage() {
     dirty = false;
     remoteUpdatedAtMs = payload.updatedAtMs;
     localStorage.removeItem(LOCAL_DRAFT_KEY);
-    status('Gallery saved.');
+    editorMode = false;
+    toolsHidden = false;
+    selectedId = '';
+    syncStudioUrl(false);
+    render();
+    const stage = $('stageScroll');
+    if (stage) stage.scrollTo({ top: 0, behavior: 'smooth' });
+    status('Gallery saved. Opening published view...');
   } catch (error) {
     console.error(error);
     status(`Save failed: ${error.message || error}`, true);
@@ -682,8 +698,11 @@ function bindEvents() {
     if (!isEditor()) return;
     editorMode = !editorMode;
     toolsHidden = false;
+    syncStudioUrl(editorMode);
     status(editorMode ? 'Studio ready.' : 'Viewing published gallery.');
     render();
+    const stage = $('stageScroll');
+    if (stage) stage.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   $('savePageBtn').addEventListener('click', savePage);
