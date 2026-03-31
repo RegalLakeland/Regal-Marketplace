@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Lakeland Private Marketplace</title>
-  <link rel="stylesheet" href="styles.css?v=27" />
+  <link rel="stylesheet" href="styles.css?v=28" />
 </head>
 <body class="auth-open">
   <!-- WOW FACTOR BACKGROUND SLIDER -->
@@ -456,14 +456,156 @@
 
           <input id="studioImageInput" type="file" accept="image/*" multiple hidden />
 
+          <div class="studioControlCard">
+            <div class="studioControlCardHead">Canvas controls</div>
+            <div class="grid2">
+              <div class="field">
+                <label>Page height</label>
+                <input id="studioCanvasHeight" type="number" min="900" max="4200" step="100" value="1800" />
+              </div>
+              <div class="field">
+                <label>Snap to grid</label>
+                <button class="btn ghost studioFullWidthBtn" id="studioSnapToggle" type="button">Snap: On</button>
+              </div>
+            </div>
+            <div class="rowBtns studioMiniActions">
+              <button class="btn ghost" id="studioCanvasGrowBtn" type="button">+ More Height</button>
+              <button class="btn ghost" id="studioCanvasShrinkBtn" type="button">- Less Height</button>
+            </div>
+            <div class="note">This editor is now a real page builder. Drag blocks anywhere, resize them live, and hide the tools when you want nearly the full screen for layout work.</div>
+          </div>
+
+          <div class="studioControlCard">
+            <div class="studioControlCardHead">Selected element</div>
+            <div class="studioNoSelection" id="studioNoSelection">Click any image or text block on the canvas to edit it.</div>
+            <div id="studioSelectedPanel" style="display:none">
+              <div class="grid2">
+                <div class="field">
+                  <label>Type</label>
+                  <input id="studioSelectedType" disabled />
+                </div>
+                <div class="field">
+                  <label>Layer</label>
+                  <input id="studioLayer" type="number" min="1" max="99" step="1" />
+                </div>
+              </div>
+              <div class="grid2">
+                <div class="field">
+                  <label>X %</label>
+                  <input id="studioPosX" type="number" min="0" max="100" step="0.5" />
+                </div>
+                <div class="field">
+                  <label>Y %</label>
+                  <input id="studioPosY" type="number" min="0" max="100" step="0.5" />
+                </div>
+              </div>
+              <div class="grid2">
+                <div class="field">
+                  <label>Width %</label>
+                  <input id="studioSizeW" type="number" min="4" max="100" step="0.5" />
+                </div>
+                <div class="field">
+                  <label>Height %</label>
+                  <input id="studioSizeH" type="number" min="4" max="100" step="0.5" />
+                </div>
+              </div>
+              <div class="grid2" id="studioImageControls" style="display:none">
+                <div class="field">
+                  <label>Caption</label>
+                  <input id="studioImageCaption" placeholder="Caption under the photo" />
+                </div>
+                <div class="field">
+                  <label>Image fit</label>
+                  <select id="studioImageFit">
+                    <option value="cover">Cover</option>
+                    <option value="contain">Contain</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid2" id="studioImageStyleControls" style="display:none">
+                <div class="field">
+                  <label>Roundness</label>
+                  <input id="studioRadius" type="range" min="0" max="40" step="1" />
+                </div>
+                <div class="field">
+                  <label>Opacity</label>
+                  <input id="studioOpacity" type="range" min="0.2" max="1" step="0.05" />
+                </div>
+              </div>
+              <div id="studioTextControls" style="display:none">
+                <div class="field">
+                  <label>Heading</label>
+                  <input id="studioTextHeading" placeholder="Optional heading" />
+                </div>
+                <div class="field">
+                  <label>Text</label>
+                  <textarea id="studioTextBody" rows="5" placeholder="Write text anywhere on the page..."></textarea>
+                </div>
+                <div class="grid2">
+                  <div class="field">
+                    <label>Font size</label>
+                    <input id="studioFontSize" type="number" min="14" max="88" step="1" />
+                  </div>
+                  <div class="field">
+                    <label>Weight</label>
+                    <select id="studioFontWeight">
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                      <option value="800">Heavy</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="grid2">
+                  <div class="field">
+                    <label>Font</label>
+                    <select id="studioFontFamily">
+                      <option value="Inter, system-ui, sans-serif">Modern Sans</option>
+                      <option value="Arial, Helvetica, sans-serif">Arial</option>
+                      <option value="Georgia, serif">Georgia</option>
+                      <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+                      <option value="'Times New Roman', serif">Times</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Alignment</label>
+                    <select id="studioTextAlign">
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="grid2">
+                  <div class="field">
+                    <label>Text color</label>
+                    <input id="studioTextColor" type="color" value="#ffffff" />
+                  </div>
+                  <div class="field">
+                    <label>Background</label>
+                    <input id="studioBgColor" type="color" value="#141922" />
+                  </div>
+                </div>
+              </div>
+              <div class="rowBtns studioMiniActions">
+                <button class="btn ghost" id="studioBringForwardBtn" type="button">Bring Forward</button>
+                <button class="btn ghost" id="studioSendBackwardBtn" type="button">Send Backward</button>
+              </div>
+              <div class="rowBtns studioMiniActions">
+                <button class="btn ghost" id="studioDuplicateSelectedBtn" type="button">Duplicate</button>
+                <button class="btn danger" id="studioDeleteSelectedBtn" type="button">Remove</button>
+              </div>
+            </div>
+          </div>
+
           <div class="studioQuickTips">
-            <strong>How it works</strong>
+            <strong>Best use tips</strong>
             <ul>
-              <li>Drop photos anywhere on the canvas or use Add Photos.</li>
-              <li>Drag blocks up and down to reorder them live.</li>
-              <li>Use block size buttons to switch between small, wide, and hero layouts.</li>
-              <li>Pull the resize handle on image blocks to make them taller or shorter.</li>
-              <li>Click the insert bars between blocks to add text anywhere on the page.</li>
+              <li>Drag blocks by the move handle so text stays easy to edit.</li>
+              <li>Resize from the bottom-right corner of any selected block.</li>
+              <li>Click directly into text blocks to type live on the page.</li>
+              <li>Use page height to open more room for long event galleries.</li>
             </ul>
           </div>
         </div>
@@ -480,12 +622,12 @@
       <section class="picturesDesignerCanvasWrap">
         <div class="picturesDesignerCanvasHead">
           <div>
-            <div class="picturesDesignerCanvasTitle">Full page layout preview</div>
-            <div class="picturesDesignerCanvasSub">Use the whole page width for arranging galleries. Collapse the tool panel anytime for a bigger working canvas.</div>
+            <div class="picturesDesignerCanvasTitle">Website layout canvas</div>
+            <div class="picturesDesignerCanvasSub">Build the Pictures page visually. Drag images and text anywhere, resize them live, and use Hide Tools for a near full-screen layout view.</div>
           </div>
           <div class="picturesDesignerCanvasHeadActions">
             <button class="btn ghost picturesDesignerShowTools" id="picturesDesignerShowTools" type="button" style="display:none;">Show Tools</button>
-            <div class="picturesDesignerCanvasBadge">Drag • Resize • Caption • Text</div>
+            <div class="picturesDesignerCanvasBadge">Drag • Resize • Font • Layers</div>
           </div>
         </div>
 
@@ -532,6 +674,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=27"></script>
+  <script type="module" src="app.js?v=28"></script>
 </body>
 </html>

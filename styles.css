@@ -1430,3 +1430,117 @@ body.studio-open{overflow:auto}
 .studioPreviewHeader h2{margin:0 0 10px; font-size:34px; line-height:1.1}
 .studioPreviewMeta{display:flex; flex-wrap:wrap; gap:10px; color:rgba(255,255,255,.82)}
 .studioPreviewMeta span{padding:8px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.04)}
+
+
+/* ===== Pictures Studio Ultimate Page Builder ===== */
+.picturesDesignerOverlay{background:rgba(5,7,12,.78); backdrop-filter:blur(10px)}
+.picturesDesignerSidebarBody{display:grid; gap:18px}
+.studioControlCard{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:20px;
+  padding:16px;
+  background:linear-gradient(180deg, rgba(18,22,30,.95), rgba(9,12,18,.98));
+  box-shadow:0 16px 38px rgba(0,0,0,.22);
+}
+.studioControlCardHead{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.7); margin-bottom:12px; font-weight:800}
+.studioMiniActions{flex-wrap:wrap}
+.studioFullWidthBtn{width:100%; justify-content:center}
+.studioNoSelection{padding:14px 16px; border:1px dashed rgba(255,255,255,.18); border-radius:16px; color:rgba(255,255,255,.72); background:rgba(255,255,255,.03)}
+.picturesDesignerCanvas{padding:20px 20px 120px}
+.picturesDesignerStageWrap{max-width:1400px; margin:0 auto}
+.picturesDesignerStage{
+  position:relative;
+  width:100%;
+  min-height:900px;
+  border-radius:28px;
+  border:1px solid rgba(255,255,255,.18);
+  background:
+    linear-gradient(180deg, rgba(22,28,38,.96), rgba(8,10,16,.98)),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.04) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.04) 0 1px, transparent 1px 40px);
+  box-shadow:0 28px 70px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,.03);
+  overflow:hidden;
+}
+.picturesDesignerStage.stage-snap-off{
+  background:linear-gradient(180deg, rgba(22,28,38,.96), rgba(8,10,16,.98));
+}
+.picturesDesignerStage::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:radial-gradient(circle at top left, rgba(255,255,255,.07), transparent 34%), radial-gradient(circle at bottom right, rgba(255,255,255,.04), transparent 28%);
+  pointer-events:none;
+}
+.picturesDesignerStageMeta{
+  position:absolute; left:2.5%; top:2%; right:2.5%; z-index:1; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; pointer-events:none;
+}
+.picturesDesignerStageMetaTitle{
+  padding:12px 16px; border-radius:16px; background:rgba(9,12,18,.68); color:#fff; border:1px solid rgba(255,255,255,.14); box-shadow:0 12px 24px rgba(0,0,0,.2)
+}
+.picturesDesignerStageMetaTitle strong{display:block; font-size:20px; line-height:1.1}
+.picturesDesignerStageMetaTitle span{display:block; font-size:12px; color:rgba(255,255,255,.74); margin-top:6px}
+.picturesDesignerStageHint{padding:10px 14px; border-radius:999px; background:rgba(9,12,18,.68); color:rgba(255,255,255,.82); border:1px solid rgba(255,255,255,.14); font-size:12px}
+.designerFreeBlock{
+  position:absolute; 
+  box-sizing:border-box;
+  user-select:none;
+}
+.designerFreeBlock.is-selected{outline:2px solid rgba(255,255,255,.9); outline-offset:4px; z-index:999 !important}
+.designerFreeBlock.is-dragging,.designerFreeBlock.is-resizing{opacity:.96}
+.designerBlockChrome{
+  position:relative; width:100%; height:100%; min-height:100%;
+  border-radius:20px; overflow:visible;
+}
+.designerBlockToolbar{
+  position:absolute; top:-18px; left:0; right:0; display:flex; justify-content:space-between; align-items:center; gap:8px; z-index:3; pointer-events:none;
+}
+.designerBlockToolbar .chip{
+  pointer-events:auto;
+  display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:rgba(11,14,20,.92); color:#fff; border:1px solid rgba(255,255,255,.14); font-size:11px; letter-spacing:.08em; text-transform:uppercase; box-shadow:0 8px 18px rgba(0,0,0,.2)
+}
+.designerMoveHandle{cursor:grab}
+.designerMoveHandle:active{cursor:grabbing}
+.designerImageCard{
+  height:100%; display:flex; flex-direction:column; background:rgba(10,12,18,.82); border-radius:20px; overflow:hidden; border:1px solid rgba(255,255,255,.12); box-shadow:0 20px 42px rgba(0,0,0,.25)
+}
+.designerImageCard img{width:100%; flex:1 1 auto; min-height:0; background:rgba(0,0,0,.2)}
+.designerImageCaption{padding:10px 14px; font-size:13px; color:rgba(255,255,255,.88); background:rgba(9,12,18,.92); border-top:1px solid rgba(255,255,255,.09); line-height:1.45}
+.designerTextCard{
+  height:100%; min-height:100%;
+  border-radius:20px; border:1px solid rgba(255,255,255,.14); box-shadow:0 20px 42px rgba(0,0,0,.25);
+  padding:20px 22px; overflow:auto; backdrop-filter:blur(6px);
+}
+.designerTextHeading{font-size:1.3em; font-weight:800; margin-bottom:10px; line-height:1.15; outline:none}
+.designerTextBody{font-size:1em; line-height:1.6; white-space:pre-wrap; outline:none}
+.designerTextHeading:empty::before,.designerTextBody:empty::before{content:attr(data-placeholder); color:rgba(255,255,255,.45)}
+.designerResizeHandle{
+  position:absolute; right:-10px; bottom:-10px; width:22px; height:22px; border-radius:50%; border:none; background:#fff; box-shadow:0 8px 18px rgba(0,0,0,.32); cursor:nwse-resize; z-index:4
+}
+.designerResizeHandle::before,.designerResizeHandle::after{content:''; position:absolute; background:#111827; border-radius:2px}
+.designerResizeHandle::before{width:10px; height:2px; left:6px; top:10px; transform:rotate(45deg)}
+.designerResizeHandle::after{width:10px; height:2px; left:6px; top:10px; transform:rotate(-45deg)}
+.designerCanvasEmpty{min-height:760px; display:grid; place-items:center; padding:40px}
+.designerCanvasEmptyInner{max-width:460px; text-align:center; padding:36px; border-radius:28px; background:rgba(12,16,24,.82); border:1px solid rgba(255,255,255,.12); color:#fff}
+.designerCanvasEmptyInner strong{display:block; font-size:28px; margin-bottom:10px}
+.designerCanvasEmptyInner span{display:block; color:rgba(255,255,255,.72); line-height:1.7}
+.publishedGalleryCanvasWrap{width:100%}
+.publishedGalleryCanvas{
+  position:relative; width:100%; max-width:1400px; margin:0 auto; border-radius:24px; overflow:hidden; border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(22,28,38,.96), rgba(8,10,16,.98)); box-shadow:0 24px 55px rgba(0,0,0,.24)
+}
+.publishedGalleryCanvasMeta{position:absolute; left:2.4%; top:2.2%; right:2.4%; z-index:1; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; pointer-events:none}
+.publishedGalleryCanvasMeta .meta-card{padding:10px 14px; border-radius:14px; background:rgba(9,12,18,.72); color:#fff; border:1px solid rgba(255,255,255,.14)}
+.publishedGalleryCanvasMeta .meta-card strong{display:block; font-size:18px}
+.publishedGalleryCanvasMeta .meta-card span{display:block; font-size:12px; margin-top:4px; color:rgba(255,255,255,.72)}
+.publishedGalleryFloatBlock{position:absolute; box-sizing:border-box}
+.publishedGalleryFloatBlock img{width:100%; height:100%; display:block}
+.publishedGalleryFloatBlock.published-image .published-inner{width:100%; height:100%; display:flex; flex-direction:column; background:rgba(10,12,18,.82); border-radius:20px; overflow:hidden; border:1px solid rgba(255,255,255,.12)}
+.publishedGalleryFloatBlock.published-image figcaption{padding:10px 14px; font-size:13px; color:rgba(255,255,255,.88); background:rgba(9,12,18,.92); border-top:1px solid rgba(255,255,255,.09); line-height:1.45}
+.publishedGalleryFloatBlock.published-text .published-inner{width:100%; height:100%; padding:20px 22px; border-radius:20px; overflow:auto; border:1px solid rgba(255,255,255,.12)}
+.publishedGalleryFloatBlock .published-heading{font-size:1.24em; font-weight:800; line-height:1.12; margin-bottom:10px}
+.publishedGalleryFloatBlock .published-body{line-height:1.6; white-space:pre-wrap}
+@media (max-width: 900px){
+  .picturesDesignerCanvas{padding:12px 12px 90px}
+  .picturesDesignerStageMeta{position:static; padding:18px; display:grid}
+  .picturesDesignerStage{border-radius:22px}
+}

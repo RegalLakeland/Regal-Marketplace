@@ -3862,3 +3862,915 @@ class HeroSlider extends HTMLElement {
 }
 
 customElements.define('hero-slider', HeroSlider);
+
+/* ===== Ultimate Pictures Studio page-builder overrides ===== */
+let pictureDesignerSelectedId = '';
+let pictureDesignerCanvasHeight = 1800;
+let pictureDesignerSnapEnabled = true;
+let pictureDesignerInteractionState = null;
+const PICTURES_DESIGN_BASE_WIDTH = 1200;
+
+function clampStudioNumber(value, min, max, fallback = min) {
+  const next = Number(value);
+  if (!Number.isFinite(next)) return fallback;
+  return Math.min(max, Math.max(min, next));
+}
+
+function normalizeStudioPercent(value, fallback = 10, min = 0, max = 100) {
+  return Number(clampStudioNumber(value, min, max, fallback).toFixed(2));
+}
+
+function normalizeStudioDimensionPercent(value, fallback = 28, min = 4, max = 100) {
+  return Number(clampStudioNumber(value, min, max, fallback).toFixed(2));
+}
+
+function normalizeStudioLayer(value, fallback = 2) {
+  return Math.round(clampStudioNumber(value, 1, 99, fallback));
+}
+
+function normalizeStudioOpacity(value, fallback = 1) {
+  return Number(clampStudioNumber(value, 0.2, 1, fallback).toFixed(2));
+}
+
+function normalizeStudioRadius(value, fallback = 18) {
+  return Math.round(clampStudioNumber(value, 0, 40, fallback));
+}
+
+function normalizeStudioFontSize(value, fallback = 18) {
+  return Math.round(clampStudioNumber(value, 14, 88, fallback));
+}
+
+function normalizeStudioFit(value) {
+  return String(value || '').toLowerCase() === 'contain' ? 'contain' : 'cover';
+}
+
+function normalizePictureGalleryCanvasHeight(value) {
+  return Math.round(clampStudioNumber(value, 900, 4200, 1800));
+}
+
+function getPictureGalleryCanvasHeight(item) {
+  return normalizePictureGalleryCanvasHeight(item?.galleryCanvasHeight || item?.canvasHeight || 1800);
+}
+
+function defaultPicturesDesignerPlacement(type = 'image') {
+  const count = pictureDesignerBlocks.length;
+  const col = count % 3;
+  const row = Math.floor(count / 3) % 5;
+  if (type === 'text') {
+    return {
+      x: 6 + (col * 28),
+      y: 12 + (row * 14),
+      w: 32,
+      h: 16,
+      z: count + 2
+    };
+  }
+  return {
+    x: 6 + (col * 30),
+    y: 10 + (row * 18),
+    w: 28,
+    h: 22,
+    z: count + 2
+  };
+}
+
+function normalizePicturesDesignerBlock(block = {}, index = 0) {
+  const placement = defaultPicturesDesignerPlacement(block.type === 'text' ? 'text' : 'image');
+  const common = {
+    id: block.id || studioBlockId(),
+    type: block.type === 'text' ? 'text' : 'image',
+    x: normalizeStudioPercent(block.x, placement.x, 0, 96),
+    y: normalizeStudioPercent(block.y, placement.y, 0, 96),
+    w: normalizeStudioDimensionPercent(block.w, placement.w, 6, 100),
+    h: normalizeStudioDimensionPercent(block.h, placement.h, 6, 100),
+    z: normalizeStudioLayer(block.z, index + 2),
+    opacity: normalizeStudioOpacity(block.opacity, 1),
+    radius: normalizeStudioRadius(block.radius, 18)
+  };
+  if (common.x + common.w > 100) common.x = Math.max(0, 100 - common.w);
+  if (common.y + common.h > 100) common.y = Math.max(0, 100 - common.h);
+
+  if (common.type === 'text') {
+    return {
+      ...common,
+      heading: String(block.heading || ''),
+      text: String(block.text || ''),
+      fontSize: normalizeStudioFontSize(block.fontSize, String(block.style || '').toLowerCase() === 'hero' ? 34 : 18),
+      fontWeight: String(block.fontWeight || (String(block.style || '').toLowerCase() === 'hero' ? '800' : '600')),
+      fontFamily: String(block.fontFamily || 'Inter, system-ui, sans-serif'),
+      textColor: String(block.textColor || '#ffffff'),
+      bgColor: String(block.bgColor || (String(block.style || '').toLowerCase() === 'note' ? '#161d29' : '#10151f')),
+      textAlign: ['left', 'center', 'right'].includes(String(block.textAlign || '').toLowerCase()) ? String(block.textAlign).toLowerCase() : normalizeStudioBlockAlign(block.align),
+      style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style).toLowerCase() : 'body'
+    };
+  }
+  return {
+    ...common,
+    file: block.file || null,
+    previewUrl: block.previewUrl || block.url || '',
+    sourceUrl: String(block.sourceUrl || block.url || block.src || ''),
+    caption: String(block.caption || ''),
+    fit: normalizeStudioFit(block.fit),
+    name: String(block.name || 'Photo')
+  };
+}
+
+function createPicturesDesignerImageBlock({ file = null, url = '', caption = '', name = '', x, y, w, h, z, fit = 'cover', radius = 18, opacity = 1 } = {}) {
+  const previewUrl = file ? URL.createObjectURL(file) : String(url || '');
+  return normalizePicturesDesignerBlock({
+    id: studioBlockId(),
+    type: 'image',
+    file,
+    previewUrl,
+    sourceUrl: String(url || ''),
+    caption,
+    name: name || file?.name || 'Photo',
+    x, y, w, h, z, fit, radius, opacity
+  }, pictureDesignerBlocks.length);
+}
+
+function createPicturesDesignerTextBlock({ heading = '', text = '', x, y, w, h, z, fontSize, fontWeight, fontFamily, textColor, bgColor, textAlign, style = 'body', radius = 18, opacity = 1 } = {}) {
+  return normalizePicturesDesignerBlock({
+    id: studioBlockId(),
+    type: 'text',
+    heading,
+    text,
+    x, y, w, h, z,
+    fontSize,
+    fontWeight,
+    fontFamily,
+    textColor,
+    bgColor,
+    textAlign,
+    style,
+    radius,
+    opacity
+  }, pictureDesignerBlocks.length);
+}
+
+function getPicturesDesignerSelectedBlock() {
+  return pictureDesignerBlocks.find((block) => block.id === pictureDesignerSelectedId) || null;
+}
+
+function refreshStudioSnapToggle() {
+  const btn = $('studioSnapToggle');
+  if (btn) btn.textContent = `Snap: ${pictureDesignerSnapEnabled ? 'On' : 'Off'}`;
+}
+
+function setPicturesDesignerCanvasHeight(value, options = {}) {
+  pictureDesignerCanvasHeight = normalizePictureGalleryCanvasHeight(value);
+  const input = $('studioCanvasHeight');
+  if (input && String(input.value) !== String(pictureDesignerCanvasHeight)) input.value = String(pictureDesignerCanvasHeight);
+  if (options.render !== false) renderPicturesDesigner();
+}
+
+function selectPicturesDesignerBlock(blockId = '') {
+  pictureDesignerSelectedId = blockId || '';
+  document.querySelectorAll('.designerFreeBlock').forEach((node) => node.classList.toggle('is-selected', node.dataset.blockId === pictureDesignerSelectedId));
+  syncPicturesDesignerInspector();
+  updatePicturesDesignerStatus();
+}
+
+function syncPicturesDesignerInspector() {
+  const block = getPicturesDesignerSelectedBlock();
+  const noSelection = $('studioNoSelection');
+  const panel = $('studioSelectedPanel');
+  const imageControls = $('studioImageControls');
+  const imageStyleControls = $('studioImageStyleControls');
+  const textControls = $('studioTextControls');
+  if (!block) {
+    if (noSelection) noSelection.style.display = '';
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+  if (noSelection) noSelection.style.display = 'none';
+  if (panel) panel.style.display = 'block';
+  if ($('studioSelectedType')) $('studioSelectedType').value = block.type === 'image' ? 'Image' : 'Text';
+  if ($('studioLayer')) $('studioLayer').value = String(block.z || 1);
+  if ($('studioPosX')) $('studioPosX').value = String(block.x || 0);
+  if ($('studioPosY')) $('studioPosY').value = String(block.y || 0);
+  if ($('studioSizeW')) $('studioSizeW').value = String(block.w || 10);
+  if ($('studioSizeH')) $('studioSizeH').value = String(block.h || 10);
+  if (imageControls) imageControls.style.display = block.type === 'image' ? 'grid' : 'none';
+  if (imageStyleControls) imageStyleControls.style.display = block.type === 'image' ? 'grid' : 'none';
+  if (textControls) textControls.style.display = block.type === 'text' ? 'block' : 'none';
+  if (block.type === 'image') {
+    if ($('studioImageCaption')) $('studioImageCaption').value = block.caption || '';
+    if ($('studioImageFit')) $('studioImageFit').value = normalizeStudioFit(block.fit);
+    if ($('studioRadius')) $('studioRadius').value = String(block.radius || 18);
+    if ($('studioOpacity')) $('studioOpacity').value = String(block.opacity || 1);
+  } else {
+    if ($('studioTextHeading')) $('studioTextHeading').value = block.heading || '';
+    if ($('studioTextBody')) $('studioTextBody').value = block.text || '';
+    if ($('studioFontSize')) $('studioFontSize').value = String(block.fontSize || 18);
+    if ($('studioFontWeight')) $('studioFontWeight').value = String(block.fontWeight || '600');
+    if ($('studioFontFamily')) $('studioFontFamily').value = String(block.fontFamily || 'Inter, system-ui, sans-serif');
+    if ($('studioTextColor')) $('studioTextColor').value = block.textColor || '#ffffff';
+    if ($('studioBgColor')) $('studioBgColor').value = block.bgColor || '#10151f';
+    if ($('studioTextAlign')) $('studioTextAlign').value = block.textAlign || 'left';
+    if ($('studioRadius')) $('studioRadius').value = String(block.radius || 18);
+    if ($('studioOpacity')) $('studioOpacity').value = String(block.opacity || 1);
+  }
+}
+
+function updatePicturesDesignerStatus() {
+  const statusEl = $('studioStatusLine');
+  if (!statusEl) return;
+  const imageCount = pictureDesignerBlocks.filter((block) => block.type === 'image').length;
+  const textCount = pictureDesignerBlocks.filter((block) => block.type === 'text').length;
+  const selected = getPicturesDesignerSelectedBlock();
+  const title = $('studioTitle')?.value.trim() || (pictureDesignerEditingId ? 'Editing gallery' : 'New gallery');
+  const selectedText = selected ? ` • Selected: ${selected.type === 'image' ? 'Image' : 'Text'}` : '';
+  statusEl.textContent = `${title} • ${imageCount} photo${imageCount === 1 ? '' : 's'} • ${textCount} text block${textCount === 1 ? '' : 's'} • ${pictureDesignerCanvasHeight}px page height${selectedText}`;
+}
+
+function clearPicturesDesigner(silent = false) {
+  if (!silent && pictureDesignerBlocks.length && !confirm('Clear the current gallery canvas?')) return;
+  pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
+  pictureDesignerBlocks = [];
+  pictureDesignerDragId = '';
+  pictureDesignerSelectedId = '';
+  pictureDesignerInteractionState = null;
+  renderPicturesDesigner();
+}
+
+function resetPicturesDesigner() {
+  clearPicturesDesigner(true);
+  pictureDesignerEditingId = null;
+  pictureDesignerCanvasHeight = 1800;
+  pictureDesignerSnapEnabled = true;
+  if ($('studioTitle')) $('studioTitle').value = '';
+  if ($('studioLocation')) $('studioLocation').value = '';
+  if ($('studioContact')) $('studioContact').value = '';
+  if ($('studioCanvasHeight')) $('studioCanvasHeight').value = '1800';
+  refreshStudioSnapToggle();
+  syncPicturesDesignerInspector();
+  updatePicturesDesignerStatus();
+}
+
+function addFilesToPicturesDesigner(files) {
+  const images = (files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
+  if (!images.length) return;
+  const blocks = images.map((file, index) => {
+    const place = defaultPicturesDesignerPlacement('image');
+    return createPicturesDesignerImageBlock({
+      file,
+      x: place.x + (index * 2),
+      y: place.y + (index * 2),
+      w: place.w,
+      h: place.h,
+      z: pictureDesignerBlocks.length + index + 2
+    });
+  });
+  pictureDesignerBlocks = [...pictureDesignerBlocks, ...blocks];
+  pictureDesignerSelectedId = blocks.at(-1)?.id || pictureDesignerSelectedId;
+  renderPicturesDesigner();
+}
+
+function addTextBlockToPicturesDesigner(_insertIndex = null, style = 'body') {
+  const place = defaultPicturesDesignerPlacement('text');
+  const block = createPicturesDesignerTextBlock({
+    heading: style === 'hero' ? 'Title goes here' : '',
+    text: style === 'hero' ? 'Click here and type your headline or event callout.' : 'Click here and type your text.',
+    x: place.x,
+    y: place.y,
+    w: style === 'hero' ? 52 : place.w,
+    h: style === 'hero' ? 18 : place.h,
+    z: pictureDesignerBlocks.length + 2,
+    fontSize: style === 'hero' ? 34 : 18,
+    fontWeight: style === 'hero' ? '800' : '600',
+    style,
+    bgColor: style === 'hero' ? '#0f1520' : '#10151f'
+  });
+  pictureDesignerBlocks = [...pictureDesignerBlocks, block];
+  pictureDesignerSelectedId = block.id;
+  renderPicturesDesigner();
+}
+
+function updatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
+  const shouldRender = options.render !== false;
+  pictureDesignerBlocks = pictureDesignerBlocks.map((block, index) => {
+    if (block.id !== blockId) return block;
+    return normalizePicturesDesignerBlock({ ...block, ...patch }, index);
+  });
+  if (!pictureDesignerBlocks.some((block) => block.id === pictureDesignerSelectedId)) pictureDesignerSelectedId = '';
+  if (shouldRender) renderPicturesDesigner();
+  else {
+    updatePicturesDesignerBlockElement(blockId);
+    syncPicturesDesignerInspector();
+    updatePicturesDesignerStatus();
+  }
+}
+
+function removePicturesDesignerBlock(blockId) {
+  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
+  if (target) releasePicturesDesignerBlock(target);
+  pictureDesignerBlocks = pictureDesignerBlocks.filter((block) => block.id !== blockId);
+  if (pictureDesignerSelectedId === blockId) pictureDesignerSelectedId = pictureDesignerBlocks.at(-1)?.id || '';
+  renderPicturesDesigner();
+}
+
+function duplicatePicturesDesignerBlock(blockId) {
+  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
+  if (!target) return;
+  const clone = target.type === 'image'
+    ? createPicturesDesignerImageBlock({
+        url: target.sourceUrl || target.previewUrl,
+        caption: target.caption,
+        name: target.name,
+        x: Math.min(92, (target.x || 0) + 2),
+        y: Math.min(92, (target.y || 0) + 2),
+        w: target.w,
+        h: target.h,
+        z: (target.z || 1) + 1,
+        fit: target.fit,
+        radius: target.radius,
+        opacity: target.opacity
+      })
+    : createPicturesDesignerTextBlock({
+        heading: target.heading,
+        text: target.text,
+        x: Math.min(92, (target.x || 0) + 2),
+        y: Math.min(92, (target.y || 0) + 2),
+        w: target.w,
+        h: target.h,
+        z: (target.z || 1) + 1,
+        fontSize: target.fontSize,
+        fontWeight: target.fontWeight,
+        fontFamily: target.fontFamily,
+        textColor: target.textColor,
+        bgColor: target.bgColor,
+        textAlign: target.textAlign,
+        style: target.style,
+        radius: target.radius,
+        opacity: target.opacity
+      });
+  pictureDesignerBlocks = [...pictureDesignerBlocks, clone];
+  pictureDesignerSelectedId = clone.id;
+  renderPicturesDesigner();
+}
+
+function movePicturesDesignerBlock(blockId, direction = 'up') {
+  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId);
+  if (!block) return;
+  const delta = direction === 'up' ? 1 : -1;
+  updatePicturesDesignerBlock(blockId, { z: normalizeStudioLayer((block.z || 1) + delta, block.z || 1) });
+}
+
+function reorderPicturesDesignerBlocks(fromId, toId) {
+  const from = pictureDesignerBlocks.find((entry) => entry.id === fromId);
+  const to = pictureDesignerBlocks.find((entry) => entry.id === toId);
+  if (!from || !to) return;
+  const temp = from.z;
+  updatePicturesDesignerBlock(fromId, { z: to.z }, { render: false });
+  updatePicturesDesignerBlock(toId, { z: temp }, { render: false });
+  renderPicturesDesigner();
+}
+
+function picturesDesignerBlockInlineStyle(block) {
+  return [
+    `left:${block.x}%`,
+    `top:${block.y}%`,
+    `width:${block.w}%`,
+    `height:${block.h}%`,
+    `z-index:${block.z}`,
+    `opacity:${block.opacity}`
+  ].join(';');
+}
+
+function updatePicturesDesignerBlockElement(blockId) {
+  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId);
+  if (!block) return;
+  const el = document.querySelector(`.designerFreeBlock[data-block-id="${blockId}"]`);
+  if (!el) return;
+  el.style.cssText = picturesDesignerBlockInlineStyle(block);
+  const inner = el.querySelector('.published-inner, .designerTextCard, .designerImageCard');
+  if (inner) {
+    inner.style.borderRadius = `${block.radius || 18}px`;
+  }
+  if (block.type === 'image') {
+    const img = el.querySelector('img');
+    if (img) {
+      img.style.objectFit = normalizeStudioFit(block.fit);
+      img.style.borderRadius = `${block.radius || 18}px ${block.radius || 18}px 0 0`;
+    }
+    const cap = el.querySelector('.designerImageCaption');
+    if (cap) cap.innerHTML = esc(block.caption || '').replaceAll('\n', '<br>');
+  } else {
+    const card = el.querySelector('.designerTextCard');
+    if (card) {
+      card.style.background = block.bgColor || '#10151f';
+      card.style.color = block.textColor || '#ffffff';
+      card.style.textAlign = block.textAlign || 'left';
+      card.style.borderRadius = `${block.radius || 18}px`;
+      card.style.fontFamily = block.fontFamily || 'Inter, system-ui, sans-serif';
+      card.style.fontSize = `${block.fontSize || 18}px`;
+      card.style.fontWeight = String(block.fontWeight || '600');
+    }
+    const heading = el.querySelector('.designerTextHeading');
+    const body = el.querySelector('.designerTextBody');
+    if (heading) heading.innerHTML = esc(block.heading || '').replaceAll('\n', '<br>');
+    if (body) body.innerHTML = esc(block.text || '').replaceAll('\n', '<br>');
+  }
+}
+
+function renderPicturesDesigner() {
+  const canvas = $('picturesDesignerCanvas');
+  if (!canvas) return;
+  const title = $('studioTitle')?.value.trim() || 'Untitled gallery';
+  const location = $('studioLocation')?.value.trim() || 'Regal Lakeland';
+  const contact = $('studioContact')?.value.trim() || 'Gallery manager';
+  if (!pictureDesignerBlocks.length) {
+    canvas.innerHTML = `
+      <div class="designerCanvasEmpty">
+        <div class="designerCanvasEmptyInner">
+          <strong>Build the Pictures page visually</strong>
+          <span>Add photos or text, then drag them anywhere on the page. Resize from the bottom-right corner and use the inspector on the left for captions, fonts, colors, and layering.</span>
+        </div>
+      </div>
+    `;
+    syncPicturesDesignerInspector();
+    updatePicturesDesignerStatus();
+    refreshStudioSnapToggle();
+    return;
+  }
+  const sortedBlocks = pictureDesignerBlocks.slice().sort((a, b) => (a.z || 0) - (b.z || 0));
+  canvas.innerHTML = `
+    <div class="picturesDesignerStageWrap">
+      <div class="picturesDesignerStage ${pictureDesignerSnapEnabled ? '' : 'stage-snap-off'}" id="picturesDesignerStage" style="aspect-ratio:${PICTURES_DESIGN_BASE_WIDTH} / ${pictureDesignerCanvasHeight};">
+        <div class="picturesDesignerStageMeta">
+          <div class="picturesDesignerStageMetaTitle">
+            <strong>${esc(title)}</strong>
+            <span>${esc(location)} • ${esc(contact)}</span>
+          </div>
+          <div class="picturesDesignerStageHint">Move handle • Resize corner • Click text to type</div>
+        </div>
+        ${sortedBlocks.map((block) => {
+          if (block.type === 'image') {
+            return `
+              <article class="designerFreeBlock ${pictureDesignerSelectedId === block.id ? 'is-selected' : ''}" data-block-id="${esc(block.id)}" style="${picturesDesignerBlockInlineStyle(block)}">
+                <div class="designerBlockChrome">
+                  <div class="designerBlockToolbar">
+                    <div class="chip designerMoveHandle" data-studio-move="${esc(block.id)}">Move image</div>
+                    <div class="chip">Layer ${esc(block.z)}</div>
+                  </div>
+                  <figure class="designerImageCard" style="border-radius:${block.radius}px">
+                    <img src="${esc(block.previewUrl || block.sourceUrl)}" alt="${esc(block.name || 'Gallery image')}" loading="lazy" style="object-fit:${esc(normalizeStudioFit(block.fit))};border-radius:${block.radius}px ${block.radius}px 0 0" />
+                    ${block.caption ? `<figcaption class="designerImageCaption">${esc(block.caption).replaceAll('\n', '<br>')}</figcaption>` : '<figcaption class="designerImageCaption">Add a caption from the left panel.</figcaption>'}
+                  </figure>
+                  <button class="designerResizeHandle" data-studio-resize="${esc(block.id)}" type="button" aria-label="Resize image"></button>
+                </div>
+              </article>
+            `;
+          }
+          return `
+            <article class="designerFreeBlock ${pictureDesignerSelectedId === block.id ? 'is-selected' : ''}" data-block-id="${esc(block.id)}" style="${picturesDesignerBlockInlineStyle(block)}">
+              <div class="designerBlockChrome">
+                <div class="designerBlockToolbar">
+                  <div class="chip designerMoveHandle" data-studio-move="${esc(block.id)}">Move text</div>
+                  <div class="chip">Layer ${esc(block.z)}</div>
+                </div>
+                <div class="designerTextCard" style="background:${esc(block.bgColor || '#10151f')};color:${esc(block.textColor || '#ffffff')};text-align:${esc(block.textAlign || 'left')};border-radius:${block.radius}px;font-family:${esc(block.fontFamily || 'Inter, system-ui, sans-serif')};font-size:${esc(block.fontSize || 18)}px;font-weight:${esc(block.fontWeight || '600')}">
+                  <div class="designerTextHeading" contenteditable="true" spellcheck="true" data-studio-editable="heading" data-block-id="${esc(block.id)}" data-placeholder="Optional heading">${esc(block.heading || '').replaceAll('\n', '<br>')}</div>
+                  <div class="designerTextBody" contenteditable="true" spellcheck="true" data-studio-editable="text" data-block-id="${esc(block.id)}" data-placeholder="Type your text here...">${esc(block.text || '').replaceAll('\n', '<br>')}</div>
+                </div>
+                <button class="designerResizeHandle" data-studio-resize="${esc(block.id)}" type="button" aria-label="Resize text block"></button>
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  bindPicturesDesignerBuilderEvents();
+  syncPicturesDesignerInspector();
+  updatePicturesDesignerStatus();
+  refreshStudioSnapToggle();
+}
+
+function bindPicturesDesignerBuilderEvents() {
+  const stage = $('picturesDesignerStage');
+  if (!stage) return;
+  stage.addEventListener('click', (event) => {
+    if (event.target === stage) selectPicturesDesignerBlock('');
+  });
+  stage.querySelectorAll('.designerFreeBlock').forEach((node) => {
+    node.addEventListener('mousedown', (event) => {
+      if (event.target.closest('[data-studio-move], [data-studio-resize], [contenteditable="true"]')) return;
+      selectPicturesDesignerBlock(node.dataset.blockId || '');
+    });
+  });
+  stage.querySelectorAll('[data-studio-move]').forEach((handle) => {
+    handle.addEventListener('pointerdown', (event) => startPicturesDesignerInteraction(event, handle.dataset.studioMove || '', 'move'));
+  });
+  stage.querySelectorAll('[data-studio-resize]').forEach((handle) => {
+    handle.addEventListener('pointerdown', (event) => startPicturesDesignerInteraction(event, handle.dataset.studioResize || '', 'resize'));
+  });
+  stage.querySelectorAll('[data-studio-editable]').forEach((editable) => {
+    editable.addEventListener('focus', () => selectPicturesDesignerBlock(editable.dataset.blockId || ''));
+    editable.addEventListener('input', () => {
+      const blockId = editable.dataset.blockId || '';
+      const field = editable.dataset.studioEditable || 'text';
+      const textValue = editable.innerText.replace(/\u00A0/g, ' ');
+      updatePicturesDesignerBlock(blockId, { [field]: textValue }, { render: false });
+      if (field === 'heading' && $('studioTextHeading')) $('studioTextHeading').value = textValue;
+      if (field === 'text' && $('studioTextBody')) $('studioTextBody').value = textValue;
+    });
+  });
+}
+
+function startPicturesDesignerInteraction(event, blockId, mode = 'move') {
+  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId);
+  const stage = $('picturesDesignerStage');
+  if (!block || !stage) return;
+  const rect = stage.getBoundingClientRect();
+  selectPicturesDesignerBlock(blockId);
+  pictureDesignerInteractionState = {
+    blockId,
+    mode,
+    rect,
+    startX: event.clientX,
+    startY: event.clientY,
+    initialX: block.x,
+    initialY: block.y,
+    initialW: block.w,
+    initialH: block.h
+  };
+  document.body.classList.add(mode === 'resize' ? 'studio-resizing' : 'studio-dragging');
+  event.preventDefault();
+}
+
+function applySnap(value) {
+  const step = pictureDesignerSnapEnabled ? 1 : 0.25;
+  return Math.round(value / step) * step;
+}
+
+function handlePicturesDesignerPointerMove(event) {
+  const state = pictureDesignerInteractionState;
+  if (!state) return;
+  const block = pictureDesignerBlocks.find((entry) => entry.id === state.blockId);
+  if (!block) return;
+  const dx = ((event.clientX - state.startX) / state.rect.width) * 100;
+  const dy = ((event.clientY - state.startY) / state.rect.height) * 100;
+  if (state.mode === 'move') {
+    block.x = normalizeStudioPercent(applySnap(state.initialX + dx), state.initialX, 0, Math.max(0, 100 - block.w));
+    block.y = normalizeStudioPercent(applySnap(state.initialY + dy), state.initialY, 0, Math.max(0, 100 - block.h));
+  } else {
+    block.w = normalizeStudioDimensionPercent(applySnap(state.initialW + dx), state.initialW, 6, Math.max(6, 100 - block.x));
+    block.h = normalizeStudioDimensionPercent(applySnap(state.initialH + dy), state.initialH, 6, Math.max(6, 100 - block.y));
+  }
+  updatePicturesDesignerBlockElement(block.id);
+  syncPicturesDesignerInspector();
+  updatePicturesDesignerStatus();
+}
+
+function stopPicturesDesignerResize() {
+  if (!pictureDesignerInteractionState) return;
+  pictureDesignerInteractionState = null;
+  document.body.classList.remove('studio-resizing', 'studio-dragging');
+}
+
+function openPicturesDesigner(postId = null) {
+  if (!currentUser) {
+    alert('Please log in first.');
+    return;
+  }
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before using the Pictures Studio.');
+    return;
+  }
+  if (!canPostPicturesBoard()) {
+    alert('Only approved gallery managers can use the Pictures Studio.');
+    return;
+  }
+  resetPicturesDesigner();
+  if (postId) {
+    const item = listings.find((entry) => entry.id === postId);
+    if (!item || !canModify(item)) {
+      alert('You do not have permission to edit this gallery.');
+      return;
+    }
+    pictureDesignerEditingId = postId;
+    pictureDesignerCanvasHeight = getPictureGalleryCanvasHeight(item);
+    if ($('studioCanvasHeight')) $('studioCanvasHeight').value = String(pictureDesignerCanvasHeight);
+    if ($('studioTitle')) $('studioTitle').value = item.title || '';
+    if ($('studioLocation')) $('studioLocation').value = item.location || '';
+    if ($('studioContact')) $('studioContact').value = item.contact || '';
+    pictureDesignerBlocks = getPictureGalleryBlocks(item).map((block, index) => normalizePicturesDesignerBlock(block, index));
+    pictureDesignerSelectedId = pictureDesignerBlocks[0]?.id || '';
+  }
+  renderPicturesDesigner();
+  setPicturesDesignerToolsCollapsed(false);
+  show('picturesDesignerOverlay');
+}
+
+function closePicturesDesigner() {
+  hide('picturesDesignerOverlay');
+  setPicturesDesignerToolsCollapsed(false);
+  resetPicturesDesigner();
+}
+
+function getPictureGalleryBlocks(item) {
+  const canvasHeight = getPictureGalleryCanvasHeight(item);
+  if (Array.isArray(item?.galleryBlocks) && item.galleryBlocks.length) {
+    return item.galleryBlocks.map((block, index) => normalizePicturesDesignerBlock({
+      ...block,
+      type: String(block?.type || '').toLowerCase() === 'text' ? 'text' : 'image',
+      sourceUrl: block.url || block.src || block.sourceUrl || '',
+      previewUrl: block.url || block.src || block.previewUrl || ''
+    }, index)).filter((block) => (block.type === 'image' ? (block.sourceUrl || block.previewUrl) : (block.heading || block.text)));
+  }
+  const urls = getListingImageUrls(item);
+  const captions = Array.isArray(item?.imageCaptions) ? item.imageCaptions : [];
+  const blocks = urls.map((url, index) => normalizePicturesDesignerBlock({
+    id: `legacy-image-${index}`,
+    type: 'image',
+    url,
+    sourceUrl: url,
+    previewUrl: url,
+    caption: String(captions[index] || ''),
+    x: 6,
+    y: 10 + (index * 26),
+    w: 88,
+    h: 22,
+    z: index + 2,
+    fit: 'cover',
+    radius: 18,
+    opacity: 1
+  }, index));
+  const desc = String(item?.description || item?.desc || '').trim();
+  if (desc) {
+    blocks.push(normalizePicturesDesignerBlock({
+      id: 'legacy-text',
+      type: 'text',
+      heading: '',
+      text: desc,
+      x: 8,
+      y: Math.min(88, 12 + (urls.length * 26)),
+      w: 84,
+      h: 14,
+      z: urls.length + 3,
+      fontSize: 18,
+      fontWeight: '600',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      textColor: '#ffffff',
+      bgColor: '#10151f',
+      textAlign: 'left',
+      radius: 18,
+      opacity: 1
+    }, urls.length + 1));
+  }
+  return blocks.map((block) => ({ ...block, canvasHeight }));
+}
+
+function buildThreadGallery(item) {
+  const blocks = getPictureGalleryBlocks(item);
+  if (!blocks.length) return '';
+  const canvasHeight = getPictureGalleryCanvasHeight(item);
+  const title = item?.title || 'Gallery';
+  const meta = `${item?.location || 'Regal Lakeland'}${item?.contact ? ` • ${item.contact}` : ''}`;
+  return `
+    <div class="publishedGalleryCanvasWrap">
+      <div class="publishedGalleryCanvas" style="aspect-ratio:${PICTURES_DESIGN_BASE_WIDTH} / ${canvasHeight};">
+        <div class="publishedGalleryCanvasMeta">
+          <div class="meta-card"><strong>${esc(title)}</strong><span>${esc(meta)}</span></div>
+        </div>
+        ${blocks.sort((a, b) => (a.z || 0) - (b.z || 0)).map((block, index) => {
+          const style = `left:${block.x}%;top:${block.y}%;width:${block.w}%;height:${block.h}%;z-index:${block.z};opacity:${block.opacity};`;
+          if (block.type === 'image') {
+            return `
+              <figure class="publishedGalleryFloatBlock published-image" style="${style}">
+                <div class="published-inner" style="border-radius:${block.radius || 18}px">
+                  <img src="${esc(block.sourceUrl || block.previewUrl)}" alt="${esc(title + ' ' + (index + 1))}" loading="lazy" style="object-fit:${esc(normalizeStudioFit(block.fit))};border-radius:${block.radius || 18}px ${block.radius || 18}px 0 0" />
+                  ${block.caption ? `<figcaption>${esc(block.caption).replaceAll('\n', '<br>')}</figcaption>` : ''}
+                </div>
+              </figure>
+            `;
+          }
+          return `
+            <section class="publishedGalleryFloatBlock published-text" style="${style}">
+              <div class="published-inner" style="background:${esc(block.bgColor || '#10151f')};color:${esc(block.textColor || '#ffffff')};text-align:${esc(block.textAlign || 'left')};border-radius:${block.radius || 18}px;font-family:${esc(block.fontFamily || 'Inter, system-ui, sans-serif')};font-size:${esc(block.fontSize || 18)}px;font-weight:${esc(block.fontWeight || '600')}">
+                ${block.heading ? `<div class="published-heading">${esc(block.heading).replaceAll('\n', '<br>')}</div>` : ''}
+                <div class="published-body">${esc(block.text || '').replaceAll('\n', '<br>')}</div>
+              </div>
+            </section>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+async function handleSavePicturesDesigner() {
+  if (isSavingPost) return;
+  if (!canPostPicturesBoard()) {
+    alert('Only approved gallery managers can publish in Pictures.');
+    return;
+  }
+  const title = $('studioTitle')?.value.trim() || `Gallery • ${new Date().toLocaleDateString()}`;
+  const location = $('studioLocation')?.value.trim() || '';
+  const contact = $('studioContact')?.value.trim() || '';
+  const imageBlocks = pictureDesignerBlocks.filter((block) => block.type === 'image');
+  if (!imageBlocks.length) {
+    alert('Add at least one photo before publishing the gallery.');
+    return;
+  }
+  const textSummary = pictureDesignerBlocks
+    .filter((block) => block.type === 'text')
+    .map((block) => [block.heading, block.text].filter(Boolean).join('\n'))
+    .filter(Boolean)
+    .join('\n\n');
+  const moderationScan = detectModerationIssues([title, location, contact, textSummary].join(' '));
+  isSavingPost = true;
+  if ($('studioSaveBtn')) $('studioSaveBtn').disabled = true;
+  try {
+    let existing = null;
+    if (pictureDesignerEditingId) {
+      existing = listings.find((item) => item.id === pictureDesignerEditingId) || null;
+      if (!existing || !canModify(existing)) {
+        alert('You do not have permission to edit this gallery.');
+        return;
+      }
+    }
+    const finalBlocks = [];
+    const imageUrls = [];
+    const imageLayouts = [];
+    const imageCaptions = [];
+    for (const [index, block] of pictureDesignerBlocks.entries()) {
+      if (block.type === 'text') {
+        finalBlocks.push({
+          id: block.id,
+          type: 'text',
+          heading: String(block.heading || '').trim(),
+          text: String(block.text || '').trim(),
+          x: block.x,
+          y: block.y,
+          w: block.w,
+          h: block.h,
+          z: block.z,
+          opacity: normalizeStudioOpacity(block.opacity, 1),
+          radius: normalizeStudioRadius(block.radius, 18),
+          fontSize: normalizeStudioFontSize(block.fontSize, 18),
+          fontWeight: String(block.fontWeight || '600'),
+          fontFamily: String(block.fontFamily || 'Inter, system-ui, sans-serif'),
+          textColor: String(block.textColor || '#ffffff'),
+          bgColor: String(block.bgColor || '#10151f'),
+          textAlign: ['left', 'center', 'right'].includes(String(block.textAlign || '').toLowerCase()) ? String(block.textAlign).toLowerCase() : 'left',
+          style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style).toLowerCase() : 'body'
+        });
+        continue;
+      }
+      let finalUrl = String(block.sourceUrl || '').trim();
+      if (block.file) {
+        const safeName = `${Date.now()}-${index}-${String(block.file.name || 'photo').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
+        await uploadBytes(storageRef, block.file);
+        finalUrl = await getDownloadURL(storageRef);
+      }
+      if (!finalUrl) continue;
+      const cleanCaption = String(block.caption || '').trim();
+      finalBlocks.push({
+        id: block.id,
+        type: 'image',
+        url: finalUrl,
+        caption: cleanCaption,
+        x: block.x,
+        y: block.y,
+        w: block.w,
+        h: block.h,
+        z: block.z,
+        fit: normalizeStudioFit(block.fit),
+        radius: normalizeStudioRadius(block.radius, 18),
+        opacity: normalizeStudioOpacity(block.opacity, 1),
+        name: String(block.name || 'Photo')
+      });
+      imageUrls.push(finalUrl);
+      imageLayouts.push('wide');
+      imageCaptions.push(cleanCaption);
+    }
+    if (!imageUrls.length) {
+      alert('At least one valid image is required to publish this gallery.');
+      return;
+    }
+    const nowMs = Date.now();
+    const payload = {
+      category: 'PICTURES',
+      board: 'PICTURES',
+      status: 'ACTIVE',
+      title,
+      desc: textSummary,
+      description: textSummary,
+      location,
+      contact,
+      price: 0,
+      photo: imageUrls[0] || '',
+      imageUrl: imageUrls[0] || '',
+      imageUrls,
+      imageLayouts,
+      imageCaptions,
+      galleryBlocks: finalBlocks,
+      galleryCanvasHeight: pictureDesignerCanvasHeight,
+      moderationFlagged: moderationScan.flagged,
+      moderationLabels: moderationScan.matchedLabels,
+      moderationMatchedTerms: moderationScan.matchedTerms,
+      moderationSeverity: moderationScan.severity,
+      updatedAt: serverTimestamp(),
+      updatedAtMs: nowMs
+    };
+    if (existing) {
+      await updateDoc(doc(db, 'listings', existing.id), payload);
+      await logMarketplaceActivity(`Updated picture gallery: ${title}`, { type: 'gallery_update', lastBoardVisited: 'PICTURES', lastThreadId: existing.id, lastThreadTitle: title });
+    } else {
+      Object.assign(payload, {
+        uid: currentUser.uid,
+        authorEmail: currentUser.email || '',
+        authorName: currentProfile?.displayName || currentUser.displayName || currentUser.email || 'Marketplace Member',
+        createdAt: serverTimestamp(),
+        createdAtMs: nowMs,
+        soldAt: null,
+        soldAtMs: null,
+        views: 0,
+        likes: 0,
+        commentsCount: 0,
+        hidden: false,
+        deleted: false,
+        threadParticipants: [],
+        lastReplyAt: null,
+        lastReplyAtMs: 0,
+        lastReplyByUid: '',
+        lastReplyByEmail: '',
+        updatedByUid: currentUser.uid,
+        updatedByEmail: currentUser.email || ''
+      });
+      const created = await addDoc(collection(db, 'listings'), payload);
+      await logMarketplaceActivity(`Published picture gallery: ${title}`, { type: 'gallery_publish', lastBoardVisited: 'PICTURES', lastThreadId: created.id, lastThreadTitle: title });
+    }
+    closePicturesDesigner();
+  } catch (error) {
+    console.error('Save pictures designer error', error);
+    alert(error?.message || 'Could not publish the gallery.');
+  } finally {
+    isSavingPost = false;
+    if ($('studioSaveBtn')) $('studioSaveBtn').disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const bind = (id, eventName, handler) => {
+    const el = $(id);
+    if (el) el.addEventListener(eventName, handler);
+  };
+  bind('studioCanvasHeight', 'input', (event) => setPicturesDesignerCanvasHeight(event.target.value));
+  bind('studioCanvasGrowBtn', 'click', () => setPicturesDesignerCanvasHeight(pictureDesignerCanvasHeight + 400));
+  bind('studioCanvasShrinkBtn', 'click', () => setPicturesDesignerCanvasHeight(pictureDesignerCanvasHeight - 400));
+  bind('studioSnapToggle', 'click', () => {
+    pictureDesignerSnapEnabled = !pictureDesignerSnapEnabled;
+    refreshStudioSnapToggle();
+    const stage = $('picturesDesignerStage');
+    if (stage) stage.classList.toggle('stage-snap-off', !pictureDesignerSnapEnabled);
+  });
+  bind('studioDeleteSelectedBtn', 'click', () => {
+    if (pictureDesignerSelectedId) removePicturesDesignerBlock(pictureDesignerSelectedId);
+  });
+  bind('studioDuplicateSelectedBtn', 'click', () => {
+    if (pictureDesignerSelectedId) duplicatePicturesDesignerBlock(pictureDesignerSelectedId);
+  });
+  bind('studioBringForwardBtn', 'click', () => {
+    const block = getPicturesDesignerSelectedBlock();
+    if (block) updatePicturesDesignerBlock(block.id, { z: (block.z || 1) + 1 });
+  });
+  bind('studioSendBackwardBtn', 'click', () => {
+    const block = getPicturesDesignerSelectedBlock();
+    if (block) updatePicturesDesignerBlock(block.id, { z: Math.max(1, (block.z || 1) - 1) });
+  });
+
+  const genericBindings = [
+    ['studioLayer', 'z'],
+    ['studioPosX', 'x'],
+    ['studioPosY', 'y'],
+    ['studioSizeW', 'w'],
+    ['studioSizeH', 'h'],
+    ['studioImageCaption', 'caption'],
+    ['studioImageFit', 'fit'],
+    ['studioRadius', 'radius'],
+    ['studioOpacity', 'opacity'],
+    ['studioTextHeading', 'heading'],
+    ['studioTextBody', 'text'],
+    ['studioFontSize', 'fontSize'],
+    ['studioFontWeight', 'fontWeight'],
+    ['studioFontFamily', 'fontFamily'],
+    ['studioTextColor', 'textColor'],
+    ['studioBgColor', 'bgColor'],
+    ['studioTextAlign', 'textAlign']
+  ];
+  genericBindings.forEach(([id, field]) => {
+    const el = $(id);
+    if (!el) return;
+    const evt = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(evt, () => {
+      if (!pictureDesignerSelectedId) return;
+      updatePicturesDesignerBlock(pictureDesignerSelectedId, { [field]: el.value });
+    });
+  });
+});
