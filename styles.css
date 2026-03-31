@@ -91,7 +91,7 @@ select option{background:#0b1628; color:#f3f6fb}
 .rowBtns{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
 .spacer-10{height:10px}
 .btn{
-  border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:var(--text);
+  border:1px solid rgba(255,255,255,.12); background:rgba(124,166,255,.12); color:var(--text);
   padding:11px 16px; border-radius:16px; font-weight:900; cursor:pointer; text-decoration:none;
   display:inline-flex; align-items:center; justify-content:center; transition:.2s ease;
 }
@@ -193,7 +193,7 @@ select option{background:#0b1628; color:#f3f6fb}
 .topicDesc{color:#dce6f2; line-height:1.5}
 .topicSide{display:grid; gap:10px; justify-items:end; min-width:170px}
 .price{font-size:22px; font-weight:950}
-.status{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.11); background:rgba(255,255,255,.05); font-size:12px; font-weight:900}
+.status{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.11); background:rgba(124,166,255,.12); font-size:12px; font-weight:900}
 .status.active{background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.28)}
 .status.sold{background:rgba(239,68,68,.14); border-color:rgba(239,68,68,.30)}
 .status.pending{background:rgba(251,191,36,.15); border-color:rgba(251,191,36,.34)}
@@ -587,7 +587,7 @@ body.admin-page .meta{color:#b8c0cb}
 .admin-filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .admin-filter-chip{
   border:1px solid rgba(255,255,255,.20);
-  background:rgba(255,255,255,.05);
+  background:rgba(124,166,255,.12);
   color:#ebf0f6;
   border-radius:999px;
   padding:10px 14px;
@@ -699,9 +699,10 @@ body.admin-page .meta{color:#b8c0cb}
 /* --- Admin portal restored to dashboard patch UI (v35) --- */
 body.admin-page{
   background:
-    radial-gradient(circle at top left, rgba(59,130,246,.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(99,102,241,.14), transparent 24%),
-    linear-gradient(180deg, #0a1020 0%, #0d1528 52%, #0b1220 100%);
+    radial-gradient(circle at 12% 8%, rgba(96,165,250,.42), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(56,189,248,.28), transparent 24%),
+    radial-gradient(circle at 50% 0%, rgba(37,99,235,.24), transparent 36%),
+    linear-gradient(180deg, #10254b 0%, #18325f 42%, #12284d 100%);
   color:#edf2ff;
 }
 body.admin-page::before,
@@ -714,8 +715,8 @@ body.admin-page select{border-radius:12px}
 body.admin-page .topbar{
   position:sticky;
   top:0;
-  background:rgba(9,14,29,.92);
-  border-bottom:1px solid rgba(143,155,179,.18);
+  background:linear-gradient(180deg, rgba(20,42,79,.96), rgba(16,32,63,.94));
+  border-bottom:1px solid rgba(163,203,255,.28);
   backdrop-filter:blur(14px);
 }
 .admin-topbar .logo-text,
@@ -725,8 +726,8 @@ body.admin-page .topbar{
   position:sticky;
   top:73px;
   z-index:14;
-  background:rgba(12,18,33,.76);
-  border-bottom:1px solid rgba(148,163,184,.12);
+  background:rgba(18,37,70,.82);
+  border-bottom:1px solid rgba(163,203,255,.22);
   backdrop-filter:blur(12px);
 }
 .admin-nav-strip-inner{
@@ -765,9 +766,9 @@ body.admin-page .topbar{
 .activity-main-card,
 .activity-side-card,
 .admin-table-shell{
-  background:linear-gradient(180deg, rgba(20,29,49,.98), rgba(13,20,36,.98));
-  border:1px solid rgba(148,163,184,.16);
-  box-shadow:0 24px 60px rgba(2,6,23,.34), inset 0 1px 0 rgba(255,255,255,.02);
+  background:linear-gradient(180deg, rgba(29,58,106,.98), rgba(19,39,79,.98));
+  border:1px solid rgba(168,207,255,.24);
+  box-shadow:0 24px 60px rgba(6,18,46,.34), inset 0 1px 0 rgba(255,255,255,.05);
 }
 .admin-stat-card{
   padding:20px;
@@ -777,7 +778,7 @@ body.admin-page .topbar{
   gap:12px;
 }
 .admin-stat-card.accent-card{
-  background:linear-gradient(180deg, rgba(22,31,56,.99), rgba(12,18,34,.99));
+  background:linear-gradient(180deg, rgba(35,69,124,.99), rgba(18,39,80,.99));
 }
 .admin-stat-label{color:#8fa1c2;letter-spacing:.15em}
 .admin-stat-value{font-size:40px;color:#ffffff}
@@ -785,16 +786,16 @@ body.admin-page .topbar{
 .admin-live-banner .panel-b{padding-top:16px}
 .panel-h{
   padding:22px 24px 18px;
-  border-bottom:1px solid rgba(148,163,184,.12);
+  border-bottom:1px solid rgba(168,207,255,.18);
 }
 .panel-b{padding:20px 24px 24px}
 .panel-title{font-size:28px;letter-spacing:-.03em;color:#f8fbff}
 .meta{color:#93a4bd}
 .admin-summary{display:flex;gap:10px;flex-wrap:wrap}
 body.admin-page .pill{
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(148,163,184,.20);
-  color:#dce7f8;
+  background:rgba(124,166,255,.12);
+  border:1px solid rgba(176,212,255,.30);
+  color:#f1f6ff;
 }
 .admin-dashboard-main{
   display:grid;
@@ -816,9 +817,9 @@ body.admin-page .pill{
   background:linear-gradient(90deg, #4f8cff, #6ee7ff);
 }
 .admin-filter-chip{
-  background:#18233a;
-  border:1px solid rgba(148,163,184,.18);
-  color:#d8e4f6;
+  background:#213863;
+  border:1px solid rgba(176,212,255,.24);
+  color:#dce8fb;
 }
 .admin-filter-chip.active{
   background:linear-gradient(180deg, rgba(59,130,246,.22), rgba(37,99,235,.14));
@@ -834,8 +835,8 @@ body.admin-page .pill{
 body.admin-page input,
 body.admin-page textarea,
 body.admin-page select{
-  background:#0d1628;
-  border:1px solid rgba(99,115,140,.24);
+  background:#17305b;
+  border:1px solid rgba(176,212,255,.30);
   color:#eef4ff;
 }
 body.admin-page input::placeholder,
@@ -843,15 +844,15 @@ body.admin-page textarea::placeholder{color:#7f90ab}
 .admin-table-shell{
   border-radius:18px;
   overflow:auto;
-  background:#0d1627;
+  background:#17305b;
 }
 .admin-table-shell-tall{max-height:880px}
 .admin-table-shell-medium{max-height:470px}
 .adminTable th,
 .activity-table th{
-  background:#121d33;
-  color:#91a5c6;
-  border-bottom:1px solid rgba(148,163,184,.12);
+  background:#1d3a69;
+  color:#d3e5ff;
+  border-bottom:1px solid rgba(168,207,255,.18);
 }
 .adminTable td,
 .activity-table td{color:#e8f0fd}
@@ -861,7 +862,7 @@ body.admin-page textarea::placeholder{color:#7f90ab}
 .activity-table tbody tr:nth-child(even){background:rgba(255,255,255,.012)}
 .online-chip-list{display:flex;gap:12px;flex-wrap:wrap}
 .online-chip{
-  background:rgba(15,23,42,.88);
+  background:rgba(16,32,58,.88);
   border:1px solid rgba(74,222,128,.30);
   color:#effcf5;
   padding:12px 16px;
@@ -871,16 +872,16 @@ body.admin-page textarea::placeholder{color:#7f90ab}
 .admin-activity-layout{grid-template-columns:minmax(0,1.55fr) minmax(260px,.7fr);gap:18px}
 .activity-main-card,.activity-side-card{border-radius:18px}
 .activity-side-card{
-  background:linear-gradient(180deg, rgba(18,28,47,.98), rgba(13,20,36,.98));
+  background:linear-gradient(180deg, rgba(29,58,106,.98), rgba(19,39,79,.98));
 }
 .activity-side-label{color:#7f94b8}
 .activity-side-value{font-size:24px}
-.activity-table-shell{background:#0d1628;border-color:rgba(148,163,184,.12)}
+.activity-table-shell{background:#17305b;border-color:rgba(131,164,223,.14)}
 .activity-status-badge.online{background:rgba(34,197,94,.12);border-color:rgba(74,222,128,.34);color:#e7fff1}
 .activity-status-badge.recent{background:rgba(59,130,246,.12);border-color:rgba(96,165,250,.34);color:#dceafe}
 .activity-status-badge.offline{background:rgba(148,163,184,.10);border-color:rgba(148,163,184,.22);color:#dbe6f7}
 body.admin-page .btn.primary{background:linear-gradient(180deg, #3b82f6, #2563eb);border-color:rgba(96,165,250,.45)}
-body.admin-page .btn.ghost{background:rgba(255,255,255,.03);border-color:rgba(148,163,184,.16)}
+body.admin-page .btn.ghost{background:rgba(255,255,255,.04);border-color:rgba(131,164,223,.18)}
 body.admin-page .btn.danger{background:rgba(239,68,68,.16);border-color:rgba(248,113,113,.34)}
 
 .topicList.pictureBoardActive{gap:16px}
@@ -906,7 +907,7 @@ body.admin-page .btn.danger{background:rgba(239,68,68,.16);border-color:rgba(248
   min-height:138px;
   border-radius:14px;
   overflow:hidden;
-  background:rgba(255,255,255,.05);
+  background:rgba(124,166,255,.12);
 }
 .galleryPreviewCell.primary{min-height:220px}
 .galleryPreviewCell img{
@@ -981,3 +982,11 @@ body.admin-page .btn.danger{background:rgba(239,68,68,.16);border-color:rgba(248
   .galleryPreviewCell.primary{min-height:180px}
   .thread-gallery-grid{grid-template-columns:1fr 1fr}
 }
+
+
+/* v44 stronger blue admin-only pass */
+body.admin-page .admin-nav-button{background:linear-gradient(180deg, rgba(42,79,138,.88), rgba(28,52,93,.92)); border:1px solid rgba(176,212,255,.24);}
+body.admin-page .admin-nav-button.active{background:linear-gradient(180deg, rgba(70,121,214,.52), rgba(34,77,158,.34)); border-color:rgba(163,203,255,.42); box-shadow:0 0 0 1px rgba(140,190,255,.12) inset, 0 14px 32px rgba(24,71,153,.22);}
+body.admin-page .admin-section-card, body.admin-page .activity-main-card, body.admin-page .activity-side-card, body.admin-page .admin-stat-card, body.admin-page .admin-table-shell{background:linear-gradient(180deg, rgba(31,61,111,.98), rgba(20,41,82,.98)) !important; border-color:rgba(176,212,255,.24) !important;}
+body.admin-page .adminTable th, body.admin-page .activity-table th{background:#224276 !important; color:#d8ebff !important;}
+body.admin-page .topbar::after{content:''; position:absolute; inset:auto 0 0 0; height:1px; background:linear-gradient(90deg, transparent, rgba(154,202,255,.55), transparent);}
