@@ -9,6 +9,9 @@
   --line-strong:rgba(255,255,255,.30);
   --accent:#ffffff;
   --shadow:0 18px 44px rgba(0,0,0,.35);
+  --canvas-width-px:1600;
+  --canvas-height-px:2200;
+  --viewer-scale:1;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:radial-gradient(circle at top, #131b2a 0%, var(--bg) 52%, #05070d 100%);color:var(--text);font-family:Inter,Arial,sans-serif;min-height:100%}
@@ -77,9 +80,10 @@ textarea{resize:vertical}
 .designer-element.image-element{overflow:hidden;background:rgba(255,255,255,.05)}
 .designer-image-wrap{display:grid;grid-template-rows:minmax(0,1fr) auto;width:100%;height:100%}
 .designer-image{width:100%;height:100%;display:block;background:#0a0d14}
-.designer-caption{padding:10px 12px;font-size:14px;line-height:1.4;background:rgba(6,10,18,.78);border-top:1px solid rgba(255,255,255,.10);color:#f3f7fc;white-space:pre-wrap}
+.designer-caption{padding:calc(10px * var(--text-scale, 1)) calc(12px * var(--text-scale, 1));font-size:calc(14px * var(--text-scale, 1));line-height:1.4;background:rgba(6,10,18,.78);border-top:1px solid rgba(255,255,255,.10);color:#f3f7fc;white-space:pre-wrap}
 .designer-text{
-  width:100%;height:100%;padding:12px 14px;white-space:pre-wrap;overflow:hidden;border-radius:16px;
+  width:100%;height:100%;padding:calc(12px * var(--text-scale, 1)) calc(14px * var(--text-scale, 1));white-space:pre-wrap;overflow:hidden;border-radius:16px;
+  line-height:1.15;
 }
 .designer-text[contenteditable="true"]{cursor:text;user-select:text}
 .designer-element:not(.selected) .designer-text{pointer-events:none}
@@ -126,13 +130,13 @@ body.viewer-open .designer-main{width:100%}
 body.viewer-open .designer-sidebar{display:none!important}
 body.viewer-open .status-banner{top:96px;width:auto}
 body.viewer-open .stage-scroll{padding:24px 24px 56px;overflow:auto}
-body.viewer-open .stage-shell{display:flex;justify-content:center;align-items:flex-start;min-height:auto;width:100%}
-body.viewer-open .page-frame{width:min(1800px, calc(100vw - 48px));margin:0 auto;transform:none !important}
+body.viewer-open .stage-shell{display:flex;justify-content:center;align-items:flex-start;min-height:calc(var(--canvas-height-px) * 1px * var(--viewer-scale));width:100%}
+body.viewer-open .page-frame{width:calc(var(--canvas-width-px) * 1px);max-width:none;margin:0 auto;transform:scale(var(--viewer-scale)) !important;transform-origin:top center}
 body.viewer-open .page-canvas{width:100%;max-width:none;border-radius:30px;border-color:rgba(255,255,255,.18);box-shadow:0 28px 80px rgba(0,0,0,.45)}
 body.viewer-open .designer-element{transition:transform .18s ease, box-shadow .18s ease}
 body.viewer-open .designer-element.image-element:hover{transform:translateY(-3px);box-shadow:0 18px 50px rgba(0,0,0,.35)}
-body.viewer-open .designer-text{overflow:visible;padding:10px 12px;text-shadow:0 2px 20px rgba(0,0,0,.35)}
-body.viewer-open .designer-caption{font-size:15px}
+body.viewer-open .designer-text{overflow:visible;padding:calc(10px * var(--text-scale, 1)) calc(12px * var(--text-scale, 1));text-shadow:0 2px 20px rgba(0,0,0,.35)}
+body.viewer-open .designer-caption{font-size:max(12px, calc(14px * var(--text-scale, 1)))}
 body.viewer-open .status-banner{background:rgba(10,16,28,.92)}
 
 body.editor-open .designer-main{width:100%}
@@ -146,6 +150,17 @@ body.editor-open .stage-shell{display:flex;justify-content:center;align-items:fl
 @media (max-width:900px){
   .designer-sidebar{width:100%;max-width:none;left:0;right:0;top:83px;height:calc(100vh - 83px)}
   .show-tools-fab{left:14px;bottom:14px}
+}
+
+@media (max-width:760px){
+  .pictures-topbar{padding:14px 14px 12px;gap:12px;align-items:flex-start}
+  .topbar-left,.topbar-right{width:100%}
+  .topbar-left{justify-content:space-between;align-items:flex-start}
+  .topbar-right{justify-content:flex-end;gap:10px}
+  .topbar-link,.topbar-btn,.user-pill{padding:10px 12px}
+  body.viewer-open .stage-scroll{padding:12px 10px 34px;overflow-x:hidden}
+  body.viewer-open .page-frame{transform-origin:top left}
+  body.viewer-open .designer-text{text-shadow:0 1px 10px rgba(0,0,0,.28)}
 }
 
 

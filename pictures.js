@@ -270,6 +270,20 @@ function normalizeHexColor(value, fallback) {
   return /^#[0-9a-fA-F]{6}$/.test(clean) ? clean : fallback;
 }
 
+function getViewerScale() {
+  if (editorMode) return 1;
+  const width = clampNumber(pageState.canvasWidth, 1400, 2600, 1800);
+  const gutter = window.innerWidth <= 760 ? 20 : 48;
+  const available = Math.max(280, window.innerWidth - gutter);
+  return Math.min(1, available / width);
+}
+
+function scaleForView(px, minimum = 12) {
+  if (editorMode) return Number(px || minimum);
+  const scaled = Number(px || minimum) * getViewerScale();
+  return Math.max(minimum, Math.round(scaled * 10) / 10);
+}
+
 function applyPageFrame() {
   const frame = $('pageFrame');
   const canvas = $('pageCanvas');
@@ -278,6 +292,10 @@ function applyPageFrame() {
   if (!frame || !canvas) return;
   const width = clampNumber(pageState.canvasWidth, 1400, 2600, 1800);
   const height = clampNumber(pageState.canvasHeight, 1200, 10000, 2200);
+  const viewerScale = getViewerScale();
+  document.documentElement.style.setProperty('--canvas-width-px', String(width));
+  document.documentElement.style.setProperty('--canvas-height-px', String(height));
+  document.documentElement.style.setProperty('--viewer-scale', String(viewerScale));
   frame.style.setProperty('--canvas-max-width', `${width}px`);
   frame.style.setProperty('--canvas-zoom', String(editorMode ? (zoomPercent / 100) : 1));
   canvas.style.setProperty('--canvas-aspect', `${width} / ${height}`);
@@ -306,6 +324,7 @@ function renderCanvas() {
   }
 
   const elements = [...pageState.elements].sort((a, b) => a.z - b.z);
+  const textScale = editorMode ? 1 : getViewerScale();
   if (!elements.length) {
     canvas.innerHTML = `
       <div class="viewer-empty">
@@ -319,13 +338,13 @@ function renderCanvas() {
 
   canvas.innerHTML = elements.map((element) => {
     const isSelected = element.id === selectedId;
-    const style = `left:${element.x}%;top:${element.y}%;width:${element.w}%;height:${element.h}%;z-index:${element.z};`;
+    const style = `left:${element.x}%;top:${element.y}%;width:${element.w}%;height:${element.h}%;z-index:${element.z};--text-scale:${textScale};`; 
     if (element.type === 'image') {
       return `
         <div class="designer-element image-element ${isSelected ? 'selected' : ''}" data-id="${esc(element.id)}" data-type="image" style="${style}">
           ${editorMode ? `<button class="drag-chip" type="button" data-drag-id="${esc(element.id)}">Move</button>` : ''}
           <div class="designer-image-wrap" data-select-id="${esc(element.id)}">
-            <img class="designer-image" src="${esc(element.src)}" alt="${esc(element.caption || pageState.title || 'Gallery image')}" style="object-fit:${esc(element.fit || 'cover')};border-radius:${Number(element.radius || 0)}px;${(element.shadow ?? pageState.defaultShadows) ? 'box-shadow:0 18px 44px rgba(0,0,0,.28);' : ''}" />
+            <img class="designer-image" src="${esc(element.src)}" alt="${esc(element.caption || pageState.title || 'Gallery image')}" style="object-fit:${esc(element.fit || 'cover')};border-radius:${scaleForView(Number(element.radius || 0), 0)}px;${(element.shadow ?? pageState.defaultShadows) ? 'box-shadow:0 18px 44px rgba(0,0,0,.28);' : ''}" />
             ${element.caption ? `<div class="designer-caption">${esc(element.caption)}</div>` : ''}
           </div>
           ${editorMode && isSelected ? resizeHandlesHtml() : ''}
@@ -334,7 +353,7 @@ function renderCanvas() {
     return `
       <div class="designer-element text-element ${isSelected ? 'selected' : ''}" data-id="${esc(element.id)}" data-type="text" style="${style}">
         ${editorMode ? `<button class="drag-chip" type="button" data-drag-id="${esc(element.id)}">Move</button>` : ''}
-        <div class="designer-text" data-text-id="${esc(element.id)}" ${editorMode ? 'contenteditable="true" spellcheck="true"' : ''} style="font-family:${esc(element.fontFamily)};font-size:${Number(element.fontSize || 24)}px;font-weight:${esc(element.fontWeight || 600)};color:${esc(element.color || '#ffffff')};background:${esc(element.background || 'transparent')};text-align:${esc(element.textAlign || 'left')};">${esc(element.text || '')}</div>
+        <div class="designer-text" data-text-id="${esc(element.id)}" ${editorMode ? 'contenteditable="true" spellcheck="true"' : ''} style="font-family:${esc(element.fontFamily)};font-size:${scaleForView(Number(element.fontSize || 24), 11)}px;font-weight:${esc(element.fontWeight || 600)};color:${esc(element.color || '#ffffff')};background:${esc(element.background || 'transparent')};text-align:${esc(element.textAlign || 'left')};">${esc(element.text || '')}</div>
         ${editorMode && isSelected ? resizeHandlesHtml() : ''}
       </div>`;
   }).join('');
@@ -943,5 +962,10 @@ async function boot() {
     }
   });
 }
+
+window.addEventListener('resize', () => {
+  applyPageFrame();
+  if (!editorMode) render();
+});
 
 boot();
