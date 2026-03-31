@@ -138,3 +138,16 @@ textarea{resize:vertical}
   .stage-scroll{padding:14px 12px 30px}
   .field-grid.two-col,.studio-actions,.align-row{grid-template-columns:1fr}
 }
+
+
+body.viewer-open .stage-scroll{padding:28px 30px 60px;overflow:auto}
+body.viewer-open .stage-shell{display:block;min-height:auto}
+body.viewer-open .page-frame{width:min(1680px, calc(100vw - 60px));margin:0 auto;transform:none !important}
+body.viewer-open .page-canvas{border-radius:30px;border-color:rgba(255,255,255,.18);box-shadow:0 28px 80px rgba(0,0,0,.45)}
+body.viewer-open .designer-element{transition:transform .18s ease, box-shadow .18s ease}
+body.viewer-open .designer-element.image-element:hover{transform:translateY(-3px);box-shadow:0 18px 50px rgba(0,0,0,.35)}
+body.viewer-open .designer-text{overflow:visible;padding:10px 12px;text-shadow:0 2px 20px rgba(0,0,0,.35)}
+body.viewer-open .designer-caption{font-size:15px}
+body.viewer-open .status-banner{background:rgba(8,12,20,.72)}
+body.editor-open .page-frame{width:min(96vw, var(--canvas-max-width, 1800px))}
+body.editor-open .page-canvas{border-color:rgba(255,255,255,.72)}

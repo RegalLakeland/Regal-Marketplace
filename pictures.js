@@ -17,6 +17,16 @@ const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
+function safeNumber(value, fallback) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const num = safeNumber(value, fallback);
+  return Math.max(min, Math.min(max, num));
+}
+
 const DEFAULT_STATE = {
   title: 'Regal Photography',
   canvasWidth: 1800,
@@ -152,11 +162,13 @@ function maybeRestoreLocalDraft(remoteState) {
 
 function sanitizeState(data) {
   const base = structuredClone(DEFAULT_STATE);
+  const rawWidth = safeNumber(data?.canvasWidth, base.canvasWidth);
+  const rawHeight = safeNumber(data?.canvasHeight, base.canvasHeight);
   const state = {
     ...base,
     ...data,
-    canvasWidth: Math.max(1200, Math.min(2600, Number(data?.canvasWidth || base.canvasWidth))),
-    canvasHeight: Math.max(1200, Math.min(10000, Number(data?.canvasHeight || base.canvasHeight))),
+    canvasWidth: clampNumber(rawWidth, 1400, 2600, base.canvasWidth),
+    canvasHeight: clampNumber(rawHeight, 1200, 10000, base.canvasHeight),
     background: String(data?.background || base.background),
     defaultShadows: data?.defaultShadows !== false,
     elements: Array.isArray(data?.elements) ? data.elements.map(sanitizeElement).filter(Boolean) : base.elements
@@ -164,16 +176,17 @@ function sanitizeState(data) {
   return state;
 }
 
+
 function sanitizeElement(raw) {
   if (!raw || !raw.type) return null;
   const common = {
     id: String(raw.id || crypto.randomUUID()),
     type: raw.type === 'image' ? 'image' : 'text',
-    x: clamp(Number(raw.x ?? 10), 0, 96),
-    y: clamp(Number(raw.y ?? 10), 0, 96),
-    w: clamp(Number(raw.w ?? 20), 4, 100),
-    h: clamp(Number(raw.h ?? 12), 4, 100),
-    z: Number.isFinite(Number(raw.z)) ? Number(raw.z) : 1
+    x: clampNumber(raw.x ?? 10, 0, 96, 10),
+    y: clampNumber(raw.y ?? 10, 0, 96, 10),
+    w: clampNumber(raw.w ?? 20, 4, 100, 20),
+    h: clampNumber(raw.h ?? 12, 4, 100, 12),
+    z: safeNumber(raw.z, 1)
   };
   if (common.type === 'image') {
     return {
@@ -181,7 +194,7 @@ function sanitizeElement(raw) {
       src: String(raw.src || ''),
       caption: String(raw.caption || ''),
       fit: raw.fit === 'contain' ? 'contain' : 'cover',
-      radius: clamp(Number(raw.radius ?? 18), 0, 80),
+      radius: clampNumber(raw.radius ?? 18, 0, 80, 18),
       shadow: raw.shadow !== false
     };
   }
@@ -189,7 +202,7 @@ function sanitizeElement(raw) {
     ...common,
     text: String(raw.text || 'New text'),
     fontFamily: String(raw.fontFamily || 'Inter, sans-serif'),
-    fontSize: clamp(Number(raw.fontSize ?? 24), 12, 160),
+    fontSize: clampNumber(raw.fontSize ?? 24, 12, 160, 24),
     fontWeight: String(raw.fontWeight || 600),
     color: String(raw.color || '#ffffff'),
     background: String(raw.background || 'transparent'),
@@ -206,6 +219,9 @@ function snap(value) {
 }
 
 function render() {
+  document.title = `${pageState.title || 'Pictures'} - Regal Lakeland`;
+  document.body.classList.toggle('editor-open', editorMode);
+  document.body.classList.toggle('viewer-open', !editorMode);
   renderHeader();
   renderCanvas();
   renderLayers();
@@ -237,13 +253,21 @@ function normalizeHexColor(value, fallback) {
 function applyPageFrame() {
   const frame = $('pageFrame');
   const canvas = $('pageCanvas');
+  const stageShell = $('stageShell');
+  const stageScroll = $('stageScroll');
   if (!frame || !canvas) return;
-  frame.style.setProperty('--canvas-max-width', `${pageState.canvasWidth}px`);
-  frame.style.setProperty('--canvas-zoom', String(zoomPercent / 100));
-  canvas.style.setProperty('--canvas-aspect', `${pageState.canvasWidth} / ${pageState.canvasHeight}`);
+  const width = clampNumber(pageState.canvasWidth, 1400, 2600, 1800);
+  const height = clampNumber(pageState.canvasHeight, 1200, 10000, 2200);
+  frame.style.setProperty('--canvas-max-width', `${width}px`);
+  frame.style.setProperty('--canvas-zoom', String(editorMode ? (zoomPercent / 100) : 1));
+  canvas.style.setProperty('--canvas-aspect', `${width} / ${height}`);
   canvas.style.setProperty('--canvas-bg', pageState.background || '#0b111b');
   canvas.classList.toggle('editor-mode', editorMode);
+  canvas.classList.toggle('viewer-mode', !editorMode);
+  if (stageShell) stageShell.classList.toggle('viewer-shell', !editorMode);
+  if (stageScroll) stageScroll.classList.toggle('viewer-scroll', !editorMode);
 }
+
 
 function renderCanvas() {
   const canvas = $('pageCanvas');
