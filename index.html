@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Lakeland Private Marketplace</title>
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=24" />
 </head>
 <body class="auth-open">
   <!-- WOW FACTOR BACKGROUND SLIDER -->
@@ -207,7 +207,7 @@
           <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share events, upload photo galleries, and keep useful finds inside the dealership community.</p>
           <div class="rowBtns hero-actions">
             <button class="btn primary" id="heroPostBtn" type="button">Post Item</button>
-            <button class="btn primary" id="heroPicturesBtn" type="button" style="display:none">Upload Pictures</button>
+            <button class="btn primary" id="heroPicturesBtn" type="button" style="display:none">Open Pictures Studio</button>
             <button class="btn ghost" id="heroFreeBtn" type="button">Browse Free Items</button>
             <button class="btn ghost notifBtn" id="heroThreadAlert" type="button" style="display:none">0 threads have new activity</button>
           </div>
@@ -415,6 +415,85 @@
     </div>
   </div>
 
+
+  <div class="overlay picturesDesignerOverlay" id="picturesDesignerOverlay" style="display:none;">
+    <div class="picturesDesignerApp">
+      <aside class="picturesDesignerSidebar">
+        <div class="picturesDesignerSidebarHead">
+          <div>
+            <div class="picturesDesignerEyebrow">Pictures Studio</div>
+            <h2>Live gallery designer</h2>
+            <p>Drag images and text blocks around, resize them live, and build a polished photo page before publishing.</p>
+          </div>
+          <button class="btn ghost" id="picturesDesignerCloseTop" type="button">Close</button>
+        </div>
+
+        <div class="picturesDesignerSidebarBody">
+          <div class="field">
+            <label>Gallery title</label>
+            <input id="studioTitle" placeholder="Work event • New inventory spotlight • Team photos" />
+          </div>
+
+          <div class="field">
+            <label>Location / event label (optional)</label>
+            <input id="studioLocation" placeholder="Regal Honda showroom • Lakeland • April 2026" />
+          </div>
+
+          <div class="field">
+            <label>Photographer credit / contact (optional)</label>
+            <input id="studioContact" placeholder="Ariel Restituyo Garcia • Regal Lakeland" />
+          </div>
+
+          <div class="studioActionGrid">
+            <button class="btn primary" id="studioAddPhotosBtn" type="button">Add Photos</button>
+            <button class="btn ghost" id="studioAddTextBtn" type="button">Add Text Block</button>
+            <button class="btn ghost" id="studioAddHeroTextBtn" type="button">Add Title Block</button>
+            <button class="btn ghost" id="studioClearBtn" type="button">Clear Canvas</button>
+          </div>
+
+          <input id="studioImageInput" type="file" accept="image/*" multiple hidden />
+
+          <div class="studioQuickTips">
+            <strong>How it works</strong>
+            <ul>
+              <li>Drop photos anywhere on the canvas or use Add Photos.</li>
+              <li>Drag blocks up and down to reorder them live.</li>
+              <li>Use block size buttons to switch between small, wide, and hero layouts.</li>
+              <li>Pull the resize handle on image blocks to make them taller or shorter.</li>
+              <li>Click the insert bars between blocks to add text anywhere on the page.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="picturesDesignerSidebarFoot">
+          <div class="studioStatusLine" id="studioStatusLine">No gallery loaded</div>
+          <div class="rowBtns">
+            <button class="btn ghost" id="studioCancelBtn" type="button">Cancel</button>
+            <button class="btn primary" id="studioSaveBtn" type="button">Publish Gallery</button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="picturesDesignerCanvasWrap">
+        <div class="picturesDesignerCanvasHead">
+          <div>
+            <div class="picturesDesignerCanvasTitle">Live page preview</div>
+            <div class="picturesDesignerCanvasSub">Only approved gallery managers can publish. Everyone else only sees the finished result.</div>
+          </div>
+          <div class="picturesDesignerCanvasBadge">Drag • Resize • Caption • Text</div>
+        </div>
+
+        <div class="picturesDesignerCanvas" id="picturesDesignerCanvas">
+          <div class="studioEmptyState">
+            <div class="studioEmptyIcon">🖼️</div>
+            <strong>Start building the gallery</strong>
+            <span>Add images or text blocks to begin.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
   <div class="overlay" id="threadOverlay" style="display:none;">
     <div class="modal wide modal-scroll">
       <div class="modal-h sticky-head">
@@ -447,6 +526,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=23"></script>
+  <script type="module" src="app.js?v=24"></script>
 </body>
 </html>

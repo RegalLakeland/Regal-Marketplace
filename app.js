@@ -384,6 +384,10 @@ let isSavingPost = false;
 let editingPostId = null;
 let pictureStudioItems = [];
 let pictureStudioDragId = '';
+let pictureDesignerBlocks = [];
+let pictureDesignerDragId = '';
+let pictureDesignerEditingId = null;
+let pictureDesignerResizeState = null;
 let lastStatusMessageShown = '';
 let loginInFlight = false;
 let signupInFlight = false;
@@ -668,9 +672,15 @@ function bindStaticEvents() {
     show('postOverlay');
   };
 
-  $('btnNew')?.addEventListener('click', () => openPost(activeBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : ''));
+  $('btnNew')?.addEventListener('click', () => {
+    if (activeBoard === 'PICTURES' && canPostPicturesBoard()) {
+      openPicturesDesigner();
+      return;
+    }
+    openPost(activeBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : '');
+  });
   $('heroPostBtn')?.addEventListener('click', () => openPost(activeBoard === 'PICTURES' ? 'FREE' : ''));
-  $('heroPicturesBtn')?.addEventListener('click', () => openPost('PICTURES'));
+  $('heroPicturesBtn')?.addEventListener('click', () => openPicturesDesigner());
   $('heroFreeBtn')?.addEventListener('click', () => {
     activeBoard = 'FREE';
     renderBoards();
@@ -699,6 +709,33 @@ function bindStaticEvents() {
     enqueuePictureStudioFiles(Array.from(event.dataTransfer?.files || []));
   });
 
+  $('studioAddPhotosBtn')?.addEventListener('click', () => $('studioImageInput')?.click());
+  $('studioImageInput')?.addEventListener('change', (event) => {
+    addFilesToPicturesDesigner(Array.from(event.target.files || []));
+    event.target.value = '';
+  });
+  $('studioAddTextBtn')?.addEventListener('click', () => addTextBlockToPicturesDesigner());
+  $('studioAddHeroTextBtn')?.addEventListener('click', () => addTextBlockToPicturesDesigner(null, 'hero'));
+  $('studioClearBtn')?.addEventListener('click', () => clearPicturesDesigner());
+  $('studioCancelBtn')?.addEventListener('click', closePicturesDesigner);
+  $('picturesDesignerCloseTop')?.addEventListener('click', closePicturesDesigner);
+  $('studioSaveBtn')?.addEventListener('click', handleSavePicturesDesigner);
+  $('picturesDesignerCanvas')?.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    $('picturesDesignerCanvas')?.classList.add('is-dragover');
+  });
+  $('picturesDesignerCanvas')?.addEventListener('dragleave', () => $('picturesDesignerCanvas')?.classList.remove('is-dragover'));
+  $('picturesDesignerCanvas')?.addEventListener('drop', (event) => {
+    event.preventDefault();
+    $('picturesDesignerCanvas')?.classList.remove('is-dragover');
+    addFilesToPicturesDesigner(Array.from(event.dataTransfer?.files || []));
+  });
+  ['studioTitle', 'studioLocation', 'studioContact'].forEach((id) => {
+    $(id)?.addEventListener('input', () => { updatePicturesDesignerStatus(); renderPicturesDesigner(); });
+  });
+  document.addEventListener('pointermove', handlePicturesDesignerPointerMove);
+  document.addEventListener('pointerup', stopPicturesDesignerResize);
+
   $('btnSavePost')?.addEventListener('click', handleSavePost);
   $('btnSendReply')?.addEventListener('click', handleSendReply);
 
@@ -708,9 +745,10 @@ function bindStaticEvents() {
 
   document.querySelectorAll('.overlay').forEach((overlay) => {
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay && ['postOverlay', 'threadOverlay'].includes(overlay.id)) {
+      if (e.target === overlay && ['postOverlay', 'threadOverlay', 'picturesDesignerOverlay'].includes(overlay.id)) {
         if (overlay.id === 'postOverlay') resetPostEditor();
-        hide(overlay.id);
+        if (overlay.id === 'picturesDesignerOverlay') closePicturesDesigner();
+        else hide(overlay.id);
       }
     });
   });
@@ -738,6 +776,34 @@ function bindStaticEvents() {
       removePictureStudioItem(pictureId);
       return;
     }
+    if (action === 'studioInsertText') {
+      addTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length));
+      return;
+    }
+    if (action === 'studioInsertHeroText') {
+      addTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length), 'hero');
+      return;
+    }
+    if (action === 'studioRemoveBlock') {
+      removePicturesDesignerBlock(actionEl.dataset.blockId || '');
+      return;
+    }
+    if (action === 'studioMoveBlockUp') {
+      movePicturesDesignerBlock(actionEl.dataset.blockId || '', 'up');
+      return;
+    }
+    if (action === 'studioMoveBlockDown') {
+      movePicturesDesignerBlock(actionEl.dataset.blockId || '', 'down');
+      return;
+    }
+    if (action === 'studioDuplicateBlock') {
+      duplicatePicturesDesignerBlock(actionEl.dataset.blockId || '');
+      return;
+    }
+    if (action === 'studioSetSize') {
+      updatePicturesDesignerBlock(actionEl.dataset.blockId || '', { size: normalizeStudioBlockSize(actionEl.dataset.size || '', actionEl.dataset.blockType || 'image') });
+      return;
+    }
 
     const id = actionEl.dataset.id;
     if (!id) return;
@@ -762,7 +828,22 @@ function bindStaticEvents() {
     }
   });
 
+  document.body.addEventListener('input', (e) => {
+    const studioField = e.target.closest('[data-studio-field]');
+    if (!studioField) return;
+    const blockId = studioField.dataset.blockId || '';
+    const field = studioField.dataset.studioField || '';
+    if (!blockId || !field) return;
+    updatePicturesDesignerBlock(blockId, { [field]: studioField.value });
+  });
+
   document.body.addEventListener('change', (e) => {
+    const studioStyleSelect = e.target.closest('[data-studio-style]');
+    if (studioStyleSelect) {
+      const blockId = studioStyleSelect.dataset.blockId || '';
+      updatePicturesDesignerBlock(blockId, { style: studioStyleSelect.value || 'body' });
+      return;
+    }
     const layoutSelect = e.target.closest('[data-picture-layout]');
     if (!layoutSelect) return;
     const pictureId = layoutSelect.dataset.pictureLayout || '';
@@ -994,7 +1075,7 @@ function renderPictureStudioList() {
         </div>
       </div>
     </article>
-  `).join('');
+  `).join('\n\n');
   attachPictureStudioDragHandlers();
 }
 
@@ -1011,6 +1092,12 @@ function setFieldMode(inputId, visible, { label = '', placeholder = '', disabled
 function refreshPostComposerMode() {
   const board = $('fBoard')?.value || 'FREE';
   const pictureMode = board === 'PICTURES';
+  if (pictureMode) {
+    alert('Use the Pictures Studio to publish gallery posts.');
+    hide('postOverlay');
+    openPicturesDesigner(editingPostId || null);
+    return;
+  }
   const overlayModal = $('postOverlay')?.querySelector('.modal');
   overlayModal?.classList.toggle('pictureStudioMode', pictureMode);
   const titleEl = $('postOverlay')?.querySelector('.modal-h strong');
@@ -1050,7 +1137,402 @@ function syncHeroComposerButtons() {
   const heroPicturesBtn = $('heroPicturesBtn');
   const onPicturesBoard = activeBoard === 'PICTURES';
   if (heroPostBtn) heroPostBtn.style.display = onPicturesBoard ? 'none' : '';
-  if (heroPicturesBtn) heroPicturesBtn.style.display = onPicturesBoard && canPostPicturesBoard() ? '' : 'none';
+  if (heroPicturesBtn) {
+    heroPicturesBtn.style.display = onPicturesBoard && canPostPicturesBoard() ? '' : 'none';
+    heroPicturesBtn.textContent = 'Open Pictures Studio';
+  }
+}
+
+function studioBlockId() {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `studio-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function normalizeStudioBlockSize(value, type = 'image') {
+  const clean = String(value || '').toLowerCase();
+  if (type === 'text') {
+    if (['column', 'wide', 'hero'].includes(clean)) return clean;
+    return 'wide';
+  }
+  if (['standard', 'wide', 'hero'].includes(clean)) return clean;
+  return 'wide';
+}
+
+function normalizeStudioBlockHeight(value) {
+  const next = Number(value || 0);
+  if (!Number.isFinite(next)) return 280;
+  return Math.min(640, Math.max(180, Math.round(next)));
+}
+
+function studioSizeToLegacyLayout(size) {
+  if (size === 'hero') return 'hero';
+  if (size === 'wide') return 'wide';
+  return 'standard';
+}
+
+function legacyLayoutToStudioSize(layout) {
+  if (layout === 'hero') return 'hero';
+  if (layout === 'wide' || layout === 'tall') return 'wide';
+  return 'standard';
+}
+
+function createPicturesDesignerImageBlock({ file = null, url = '', caption = '', size = 'wide', height = 280, name = '' } = {}) {
+  const previewUrl = file ? URL.createObjectURL(file) : String(url || '');
+  return {
+    id: studioBlockId(),
+    type: 'image',
+    file,
+    previewUrl,
+    sourceUrl: String(url || ''),
+    caption: String(caption || ''),
+    size: normalizeStudioBlockSize(size, 'image'),
+    height: normalizeStudioBlockHeight(height),
+    name: String(name || (file?.name || 'Photo'))
+  };
+}
+
+function createPicturesDesignerTextBlock({ heading = '', text = '', size = 'wide', style = 'body' } = {}) {
+  return {
+    id: studioBlockId(),
+    type: 'text',
+    heading: String(heading || ''),
+    text: String(text || ''),
+    size: normalizeStudioBlockSize(size, 'text'),
+    style: ['body', 'hero', 'note'].includes(String(style || '').toLowerCase()) ? String(style || '').toLowerCase() : 'body'
+  };
+}
+
+function releasePicturesDesignerBlock(block) {
+  if (block?.type === 'image' && block?.file && block?.previewUrl) {
+    try { URL.revokeObjectURL(block.previewUrl); } catch {}
+  }
+}
+
+function clearPicturesDesigner(silent = false) {
+  if (!silent && pictureDesignerBlocks.length && !confirm('Clear the current gallery canvas?')) return;
+  pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
+  pictureDesignerBlocks = [];
+  pictureDesignerDragId = '';
+  pictureDesignerResizeState = null;
+  renderPicturesDesigner();
+}
+
+function resetPicturesDesigner() {
+  clearPicturesDesigner(true);
+  pictureDesignerEditingId = null;
+  if ($('studioTitle')) $('studioTitle').value = '';
+  if ($('studioLocation')) $('studioLocation').value = '';
+  if ($('studioContact')) $('studioContact').value = '';
+  updatePicturesDesignerStatus();
+}
+
+function updatePicturesDesignerStatus() {
+  const statusEl = $('studioStatusLine');
+  if (!statusEl) return;
+  const imageCount = pictureDesignerBlocks.filter((block) => block.type === 'image').length;
+  const textCount = pictureDesignerBlocks.filter((block) => block.type === 'text').length;
+  const title = $('studioTitle')?.value.trim() || (pictureDesignerEditingId ? 'Editing gallery' : 'New gallery');
+  statusEl.textContent = `${title} • ${imageCount} photo${imageCount === 1 ? '' : 's'} • ${textCount} text block${textCount === 1 ? '' : 's'}`;
+}
+
+function setPicturesDesignerBlocks(nextBlocks) {
+  pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
+  pictureDesignerBlocks = nextBlocks;
+  renderPicturesDesigner();
+}
+
+function insertPicturesDesignerBlocks(newBlocks, insertIndex = null) {
+  const blocks = Array.isArray(newBlocks) ? newBlocks.filter(Boolean) : [newBlocks].filter(Boolean);
+  if (!blocks.length) return;
+  if (insertIndex === null || insertIndex === undefined || insertIndex < 0 || insertIndex > pictureDesignerBlocks.length) {
+    pictureDesignerBlocks = [...pictureDesignerBlocks, ...blocks];
+  } else {
+    pictureDesignerBlocks = [
+      ...pictureDesignerBlocks.slice(0, insertIndex),
+      ...blocks,
+      ...pictureDesignerBlocks.slice(insertIndex)
+    ];
+  }
+  renderPicturesDesigner();
+}
+
+function addFilesToPicturesDesigner(files, insertIndex = null) {
+  const images = (files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
+  if (!images.length) return;
+  insertPicturesDesignerBlocks(images.map((file) => createPicturesDesignerImageBlock({ file })), insertIndex);
+}
+
+function addTextBlockToPicturesDesigner(insertIndex = null, style = 'body') {
+  insertPicturesDesignerBlocks(createPicturesDesignerTextBlock({ style, size: style === 'hero' ? 'hero' : 'wide' }), insertIndex);
+}
+
+function updatePicturesDesignerBlock(blockId, patch = {}) {
+  pictureDesignerBlocks = pictureDesignerBlocks.map((block) => {
+    if (block.id !== blockId) return block;
+    const next = { ...block, ...patch };
+    if (next.type === 'image') {
+      next.size = normalizeStudioBlockSize(next.size, 'image');
+      next.height = normalizeStudioBlockHeight(next.height);
+      next.caption = String(next.caption || '');
+    } else {
+      next.size = normalizeStudioBlockSize(next.size, 'text');
+      next.heading = String(next.heading || '');
+      next.text = String(next.text || '');
+      next.style = ['body', 'hero', 'note'].includes(String(next.style || '').toLowerCase()) ? String(next.style || '').toLowerCase() : 'body';
+    }
+    return next;
+  });
+  updatePicturesDesignerStatus();
+}
+
+function movePicturesDesignerBlock(blockId, direction = 'down') {
+  const index = pictureDesignerBlocks.findIndex((block) => block.id === blockId);
+  if (index < 0) return;
+  const swapIndex = direction === 'up' ? index - 1 : index + 1;
+  if (swapIndex < 0 || swapIndex >= pictureDesignerBlocks.length) return;
+  const clone = pictureDesignerBlocks.slice();
+  [clone[index], clone[swapIndex]] = [clone[swapIndex], clone[index]];
+  pictureDesignerBlocks = clone;
+  renderPicturesDesigner();
+}
+
+function reorderPicturesDesignerBlocks(fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+  const fromIndex = pictureDesignerBlocks.findIndex((block) => block.id === fromId);
+  const toIndex = pictureDesignerBlocks.findIndex((block) => block.id === toId);
+  if (fromIndex < 0 || toIndex < 0) return;
+  const clone = pictureDesignerBlocks.slice();
+  const [moved] = clone.splice(fromIndex, 1);
+  clone.splice(toIndex, 0, moved);
+  pictureDesignerBlocks = clone;
+  renderPicturesDesigner();
+}
+
+function removePicturesDesignerBlock(blockId) {
+  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
+  if (target) releasePicturesDesignerBlock(target);
+  pictureDesignerBlocks = pictureDesignerBlocks.filter((block) => block.id !== blockId);
+  renderPicturesDesigner();
+}
+
+function duplicatePicturesDesignerBlock(blockId) {
+  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
+  if (!target) return;
+  const clone = target.type === 'image'
+    ? createPicturesDesignerImageBlock({ url: target.sourceUrl || target.previewUrl, caption: target.caption, size: target.size, height: target.height, name: target.name })
+    : createPicturesDesignerTextBlock({ heading: target.heading, text: target.text, size: target.size, style: target.style });
+  const idx = pictureDesignerBlocks.findIndex((block) => block.id === blockId);
+  insertPicturesDesignerBlocks(clone, idx + 1);
+}
+
+function bindPicturesDesignerDrag() {
+  document.querySelectorAll('.studioCanvasBlock').forEach((card) => {
+    card.draggable = true;
+    card.ondragstart = (event) => {
+      pictureDesignerDragId = card.dataset.blockId || '';
+      card.classList.add('is-dragging');
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    };
+    card.ondragend = () => {
+      pictureDesignerDragId = '';
+      card.classList.remove('is-dragging');
+      document.querySelectorAll('.studioCanvasBlock').forEach((node) => node.classList.remove('is-over'));
+    };
+    card.ondragover = (event) => {
+      event.preventDefault();
+      card.classList.add('is-over');
+    };
+    card.ondragleave = () => card.classList.remove('is-over');
+    card.ondrop = (event) => {
+      event.preventDefault();
+      card.classList.remove('is-over');
+      reorderPicturesDesignerBlocks(pictureDesignerDragId, card.dataset.blockId || '');
+    };
+  });
+  document.querySelectorAll('.studioResizeHandle').forEach((handle) => {
+    handle.onpointerdown = (event) => startPicturesDesignerResize(event, handle.dataset.blockId || '');
+  });
+}
+
+function startPicturesDesignerResize(event, blockId) {
+  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId && entry.type === 'image');
+  if (!block) return;
+  event.preventDefault();
+  pictureDesignerResizeState = {
+    blockId,
+    startY: event.clientY,
+    startHeight: normalizeStudioBlockHeight(block.height)
+  };
+  document.body.classList.add('studio-resizing');
+}
+
+function handlePicturesDesignerPointerMove(event) {
+  if (!pictureDesignerResizeState) return;
+  const nextHeight = normalizeStudioBlockHeight(pictureDesignerResizeState.startHeight + (event.clientY - pictureDesignerResizeState.startY));
+  const block = pictureDesignerBlocks.find((entry) => entry.id === pictureDesignerResizeState.blockId);
+  if (!block) return;
+  block.height = nextHeight;
+  const stage = document.querySelector(`.studioCanvasBlock[data-block-id="${pictureDesignerResizeState.blockId}"] .studioBlockImageStage`);
+  if (stage) stage.style.setProperty('--studio-image-height', `${nextHeight}px`);
+}
+
+function stopPicturesDesignerResize() {
+  if (!pictureDesignerResizeState) return;
+  pictureDesignerResizeState = null;
+  document.body.classList.remove('studio-resizing');
+  renderPicturesDesigner();
+}
+
+function renderPicturesDesigner() {
+  const canvas = $('picturesDesignerCanvas');
+  if (!canvas) return;
+  if (!pictureDesignerBlocks.length) {
+    canvas.innerHTML = `
+      <div class="studioEmptyState">
+        <div class="studioEmptyIcon">🖼️</div>
+        <strong>Start building the gallery</strong>
+        <span>Add images or text blocks to begin.</span>
+      </div>
+      <div class="studioCanvasInsertShell">
+        <button class="studioInsertBar" data-action="studioInsertText" data-index="0" type="button">+ Add text anywhere</button>
+      </div>
+    `;
+    updatePicturesDesignerStatus();
+    return;
+  }
+  const metaHeader = `
+    <div class="studioPreviewHeader">
+      <div>
+        <div class="studioPreviewEyebrow">Picture Gallery Preview</div>
+        <h2>${esc($('studioTitle')?.value.trim() || 'Untitled gallery')}</h2>
+        <div class="studioPreviewMeta">
+          <span>${esc($('studioLocation')?.value.trim() || 'Regal Lakeland')}</span>
+          <span>${esc($('studioContact')?.value.trim() || 'Photographer credit')}</span>
+        </div>
+      </div>
+    </div>
+  `;
+  const blockHtml = pictureDesignerBlocks.map((block, index) => {
+    const sizeButtons = block.type === 'image'
+      ? `
+        <div class="studioSizeButtons">
+          ${['standard', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="image" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
+        </div>
+      `
+      : `
+        <div class="studioSizeButtons">
+          ${['column', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="text" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
+        </div>
+      `;
+    const insertAbove = `<button class="studioInsertBar studioInsertBar-inline" data-action="studioInsertText" data-index="${index}" type="button">+ Text above</button>`;
+    const insertBelow = `<button class="studioInsertBar studioInsertBar-inline" data-action="studioInsertText" data-index="${index + 1}" type="button">+ Text below</button>`;
+    if (block.type === 'image') {
+      return `
+        <div class="studioCanvasInsertShell">${insertAbove}</div>
+        <article class="studioCanvasBlock studioCanvasBlock-image studioSize-${esc(block.size)}" data-block-id="${esc(block.id)}">
+          <div class="studioBlockToolbar">
+            <span class="studioBlockLabel">Image block</span>
+            <div class="studioBlockActions rowBtns">
+              <button class="btn ghost btn-xs" data-action="studioMoveBlockUp" data-block-id="${esc(block.id)}" type="button">Up</button>
+              <button class="btn ghost btn-xs" data-action="studioMoveBlockDown" data-block-id="${esc(block.id)}" type="button">Down</button>
+              <button class="btn ghost btn-xs" data-action="studioDuplicateBlock" data-block-id="${esc(block.id)}" type="button">Duplicate</button>
+              <button class="btn danger btn-xs" data-action="studioRemoveBlock" data-block-id="${esc(block.id)}" type="button">Remove</button>
+            </div>
+          </div>
+          <div class="studioBlockImageStage" style="--studio-image-height:${normalizeStudioBlockHeight(block.height)}px">
+            <img src="${esc(block.previewUrl || block.sourceUrl)}" alt="${esc(block.name || 'Gallery image')}" loading="lazy" />
+            <button class="studioResizeHandle" data-block-id="${esc(block.id)}" type="button" aria-label="Resize image"></button>
+          </div>
+          ${sizeButtons}
+          <div class="field studioBlockField">
+            <label>Caption under image</label>
+            <input data-studio-field="caption" data-block-id="${esc(block.id)}" value="${esc(block.caption || '')}" placeholder="Write a caption for this image" />
+          </div>
+        </article>
+        <div class="studioCanvasInsertShell">${insertBelow}</div>
+      `;
+    }
+    return `
+      <div class="studioCanvasInsertShell">${insertAbove}</div>
+      <article class="studioCanvasBlock studioCanvasBlock-text studioTextSize-${esc(block.size)} studioTextStyle-${esc(block.style || 'body')}" data-block-id="${esc(block.id)}">
+        <div class="studioBlockToolbar">
+          <span class="studioBlockLabel">Text block</span>
+          <div class="studioBlockActions rowBtns">
+            <button class="btn ghost btn-xs" data-action="studioMoveBlockUp" data-block-id="${esc(block.id)}" type="button">Up</button>
+            <button class="btn ghost btn-xs" data-action="studioMoveBlockDown" data-block-id="${esc(block.id)}" type="button">Down</button>
+            <button class="btn ghost btn-xs" data-action="studioDuplicateBlock" data-block-id="${esc(block.id)}" type="button">Duplicate</button>
+            <button class="btn danger btn-xs" data-action="studioRemoveBlock" data-block-id="${esc(block.id)}" type="button">Remove</button>
+          </div>
+        </div>
+        ${sizeButtons}
+        <div class="grid2 studioTextControls">
+          <div class="field studioBlockField">
+            <label>Heading (optional)</label>
+            <input data-studio-field="heading" data-block-id="${esc(block.id)}" value="${esc(block.heading || '')}" placeholder="Section heading" />
+          </div>
+          <div class="field studioBlockField">
+            <label>Style</label>
+            <select data-studio-style="true" data-block-id="${esc(block.id)}">
+              <option value="body" ${block.style === 'body' ? 'selected' : ''}>Body</option>
+              <option value="hero" ${block.style === 'hero' ? 'selected' : ''}>Hero</option>
+              <option value="note" ${block.style === 'note' ? 'selected' : ''}>Note</option>
+            </select>
+          </div>
+        </div>
+        <div class="field studioBlockField">
+          <label>Text</label>
+          <textarea data-studio-field="text" data-block-id="${esc(block.id)}" rows="5" placeholder="Write a caption section, event story, quote, or announcement...">${esc(block.text || '')}</textarea>
+        </div>
+      </article>
+      <div class="studioCanvasInsertShell">${insertBelow}</div>
+    `;
+  }).join('');
+  canvas.innerHTML = metaHeader + blockHtml;
+  bindPicturesDesignerDrag();
+  updatePicturesDesignerStatus();
+}
+
+function openPicturesDesigner(postId = null) {
+  if (!currentUser) {
+    alert('Please log in first.');
+    return;
+  }
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before using the Pictures Studio.');
+    return;
+  }
+  if (!canPostPicturesBoard()) {
+    alert('Only approved gallery managers can use the Pictures Studio.');
+    return;
+  }
+  resetPicturesDesigner();
+  if (postId) {
+    const item = listings.find((entry) => entry.id === postId);
+    if (!item || !canModify(item)) {
+      alert('You do not have permission to edit this gallery.');
+      return;
+    }
+    pictureDesignerEditingId = postId;
+    if ($('studioTitle')) $('studioTitle').value = item.title || '';
+    if ($('studioLocation')) $('studioLocation').value = item.location || '';
+    if ($('studioContact')) $('studioContact').value = item.contact || '';
+    const blocks = getPictureGalleryBlocks(item).map((block) => block.type === 'image'
+      ? createPicturesDesignerImageBlock({ url: block.url, caption: block.caption || '', size: block.size || legacyLayoutToStudioSize(block.layout), height: block.height || 280, name: block.name || item.title || 'Photo' })
+      : createPicturesDesignerTextBlock({ heading: block.heading || '', text: block.text || '', size: block.size || 'wide', style: block.style || 'body' }));
+    pictureDesignerBlocks = blocks;
+  }
+  renderPicturesDesigner();
+  updatePicturesDesignerStatus();
+  show('picturesDesignerOverlay');
+}
+
+function closePicturesDesigner() {
+  hide('picturesDesignerOverlay');
+  resetPicturesDesigner();
 }
 
 function configurePostBoardOptions() {
@@ -1058,9 +1540,9 @@ function configurePostBoardOptions() {
   if (!boardSelect) return;
   const picturesOption = Array.from(boardSelect.options).find((opt) => opt.value === 'PICTURES');
   if (picturesOption) {
-    const allowed = canPostPicturesBoard();
+    const allowed = false;
     picturesOption.disabled = !allowed;
-    picturesOption.hidden = !allowed;
+    picturesOption.hidden = true;
     if (!allowed && boardSelect.value === 'PICTURES') boardSelect.value = 'FREE';
   }
   refreshPhotoFieldHint();
@@ -1074,7 +1556,7 @@ function refreshPhotoFieldHint() {
   const board = $('fBoard')?.value || 'FREE';
   if (board === 'PICTURES') {
     hint.textContent = canPostPicturesBoard()
-      ? 'Pictures is a curated gallery board for admins, moderators, and Ariel Restituyo Garcia. Drag photos into the studio, reorder them, and control how large each image appears.'
+      ? 'Pictures uses the dedicated Pictures Studio for gallery design.'
       : 'Pictures is a curated gallery board managed by admins, moderators, and Ariel Restituyo Garcia.';
     return;
   }
@@ -2410,10 +2892,60 @@ function getListingImageLayouts(item) {
   return item.imageLayouts.map((layout) => normalizePictureLayout(layout));
 }
 
-function getPictureGalleryImages(item) {
+function getPictureGalleryBlocks(item) {
+  if (Array.isArray(item?.galleryBlocks) && item.galleryBlocks.length) {
+    return item.galleryBlocks.map((block, index) => {
+      if (String(block?.type || '').toLowerCase() === 'text') {
+        return {
+          id: block.id || `text-${index}`,
+          type: 'text',
+          heading: String(block.heading || ''),
+          text: String(block.text || ''),
+          size: normalizeStudioBlockSize(block.size, 'text'),
+          style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style || '').toLowerCase() : 'body'
+        };
+      }
+      return {
+        id: block.id || `image-${index}`,
+        type: 'image',
+        url: String(block.url || block.src || ''),
+        caption: String(block.caption || ''),
+        size: normalizeStudioBlockSize(block.size || legacyLayoutToStudioSize(block.layout), 'image'),
+        height: normalizeStudioBlockHeight(block.height || 280),
+        layout: studioSizeToLegacyLayout(block.size || legacyLayoutToStudioSize(block.layout))
+      };
+    }).filter((block) => (block.type === 'image' ? block.url : (block.heading || block.text)));
+  }
   const urls = getListingImageUrls(item);
   const layouts = getListingImageLayouts(item);
-  return urls.map((url, index) => ({ url, layout: layouts[index] || 'standard' }));
+  const captions = Array.isArray(item?.imageCaptions) ? item.imageCaptions : [];
+  const imageBlocks = urls.map((url, index) => ({
+    id: `image-${index}`,
+    type: 'image',
+    url,
+    caption: String(captions[index] || ''),
+    size: legacyLayoutToStudioSize(layouts[index] || 'standard'),
+    height: layouts[index] === 'hero' ? 420 : 280,
+    layout: layouts[index] || 'standard'
+  }));
+  const desc = String(item?.description || item?.desc || '').trim();
+  if (desc) {
+    imageBlocks.push({
+      id: 'legacy-text-1',
+      type: 'text',
+      heading: '',
+      text: desc,
+      size: 'wide',
+      style: 'body'
+    });
+  }
+  return imageBlocks;
+}
+
+function getPictureGalleryImages(item) {
+  return getPictureGalleryBlocks(item)
+    .filter((block) => block.type === 'image')
+    .map((block) => ({ url: block.url, layout: studioSizeToLegacyLayout(block.size), size: block.size, caption: block.caption || '', height: block.height || 280 }));
 }
 
 function getListingDisplayValue(item) {
@@ -2436,9 +2968,28 @@ function buildGalleryPreview(item) {
 }
 
 function buildThreadGallery(item) {
-  const images = getPictureGalleryImages(item);
-  if (!images.length) return '';
-  return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((image, idx) => `<div class="thread-gallery-item layout-${esc(image.layout)}"><img class="thread-gallery-image" src="${esc(image.url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
+  const blocks = getPictureGalleryBlocks(item);
+  if (!blocks.length) return '';
+  return `
+    <div class="publishedGalleryFlow">
+      ${blocks.map((block, index) => {
+        if (block.type === 'text') {
+          return `
+            <section class="publishedGalleryBlock publishedGalleryText publishedGalleryText-${esc(block.style || 'body')} text-size-${esc(block.size || 'wide')}">
+              ${block.heading ? `<h3>${esc(block.heading)}</h3>` : ''}
+              ${block.text ? `<p>${esc(block.text).replaceAll('\n', '<br>')}</p>` : '<p>Add copy in Pictures Studio.</p>'}
+            </section>
+          `;
+        }
+        return `
+          <figure class="publishedGalleryBlock publishedGalleryImage size-${esc(block.size || 'wide')}" style="--published-image-height:${normalizeStudioBlockHeight(block.height || 280)}px">
+            <img class="thread-gallery-image" src="${esc(block.url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (index + 1))}" loading="lazy" />
+            ${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ''}
+          </figure>
+        `;
+      }).join('')}
+    </div>
+  `;
 }
 
 function buildPictureGalleryFeed(items) {
@@ -2515,6 +3066,10 @@ function resetPostEditor() {
 function openPostEditor(id) {
   const item = listings.find((x) => x.id === id);
   if (!item || !canModify(item)) return;
+  if (String(item.board || '').toUpperCase() === 'PICTURES') {
+    openPicturesDesigner(id);
+    return;
+  }
   editingPostId = id;
   const titleEl = $('postOverlay')?.querySelector('.modal-h strong');
   if (titleEl) titleEl.textContent = 'Edit Post';
@@ -2552,7 +3107,11 @@ function renderListings() {
   const feedTitleEl = document.querySelector('.feedPanel .section-title');
   const feedSubEl = document.querySelector('.feedPanel .section-sub');
   if (feedTitleEl) feedTitleEl.textContent = activeBoard === 'PICTURES' ? 'Picture Gallery' : 'Listings';
-  if (feedSubEl) feedSubEl.textContent = activeBoard === 'PICTURES' ? 'Curated photo uploads shown in an image-first layout.' : 'Recent activity inside the selected board';
+  if (feedSubEl) feedSubEl.textContent = activeBoard === 'PICTURES' ? 'Curated photo stories with live-designed layouts, captions, and text sections.' : 'Recent activity inside the selected board';
+  if ($('btnNew')) {
+    $('btnNew').style.display = activeBoard === 'PICTURES' && !canPostPicturesBoard() ? 'none' : '';
+    $('btnNew').textContent = activeBoard === 'PICTURES' && canPostPicturesBoard() ? '+ Studio' : '+ Post';
+  }
   if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
   if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   updateHeroPeopleStats();
@@ -2663,6 +3222,12 @@ async function handleSavePost() {
   const rawDescription = $('fDesc')?.value.trim() || '';
   const board = $('fBoard')?.value || 'BUYSELL';
   const pictureMode = board === 'PICTURES';
+  if (pictureMode) {
+    alert('Use the Pictures Studio to publish gallery posts.');
+    hide('postOverlay');
+    openPicturesDesigner(editingPostId || null);
+    return;
+  }
   const status = pictureMode ? 'ACTIVE' : ($('fStatus')?.value || 'ACTIVE');
   if (pictureMode && !canPostPicturesBoard()) {
     alert('Only approved gallery managers can post in Pictures.');
@@ -2803,6 +3368,134 @@ async function handleSavePost() {
   } finally {
     isSavingPost = false;
     if ($('btnSavePost')) $('btnSavePost').disabled = false;
+  }
+}
+
+
+async function handleSavePicturesDesigner() {
+  if (isSavingPost) return;
+  if (!canPostPicturesBoard()) {
+    alert('Only approved gallery managers can publish in Pictures.');
+    return;
+  }
+  const title = $('studioTitle')?.value.trim() || `Gallery • ${new Date().toLocaleDateString()}`;
+  const location = $('studioLocation')?.value.trim() || '';
+  const contact = $('studioContact')?.value.trim() || '';
+  const imageBlocks = pictureDesignerBlocks.filter((block) => block.type === 'image');
+  if (!imageBlocks.length) {
+    alert('Add at least one photo before publishing the gallery.');
+    return;
+  }
+  const textSummary = pictureDesignerBlocks
+    .filter((block) => block.type === 'text')
+    .map((block) => [block.heading, block.text].filter(Boolean).join('\n'))
+    .filter(Boolean)
+    .join('\n\n');
+  const moderationScan = detectModerationIssues([title, location, contact, textSummary].join(' '));
+  isSavingPost = true;
+  if ($('studioSaveBtn')) $('studioSaveBtn').disabled = true;
+  try {
+    let existing = null;
+    if (pictureDesignerEditingId) {
+      existing = listings.find((item) => item.id === pictureDesignerEditingId) || null;
+      if (!existing || !canModify(existing)) {
+        alert('You do not have permission to edit this gallery.');
+        return;
+      }
+    }
+    const finalBlocks = [];
+    const imageUrls = [];
+    const imageLayouts = [];
+    const imageCaptions = [];
+    for (const [index, block] of pictureDesignerBlocks.entries()) {
+      if (block.type === 'text') {
+        finalBlocks.push({
+          id: block.id,
+          type: 'text',
+          heading: String(block.heading || '').trim(),
+          text: String(block.text || '').trim(),
+          size: normalizeStudioBlockSize(block.size, 'text'),
+          style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style || '').toLowerCase() : 'body'
+        });
+        continue;
+      }
+      let finalUrl = String(block.sourceUrl || '').trim();
+      if (block.file) {
+        const safeName = `${Date.now()}-${index}-${String(block.file.name || 'photo').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
+        await uploadBytes(storageRef, block.file);
+        finalUrl = await getDownloadURL(storageRef);
+      }
+      if (!finalUrl) continue;
+      const cleanCaption = String(block.caption || '').trim();
+      const cleanSize = normalizeStudioBlockSize(block.size, 'image');
+      finalBlocks.push({
+        id: block.id,
+        type: 'image',
+        url: finalUrl,
+        caption: cleanCaption,
+        size: cleanSize,
+        height: normalizeStudioBlockHeight(block.height)
+      });
+      imageUrls.push(finalUrl);
+      imageLayouts.push(studioSizeToLegacyLayout(cleanSize));
+      imageCaptions.push(cleanCaption);
+    }
+    if (!imageUrls.length) {
+      alert('At least one valid image is required to publish this gallery.');
+      return;
+    }
+    const nowMs = Date.now();
+    const payload = {
+      category: 'PICTURES',
+      board: 'PICTURES',
+      status: 'ACTIVE',
+      title,
+      desc: textSummary,
+      description: textSummary,
+      location,
+      contact,
+      price: 0,
+      photo: imageUrls[0] || '',
+      imageUrl: imageUrls[0] || '',
+      imageUrls,
+      imageLayouts,
+      imageCaptions,
+      galleryBlocks: finalBlocks,
+      moderationFlagged: moderationScan.flagged,
+      moderationLabels: moderationScan.matchedLabels,
+      moderationMatchedTerms: moderationScan.matchedTerms,
+      moderationSeverity: moderationScan.severity,
+      updatedAt: serverTimestamp(),
+      updatedAtMs: nowMs
+    };
+    if (existing) {
+      await updateDoc(doc(db, 'listings', existing.id), payload);
+      await logMarketplaceActivity(`Updated picture gallery: ${title}`, { type: 'gallery_update', lastBoardVisited: 'PICTURES', lastThreadId: existing.id, lastThreadTitle: title });
+    } else {
+      Object.assign(payload, {
+        uid: currentUser.uid,
+        authorEmail: currentUser.email || '',
+        authorName: currentProfile?.displayName || currentUser.displayName || currentUser.email || 'Marketplace Member',
+        createdAt: serverTimestamp(),
+        createdAtMs: nowMs,
+        soldAt: null,
+        soldAtMs: null,
+        reactivationRequested: false
+      });
+      const created = await addDoc(collection(db, 'listings'), payload);
+      await logMarketplaceActivity(`Published picture gallery: ${title}`, { type: 'gallery_create', lastBoardVisited: 'PICTURES', lastThreadId: created.id, lastThreadTitle: title });
+    }
+    activeBoard = 'PICTURES';
+    renderBoards();
+    renderListings();
+    closePicturesDesigner();
+  } catch (error) {
+    console.error('Save pictures designer error', error);
+    alert(error?.message || 'Could not publish the gallery.');
+  } finally {
+    isSavingPost = false;
+    if ($('studioSaveBtn')) $('studioSaveBtn').disabled = false;
   }
 }
 
