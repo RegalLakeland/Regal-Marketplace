@@ -481,51 +481,61 @@ input[type="file"]{padding:12px 14px;background:rgba(7,14,26,.96)}
 .meta{font-size:13px;line-height:1.55;color:var(--muted);margin-top:4px}
 
 body.admin-page{
-  background:
-    radial-gradient(circle at top, rgba(255,255,255,.07), rgba(255,255,255,0) 34%),
-    linear-gradient(180deg, #050505 0%, #090909 46%, #040404 100%);
+  --admin-border-strong:rgba(255,255,255,.78);
+  --admin-border-mid:rgba(255,255,255,.52);
+  --admin-border-soft:rgba(255,255,255,.28);
+  --admin-surface-top:rgba(14,14,14,.965);
+  --admin-surface-bottom:rgba(6,6,6,.992);
+  background-color:#040404;
   background-image:
-    radial-gradient(circle at top, rgba(255,255,255,.07), rgba(255,255,255,0) 34%),
-    linear-gradient(180deg, #050505 0%, #090909 46%, #040404 100%);
+    radial-gradient(circle at 50% -8%, rgba(255,255,255,.14), rgba(255,255,255,0) 30%),
+    radial-gradient(circle at 100% 12%, rgba(255,255,255,.05), rgba(255,255,255,0) 24%),
+    radial-gradient(circle at 0% 28%, rgba(255,255,255,.035), rgba(255,255,255,0) 22%),
+    linear-gradient(180deg, #020202 0%, #080808 42%, #030303 100%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.028) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0 1px, transparent 1px 26px);
+  background-attachment:fixed;
 }
 body.admin-page::before,
 body.admin-page::after{display:none}
 body.admin-page .topbar{
-  background:rgba(7,7,7,.94);
-  border-bottom:1px solid rgba(255,255,255,.32);
+  background:linear-gradient(180deg, rgba(8,8,8,.97), rgba(4,4,4,.985));
+  border-bottom:1px solid var(--admin-border-strong);
   backdrop-filter:none;
-  box-shadow:0 16px 42px rgba(0,0,0,.34);
+  box-shadow:0 18px 44px rgba(0,0,0,.42), inset 0 -1px 0 rgba(255,255,255,.06);
 }
 body.admin-page .btn.ghost,
 body.admin-page .pill,
 body.admin-page input,
 body.admin-page select,
 body.admin-page textarea{
-  border-color:rgba(255,255,255,.20);
+  border-color:var(--admin-border-mid);
 }
 body.admin-page .btn.ghost{
-  background:rgba(255,255,255,.03);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
 }
 body.admin-page .btn.ghost:hover{
-  border-color:rgba(255,255,255,.38);
-  background:rgba(255,255,255,.08);
+  border-color:var(--admin-border-strong);
+  background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
 }
 body.admin-page .pill{
-  background:rgba(255,255,255,.04);
+  background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
   color:#f3f7fb;
 }
-body.admin-page .logo-dot{background:#ffffff;box-shadow:0 0 0 7px rgba(255,255,255,.10)}
+body.admin-page .logo-dot{background:#ffffff;box-shadow:0 0 0 7px rgba(255,255,255,.12)}
 .admin-wrap.admin-workspace{max-width:1460px;padding-top:26px;padding-bottom:48px}
 .admin-workspace{display:grid;gap:20px}
 body.admin-page .panel,
 body.admin-page .admin-section-card,
 body.admin-page .admin-stat-card{
-  background:linear-gradient(180deg, rgba(9,9,9,.96), rgba(4,4,4,.985));
-  border:1px solid rgba(255,255,255,.22);
-  box-shadow:0 24px 52px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.03);
+  background:
+    linear-gradient(180deg, var(--admin-surface-top), var(--admin-surface-bottom)),
+    linear-gradient(135deg, rgba(255,255,255,.025), rgba(255,255,255,0) 48%);
+  border:1px solid var(--admin-border-strong);
+  box-shadow:0 26px 58px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 0 1px rgba(255,255,255,.03);
 }
 body.admin-page .panel-h{
-  border-bottom:1px solid rgba(255,255,255,.16);
+  border-bottom:1px solid var(--admin-border-mid);
   padding:22px 24px;
 }
 body.admin-page .panel-b{padding:22px 24px}
@@ -533,7 +543,7 @@ body.admin-page .panel-title{
   font-size:20px;
   letter-spacing:.01em;
 }
-body.admin-page .meta{color:#b8c0cb}
+body.admin-page .meta{color:#c2cad4}
 .admin-overview-grid{
   display:grid;
   grid-template-columns:repeat(6, minmax(0, 1fr));
@@ -554,8 +564,8 @@ body.admin-page .meta{color:#b8c0cb}
   pointer-events:none;
 }
 .admin-stat-card-hero{
-  border-color:rgba(255,255,255,.36);
-  background:linear-gradient(180deg, rgba(17,17,17,.98), rgba(5,5,5,.99));
+  border-color:var(--admin-border-strong);
+  background:linear-gradient(180deg, rgba(18,18,18,.985), rgba(5,5,5,.995));
 }
 .admin-stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#d7dde6;font-weight:900}
 .admin-stat-value{font-size:36px;line-height:1;font-weight:950;margin-top:12px;color:#ffffff}
@@ -569,8 +579,8 @@ body.admin-page .meta{color:#b8c0cb}
   flex-wrap:wrap;
   padding:11px 15px;
   border-radius:999px;
-  border:1px solid rgba(255,255,255,.24);
-  background:rgba(255,255,255,.06);
+  border:1px solid var(--admin-border-strong);
+  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
   color:#f5fbf7;
   font-weight:900;
 }
@@ -586,8 +596,8 @@ body.admin-page .meta{color:#b8c0cb}
 .admin-grid-clean{align-items:start}
 .admin-filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .admin-filter-chip{
-  border:1px solid rgba(255,255,255,.20);
-  background:rgba(255,255,255,.05);
+  border:1px solid var(--admin-border-mid);
+  background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
   color:#ebf0f6;
   border-radius:999px;
   padding:10px 14px;
@@ -595,31 +605,31 @@ body.admin-page .meta{color:#b8c0cb}
   font-weight:900;
   cursor:pointer;
 }
-.admin-filter-chip:hover{border-color:rgba(255,255,255,.36);background:rgba(255,255,255,.08)}
+.admin-filter-chip:hover{border-color:var(--admin-border-strong);background:rgba(255,255,255,.10)}
 .admin-filter-chip.active{
-  background:rgba(255,255,255,.12);
-  border-color:rgba(255,255,255,.44);
+  background:linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.08));
+  border-color:var(--admin-border-strong);
   color:#ffffff;
 }
 .admin-tools-clean{margin-bottom:16px}
 .admin-table-shell{
-  border:1px solid rgba(255,255,255,.14);
+  border:1px solid var(--admin-border-strong);
   border-radius:20px;
-  background:linear-gradient(180deg, rgba(14,14,14,.94), rgba(6,6,6,.98));
+  background:linear-gradient(180deg, rgba(16,16,16,.96), rgba(7,7,7,.99));
 }
 .admin-table-shell-tall{max-height:920px}
 .admin-table-shell-compact{max-height:470px}
 .admin-empty-note{padding:12px 4px;color:#b7c1cc}
-.adminTable th,.adminTable td{background:transparent;border-bottom:1px solid rgba(255,255,255,.08)}
-.adminTable tbody tr:hover{background:rgba(255,255,255,.035)}
-.adminTable thead th{background:rgba(20,20,20,.96);position:sticky;top:0;z-index:1;color:#dce4ee}
+.adminTable th,.adminTable td{background:transparent;border-bottom:1px solid var(--admin-border-soft)}
+.adminTable tbody tr:hover{background:rgba(255,255,255,.05)}
+.adminTable thead th{background:rgba(20,20,20,.985);position:sticky;top:0;z-index:1;color:#edf3fb}
 .admin-activity-section .panel-b{padding-top:8px}
 .admin-activity-layout{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(290px,0.9fr);gap:18px;align-items:start}
 .admin-activity-layout.compact{align-items:start}
 .activity-main-card,
 .activity-side-card{
-  border:1px solid rgba(255,255,255,.16);
-  background:linear-gradient(180deg, rgba(14,14,14,.94), rgba(6,6,6,.985));
+  border:1px solid var(--admin-border-strong);
+  background:linear-gradient(180deg, rgba(16,16,16,.96), rgba(7,7,7,.992));
   border-radius:20px;
 }
 .activity-main-card{padding:16px;display:grid;gap:12px}
@@ -627,7 +637,7 @@ body.admin-page .meta{color:#b8c0cb}
 .activity-search{min-width:280px;flex:1 1 320px}
 .activity-filter{min-width:150px}
 .activity-table-shell{
-  border:1px solid rgba(255,255,255,.14);
+  border:1px solid var(--admin-border-strong);
   border-radius:16px;
   overflow:auto;
   max-height:560px;
@@ -636,7 +646,7 @@ body.admin-page .meta{color:#b8c0cb}
 .activity-table{width:100%;border-collapse:collapse;min-width:960px}
 .activity-table th,.activity-table td{
   padding:12px 14px;
-  border-bottom:1px solid rgba(255,255,255,.07);
+  border-bottom:1px solid var(--admin-border-soft);
   text-align:left;
   vertical-align:top;
 }
@@ -644,13 +654,13 @@ body.admin-page .meta{color:#b8c0cb}
   position:sticky;
   top:0;
   z-index:1;
-  background:rgba(18,18,18,.98);
+  background:rgba(18,18,18,.992);
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.12em;
   color:#d3dbe6;
 }
-.activity-table-row:hover{background:rgba(255,255,255,.025)}
+.activity-table-row:hover{background:rgba(255,255,255,.05)}
 .activity-row-user{display:grid;gap:4px;min-width:0}
 .activity-row-name{font-size:15px;font-weight:900;color:#ffffff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .activity-row-email{font-size:12px;color:#b5c0cd;word-break:break-word}
@@ -662,8 +672,8 @@ body.admin-page .meta{color:#b8c0cb}
   gap:8px;
   padding:7px 10px;
   border-radius:999px;
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.06);
+  border:1px solid var(--admin-border-mid);
+  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
   color:#edf3fb;
   font-size:11px;
   font-weight:900;
@@ -694,4 +704,38 @@ body.admin-page .meta{color:#b8c0cb}
 @media (max-width:640px){
   .admin-overview-grid{grid-template-columns:1fr;}
   .admin-wrap.admin-workspace{padding-left:12px;padding-right:12px}
+}
+
+
+body.admin-page .adminSearch,
+body.admin-page .adminFilter,
+body.admin-page .activity-search,
+body.admin-page .activity-filter{
+  background:linear-gradient(180deg, rgba(6,12,22,.88), rgba(4,8,16,.94));
+  border:1px solid var(--admin-border-mid);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+body.admin-page .adminSearch:focus,
+body.admin-page .adminFilter:focus,
+body.admin-page .activity-search:focus,
+body.admin-page .activity-filter:focus{
+  outline:none;
+  border-color:var(--admin-border-strong);
+  box-shadow:0 0 0 2px rgba(255,255,255,.08), inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+body.admin-page .online-chip,
+body.admin-page .activity-status-badge,
+body.admin-page .role-pill{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+body.admin-page .admin-stat-card,
+body.admin-page .admin-section-card,
+body.admin-page .activity-main-card,
+body.admin-page .activity-side-card,
+body.admin-page .admin-table-shell,
+body.admin-page .activity-table-shell{
+  backdrop-filter:none;
 }
