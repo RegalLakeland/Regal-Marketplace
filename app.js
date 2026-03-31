@@ -878,13 +878,21 @@ function showPane(which) {
 
 function show(id) {
   const el = $(id);
-  if (el) el.style.display = 'flex';
+  if (el) el.style.display = id === 'picturesDesignerOverlay' ? 'block' : 'flex';
+  if (id === 'picturesDesignerOverlay') {
+    document.body.classList.add('studio-open');
+    return;
+  }
   if (id !== 'loginOverlay') document.body.classList.add('modal-open');
 }
 
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
+  if (id === 'picturesDesignerOverlay') {
+    document.body.classList.remove('studio-open');
+    return;
+  }
   if (id === 'threadOverlay') {
     stopActiveThreadRepliesListener();
     activeThread = null;
