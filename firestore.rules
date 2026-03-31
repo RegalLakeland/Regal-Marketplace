@@ -68,6 +68,16 @@ service cloud.firestore {
         && (isCoreAdmin() || requesterProfile().isAdmin == true || requesterProfile().isModerator == true);
     }
 
+
+    function isPictureEditor() {
+      return marketplaceMember()
+        && (
+          isCoreAdmin()
+          || requesterProfile().isAdmin == true
+          || request.auth.token.email == 'ariel.r@regallakeland.com'
+        );
+    }
+
     function marketplaceMember() {
       return signedIn()
         && employeeEmail()
@@ -209,6 +219,12 @@ service cloud.firestore {
 
       allow delete: if isAdminUser()
         && (!protectedTarget() || request.auth.uid == uid);
+    }
+
+
+    match /picturePages/{pageId} {
+      allow read: if marketplaceMember();
+      allow create, update, delete: if isPictureEditor();
     }
 
     match /eventResponses/{id} {

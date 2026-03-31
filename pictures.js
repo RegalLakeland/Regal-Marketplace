@@ -98,7 +98,6 @@ function isEditor() {
   const email = normalizeEmail(currentUser?.email);
   return !!currentUser && !!currentProfile && (
     !!currentProfile.isAdmin ||
-    !!currentProfile.isModerator ||
     ADMIN_EMAILS.map(normalizeEmail).includes(email) ||
     EXTRA_EDITOR_EMAILS.includes(email)
   );
@@ -348,15 +347,18 @@ function normalizeElementBounds(element) {
 
 async function ensurePageDoc() {
   const snap = await getDoc(pageRef());
-  if (!snap.exists()) {
-    await setDoc(pageRef(), {
-      ...DEFAULT_STATE,
-      updatedAtMs: Date.now(),
-      updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      createdByEmail: normalizeEmail(currentUser?.email)
-    });
+  if (snap.exists()) return;
+  if (!isEditor()) {
+    pageState = structuredClone(DEFAULT_STATE);
+    return;
   }
+  await setDoc(pageRef(), {
+    ...DEFAULT_STATE,
+    updatedAtMs: Date.now(),
+    updatedAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    createdByEmail: normalizeEmail(currentUser?.email)
+  });
 }
 
 function startPageListener() {
@@ -822,7 +824,7 @@ async function boot() {
       render();
     } catch (error) {
       console.error(error);
-      status(`Gallery load failed: ${error.message || error}`, true);
+      status(`Gallery access failed: ${error.message || error}`, true);
     }
   });
 }

@@ -2,8 +2,59 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasEmail() {
+      return signedIn() && request.auth.token.email != null;
+    }
+
+    function employeeEmail() {
+      return hasEmail()
+        && request.auth.token.email.matches('.*@regallakeland\.com$');
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/profiles/$(request.auth.uid));
+    }
+
+    function requesterProfile() {
+      return firestore.get(/databases/(default)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    function accessApproved() {
+      return hasProfile()
+        && requesterProfile().accessApproved == true
+        && requesterProfile().accessManuallyDenied != true
+        && requesterProfile().banned != true
+        && requesterProfile().deleted != true;
+    }
+
+    function marketplaceMember() {
+      return signedIn()
+        && employeeEmail()
+        && accessApproved();
+    }
+
+    function isPictureEditor() {
+      return marketplaceMember()
+        && (
+          request.auth.token.email == 'michael.h@regallakeland.com'
+          || request.auth.token.email == 'janni.r@regallakeland.com'
+          || request.auth.token.email == 'ariel.r@regallakeland.com'
+          || requesterProfile().isAdmin == true
+        );
+    }
+
     match /images/{userId}/{fileName} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /picture-pages/{userId}/{fileName=**} {
+      allow read: if marketplaceMember();
+      allow write: if isPictureEditor() && request.auth.uid == userId;
     }
   }
 }
