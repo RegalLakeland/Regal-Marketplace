@@ -341,7 +341,7 @@ const BOARD_DEFS = [
   { key: 'BUYSELL', label: 'Buy / Sell', desc: 'Employee marketplace items' },
   { key: 'GARAGE', label: 'Garage Sales', desc: 'Neighborhood and moving sales' },
   { key: 'EVENTS', label: 'Events', desc: 'Meetups, cookouts, birthdays' },
-  { key: 'PICTURES', label: 'Pictures', desc: 'Curated employee photography gallery' },
+  { key: 'PICTURES', label: 'Pictures', desc: 'Employee photography and dealership shots' },
   { key: 'WORK', label: 'Work News', desc: 'Dealership updates and notices' },
   { key: 'SERVICES', label: 'Local Services', desc: 'Side work and help needed' }
 ];
@@ -382,13 +382,6 @@ let eventResponsesUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
-let pictureStudioItems = [];
-let pictureStudioDragId = '';
-let pictureDesignerBlocks = [];
-let pictureDesignerDragId = '';
-let pictureDesignerEditingId = null;
-let pictureDesignerResizeState = null;
-let pictureDesignerToolsCollapsed = false;
 let lastStatusMessageShown = '';
 let loginInFlight = false;
 let signupInFlight = false;
@@ -651,96 +644,63 @@ function bindStaticEvents() {
   $('eventImageOverlay')?.addEventListener('click', (e) => { if (e.target === $('eventImageOverlay')) hide('eventImageOverlay'); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('eventImageOverlay')?.style.display === 'flex') hide('eventImageOverlay'); });
 
-  const openPost = (preferredBoardOverride = '') => {
-    if (!currentUser) {
-      alert('Please log in first.');
-      return;
-    }
-    if (!hasRulesAcceptance(currentProfile)) {
-      showRulesOverlay();
-      alert('You must accept the marketplace rules before using the marketplace.');
-      return;
-    }
-    resetPostEditor();
-    configurePostBoardOptions();
-    const fallbackBoard = (activeBoard && activeBoard !== 'ALL') ? activeBoard : 'FREE';
-    const preferredBoard = preferredBoardOverride || fallbackBoard;
-    if ($('fBoard')) {
-      $('fBoard').value = preferredBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : preferredBoard;
-    }
-    refreshPhotoFieldHint();
-    refreshPostComposerMode();
-    show('postOverlay');
-  };
+  const openPost = () => {
+  if (!currentUser) {
+    alert('Please log in first.');
+    return;
+  }
+  if (!hasRulesAcceptance(currentProfile)) {
+    showRulesOverlay();
+    alert('You must accept the marketplace rules before using the marketplace.');
+    return;
+  }
+  if (activeBoard === 'PICTURES' && canManagePictures()) {
+    openPicturesStudio();
+    return;
+  }
+  resetPostEditor();
+  show('postOverlay');
+};
 
-  $('btnNew')?.addEventListener('click', () => {
-    if (activeBoard === 'PICTURES' && canPostPicturesBoard()) {
-      legacyOpenPicturesDesigner();
-      return;
-    }
-    openPost(activeBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : '');
-  });
-  $('heroPostBtn')?.addEventListener('click', () => openPost(activeBoard === 'PICTURES' ? 'FREE' : ''));
-  $('heroPicturesBtn')?.addEventListener('click', () => legacyOpenPicturesDesigner());
+  $('btnNew')?.addEventListener('click', openPost);
+  $('heroPostBtn')?.addEventListener('click', openPost);
   $('heroFreeBtn')?.addEventListener('click', () => {
     activeBoard = 'FREE';
     renderBoards();
     renderListings();
   });
 
-  $('pictureStudioBrowseBtn')?.addEventListener('click', () => $('pictureDropInput')?.click());
-  $('pictureDropZone')?.addEventListener('click', () => $('pictureDropInput')?.click());
-  $('pictureStudioClearBtn')?.addEventListener('click', () => resetPictureStudioItems());
-  $('pictureDropInput')?.addEventListener('change', (event) => {
-    enqueuePictureStudioFiles(Array.from(event.target.files || []));
-    event.target.value = '';
-  });
-  ['dragenter', 'dragover'].forEach((eventName) => {
-    $('pictureDropZone')?.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      $('pictureDropZone')?.classList.add('is-dragover');
-    });
-  });
-  ['dragleave', 'dragend'].forEach((eventName) => {
-    $('pictureDropZone')?.addEventListener(eventName, () => $('pictureDropZone')?.classList.remove('is-dragover'));
-  });
-  $('pictureDropZone')?.addEventListener('drop', (event) => {
-    event.preventDefault();
-    $('pictureDropZone')?.classList.remove('is-dragover');
-    enqueuePictureStudioFiles(Array.from(event.dataTransfer?.files || []));
-  });
-
-  $('studioAddPhotosBtn')?.addEventListener('click', () => $('studioImageInput')?.click());
-  $('studioImageInput')?.addEventListener('change', (event) => {
-    legacyAddFilesToPicturesDesigner(Array.from(event.target.files || []));
-    event.target.value = '';
-  });
-  $('studioAddTextBtn')?.addEventListener('click', () => legacyAddTextBlockToPicturesDesigner());
-  $('studioAddHeroTextBtn')?.addEventListener('click', () => legacyAddTextBlockToPicturesDesigner(null, 'hero'));
-  $('studioClearBtn')?.addEventListener('click', () => legacyClearPicturesDesigner());
-  $('studioCancelBtn')?.addEventListener('click', legacyClosePicturesDesigner);
-  $('picturesDesignerCloseTop')?.addEventListener('click', legacyClosePicturesDesigner);
-  $('picturesDesignerToggleTools')?.addEventListener('click', () => setPicturesDesignerToolsCollapsed(!pictureDesignerToolsCollapsed));
-  $('picturesDesignerShowTools')?.addEventListener('click', () => setPicturesDesignerToolsCollapsed(false));
-  $('studioSaveBtn')?.addEventListener('click', handleSavePicturesDesigner);
-  $('picturesDesignerCanvas')?.addEventListener('dragover', (event) => {
-    event.preventDefault();
-    $('picturesDesignerCanvas')?.classList.add('is-dragover');
-  });
-  $('picturesDesignerCanvas')?.addEventListener('dragleave', () => $('picturesDesignerCanvas')?.classList.remove('is-dragover'));
-  $('picturesDesignerCanvas')?.addEventListener('drop', (event) => {
-    event.preventDefault();
-    $('picturesDesignerCanvas')?.classList.remove('is-dragover');
-    legacyAddFilesToPicturesDesigner(Array.from(event.dataTransfer?.files || []));
-  });
-  ['studioTitle', 'studioLocation', 'studioContact'].forEach((id) => {
-    $(id)?.addEventListener('input', () => { legacyUpdatePicturesDesignerStatus(); legacyRenderPicturesDesigner(); });
-  });
-  document.addEventListener('pointermove', legacyHandlePicturesDesignerPointerMove);
-  document.addEventListener('pointerup', legacyStopPicturesDesignerResize);
-
   $('btnSavePost')?.addEventListener('click', handleSavePost);
   $('btnSendReply')?.addEventListener('click', handleSendReply);
+  $('fBoard')?.addEventListener('change', () => updatePostFormForBoard($('fBoard')?.value || 'FREE'));
+
+  $('btnClosePicturesStudio')?.addEventListener('click', closePicturesStudio);
+  $('btnPsCancel')?.addEventListener('click', closePicturesStudio);
+  $('btnPsAddImages')?.addEventListener('click', () => $('psImageInput')?.click());
+  $('psImageInput')?.addEventListener('change', handlePicturesStudioFiles);
+  $('btnPsAddHeading')?.addEventListener('click', () => addPicturesStudioTextBlock('heading'));
+  $('btnPsAddText')?.addEventListener('click', () => addPicturesStudioTextBlock('text'));
+  $('btnPsAddCaption')?.addEventListener('click', () => addPicturesStudioTextBlock('caption'));
+  $('btnPsToggleGrid')?.addEventListener('click', togglePicturesStudioGrid);
+  $('btnPsPreview')?.addEventListener('click', togglePicturesStudioPreview);
+  $('btnPsDuplicate')?.addEventListener('click', duplicatePicturesStudioSelection);
+  $('btnPsBringFront')?.addEventListener('click', () => shiftPicturesStudioLayer(1));
+  $('btnPsSendBack')?.addEventListener('click', () => shiftPicturesStudioLayer(-1));
+  $('btnPsDelete')?.addEventListener('click', deletePicturesStudioSelection);
+  $('btnPsSave')?.addEventListener('click', handleSavePicturesStudio);
+  $('psCanvasHeight')?.addEventListener('input', handlePicturesStudioCanvasHeight);
+  $('psWidth')?.addEventListener('input', handlePicturesStudioSelectionControl);
+  $('psHeight')?.addEventListener('input', handlePicturesStudioSelectionControl);
+  $('psFontSize')?.addEventListener('input', handlePicturesStudioSelectionControl);
+  $('psFontWeight')?.addEventListener('change', handlePicturesStudioSelectionControl);
+  $('psTextColor')?.addEventListener('input', handlePicturesStudioSelectionControl);
+  $('psBgColor')?.addEventListener('input', handlePicturesStudioSelectionControl);
+  $('psTextAlign')?.addEventListener('change', handlePicturesStudioSelectionControl);
+  $('psFontFamily')?.addEventListener('change', handlePicturesStudioSelectionControl);
+  $('btnPsZoomIn')?.addEventListener('click', () => adjustPicturesStudioZoom(0.1));
+  $('btnPsZoomOut')?.addEventListener('click', () => adjustPicturesStudioZoom(-0.1));
+  $('btnPsFitWidth')?.addEventListener('click', fitPicturesStudioWidth);
+
 
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => { const target = btn.dataset.close; if (target === 'postOverlay') resetPostEditor(); hide(target); });
@@ -748,10 +708,9 @@ function bindStaticEvents() {
 
   document.querySelectorAll('.overlay').forEach((overlay) => {
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay && ['postOverlay', 'threadOverlay', 'picturesDesignerOverlay'].includes(overlay.id)) {
+      if (e.target === overlay && ['postOverlay', 'threadOverlay'].includes(overlay.id)) {
         if (overlay.id === 'postOverlay') resetPostEditor();
-        if (overlay.id === 'picturesDesignerOverlay') legacyClosePicturesDesigner();
-        else hide(overlay.id);
+        hide(overlay.id);
       }
     });
   });
@@ -759,59 +718,12 @@ function bindStaticEvents() {
   $('q')?.addEventListener('input', renderListings);
   $('st')?.addEventListener('change', renderListings);
   $('sort')?.addEventListener('change', renderListings);
-  $('fBoard')?.addEventListener('change', () => { refreshPhotoFieldHint(); refreshPostComposerMode(); });
 
   document.body.addEventListener('click', async (e) => {
     const actionEl = e.target.closest('[data-action]');
     if (!actionEl) return;
 
     const action = actionEl.dataset.action;
-    const pictureId = actionEl.dataset.pictureId || '';
-    if (action === 'pictureMoveLeft') {
-      movePictureStudioItem(pictureId, 'left');
-      return;
-    }
-    if (action === 'pictureMoveRight') {
-      movePictureStudioItem(pictureId, 'right');
-      return;
-    }
-    if (action === 'pictureRemove') {
-      removePictureStudioItem(pictureId);
-      return;
-    }
-    if (action === 'studioInsertText') {
-      legacyAddTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length));
-      return;
-    }
-    if (action === 'studioInsertHeroText') {
-      legacyAddTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length), 'hero');
-      return;
-    }
-    if (action === 'studioRemoveBlock') {
-      relegacyMovePicturesDesignerBlock(actionEl.dataset.blockId || '');
-      return;
-    }
-    if (action === 'studioMoveBlockUp') {
-      legacyMovePicturesDesignerBlock(actionEl.dataset.blockId || '', 'up');
-      return;
-    }
-    if (action === 'studioMoveBlockDown') {
-      legacyMovePicturesDesignerBlock(actionEl.dataset.blockId || '', 'down');
-      return;
-    }
-    if (action === 'studioDuplicateBlock') {
-      legacyDuplicatePicturesDesignerBlock(actionEl.dataset.blockId || '');
-      return;
-    }
-    if (action === 'studioSetSize') {
-      legacyUpdatePicturesDesignerBlock(actionEl.dataset.blockId || '', { size: normalizeStudioBlockSize(actionEl.dataset.size || '', actionEl.dataset.blockType || 'image') });
-      return;
-    }
-    if (action === 'studioSetAlign') {
-      legacyUpdatePicturesDesignerBlock(actionEl.dataset.blockId || '', { align: normalizeStudioBlockAlign(actionEl.dataset.align || 'center') });
-      return;
-    }
-
     const id = actionEl.dataset.id;
     if (!id) return;
 
@@ -834,32 +746,6 @@ function bindStaticEvents() {
       markThreadSeen(id, Date.now());
     }
   });
-
-  document.body.addEventListener('input', (e) => {
-    const studioField = e.target.closest('[data-studio-field]');
-    if (!studioField) return;
-    const blockId = studioField.dataset.blockId || '';
-    const field = studioField.dataset.studioField || '';
-    if (!blockId || !field) return;
-    legacyUpdatePicturesDesignerBlock(blockId, { [field]: studioField.value }, { render: false });
-  });
-
-  document.body.addEventListener('change', (e) => {
-    const studioStyleSelect = e.target.closest('[data-studio-style]');
-    if (studioStyleSelect) {
-      const blockId = studioStyleSelect.dataset.blockId || '';
-      legacyUpdatePicturesDesignerBlock(blockId, { style: studioStyleSelect.value || 'body' });
-      return;
-    }
-    const layoutSelect = e.target.closest('[data-picture-layout]');
-    if (!layoutSelect) return;
-    const pictureId = layoutSelect.dataset.pictureLayout || '';
-    const target = pictureStudioItems.find((item) => item.id === pictureId);
-    if (!target) return;
-    target.layout = normalizePictureLayout(layoutSelect.value);
-  });
-
-  syncHeroComposerButtons();
 }
 
 function showPane(which) {
@@ -885,21 +771,13 @@ function showPane(which) {
 
 function show(id) {
   const el = $(id);
-  if (el) el.style.display = id === 'picturesDesignerOverlay' ? 'block' : 'flex';
-  if (id === 'picturesDesignerOverlay') {
-    document.body.classList.add('studio-open');
-    return;
-  }
+  if (el) el.style.display = 'flex';
   if (id !== 'loginOverlay') document.body.classList.add('modal-open');
 }
 
 function hide(id) {
   const el = $(id);
   if (el) el.style.display = 'none';
-  if (id === 'picturesDesignerOverlay') {
-    document.body.classList.remove('studio-open');
-    return;
-  }
   if (id === 'threadOverlay') {
     stopActiveThreadRepliesListener();
     activeThread = null;
@@ -918,10 +796,6 @@ function isAllowedEmail(email) {
 const PROTECTED_CORE_ADMINS = new Set([
   'michael.h@regallakeland.com',
   'janni.r@regallakeland.com'
-]);
-
-const PICTURES_CURATORS = new Set([
-  'ariel.r@regallakeland.com'
 ]);
 
 function normalizeEmail(email) {
@@ -943,700 +817,6 @@ function isViewerAdmin() {
 
 function canModerate() {
   return !!currentProfile && (!!currentProfile.isAdmin || !!currentProfile.isModerator || isProtectedCoreAdmin(currentUser?.email));
-}
-
-function canPostPicturesBoard() {
-  return !!currentUser && (canModerate() || PICTURES_CURATORS.has(normalizeEmail(currentUser?.email)));
-}
-
-function normalizePictureLayout(value) {
-  const layout = String(value || '').toLowerCase();
-  if (['hero', 'wide', 'tall'].includes(layout)) return layout;
-  return 'standard';
-}
-
-function releasePictureStudioItem(item) {
-  if (item?.previewUrl && item?.previewObjectUrl) {
-    try { URL.revokeObjectURL(item.previewUrl); } catch (_) {}
-  }
-}
-
-function createPictureStudioItem({ file = null, url = '', name = '', layout = 'standard' } = {}) {
-  const previewUrl = url || (file ? URL.createObjectURL(file) : '');
-  return {
-    id: `pic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    file,
-    sourceUrl: url || '',
-    previewUrl,
-    previewObjectUrl: !url && !!file,
-    name: name || file?.name || 'Photo',
-    layout: normalizePictureLayout(layout)
-  };
-}
-
-function resetPictureStudioItems() {
-  pictureStudioItems.forEach(releasePictureStudioItem);
-  pictureStudioItems = [];
-  pictureStudioDragId = '';
-  renderPictureStudioList();
-}
-
-function enqueuePictureStudioFiles(files = []) {
-  const incoming = Array.from(files || []).filter((file) => String(file?.type || '').startsWith('image/'));
-  if (!incoming.length) return;
-  const next = incoming.map((file) => createPictureStudioItem({ file }));
-  pictureStudioItems = [...pictureStudioItems, ...next];
-  renderPictureStudioList();
-}
-
-function setPictureStudioItems(items = []) {
-  resetPictureStudioItems();
-  pictureStudioItems = items.map((item) => createPictureStudioItem(item));
-  renderPictureStudioList();
-}
-
-function movePictureStudioItem(itemId, direction) {
-  const index = pictureStudioItems.findIndex((item) => item.id === itemId);
-  if (index < 0) return;
-  const swapIndex = direction === 'left' ? index - 1 : index + 1;
-  if (swapIndex < 0 || swapIndex >= pictureStudioItems.length) return;
-  const clone = pictureStudioItems.slice();
-  [clone[index], clone[swapIndex]] = [clone[swapIndex], clone[index]];
-  pictureStudioItems = clone;
-  renderPictureStudioList();
-}
-
-function reorderPictureStudioItems(fromId, toId) {
-  if (!fromId || !toId || fromId === toId) return;
-  const fromIndex = pictureStudioItems.findIndex((item) => item.id === fromId);
-  const toIndex = pictureStudioItems.findIndex((item) => item.id === toId);
-  if (fromIndex < 0 || toIndex < 0) return;
-  const clone = pictureStudioItems.slice();
-  const [moved] = clone.splice(fromIndex, 1);
-  clone.splice(toIndex, 0, moved);
-  pictureStudioItems = clone;
-  renderPictureStudioList();
-}
-
-function removePictureStudioItem(itemId) {
-  const target = pictureStudioItems.find((item) => item.id === itemId);
-  if (!target) return;
-  releasePictureStudioItem(target);
-  pictureStudioItems = pictureStudioItems.filter((item) => item.id !== itemId);
-  renderPictureStudioList();
-}
-
-function attachPictureStudioDragHandlers() {
-  const cards = document.querySelectorAll('.pictureStudioItem');
-  cards.forEach((card) => {
-    card.addEventListener('dragstart', () => {
-      pictureStudioDragId = card.dataset.pictureId || '';
-      card.classList.add('dragging');
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      pictureStudioDragId = '';
-      cards.forEach((entry) => entry.classList.remove('drag-over'));
-    });
-    card.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      card.classList.add('drag-over');
-    });
-    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
-    card.addEventListener('drop', (event) => {
-      event.preventDefault();
-      const targetId = card.dataset.pictureId || '';
-      card.classList.remove('drag-over');
-      reorderPictureStudioItems(pictureStudioDragId, targetId);
-    });
-  });
-}
-
-function renderPictureStudioList() {
-  const wrap = $('pictureStudioList');
-  const count = $('pictureStudioCount');
-  if (count) {
-    count.textContent = `${pictureStudioItems.length} photo${pictureStudioItems.length === 1 ? '' : 's'} ready`;
-  }
-  if (!wrap) return;
-  if (!pictureStudioItems.length) {
-    wrap.innerHTML = '<div class="pictureStudioEmpty">Drop images here to build the gallery. You can drag cards to reorder them after upload.</div>';
-    return;
-  }
-  wrap.innerHTML = pictureStudioItems.map((item, index) => `
-    <article class="pictureStudioItem" data-picture-id="${esc(item.id)}" draggable="true">
-      <div class="pictureStudioItemMedia">
-        <img src="${esc(item.previewUrl)}" alt="${esc(item.name)}" loading="lazy" />
-        <span class="pictureStudioBadge">${index === 0 ? 'Cover' : `#${index + 1}`}</span>
-      </div>
-      <div class="pictureStudioItemBody">
-        <div class="pictureStudioItemTop">
-          <strong>${esc(item.name)}</strong>
-          <span>Drag to reorder</span>
-        </div>
-        <div class="pictureStudioControls">
-          <label>Display size</label>
-          <select data-picture-layout="${esc(item.id)}">
-            <option value="standard" ${item.layout === 'standard' ? 'selected' : ''}>Standard</option>
-            <option value="wide" ${item.layout === 'wide' ? 'selected' : ''}>Wide</option>
-            <option value="tall" ${item.layout === 'tall' ? 'selected' : ''}>Tall</option>
-            <option value="hero" ${item.layout === 'hero' ? 'selected' : ''}>Hero</option>
-          </select>
-        </div>
-        <div class="rowBtns pictureStudioItemActions">
-          <button class="btn ghost" data-action="pictureMoveLeft" data-picture-id="${esc(item.id)}" type="button">Move Left</button>
-          <button class="btn ghost" data-action="pictureMoveRight" data-picture-id="${esc(item.id)}" type="button">Move Right</button>
-          <button class="btn danger" data-action="pictureRemove" data-picture-id="${esc(item.id)}" type="button">Remove</button>
-        </div>
-      </div>
-    </article>
-  `).join('\n\n');
-  attachPictureStudioDragHandlers();
-}
-
-function setFieldMode(inputId, visible, { label = '', placeholder = '', disabled = false } = {}) {
-  const input = $(inputId);
-  if (!input) return;
-  const field = input.closest('.field');
-  if (field) field.style.display = visible ? '' : 'none';
-  if (label && field?.querySelector('label')) field.querySelector('label').textContent = label;
-  if (placeholder) input.placeholder = placeholder;
-  input.disabled = !!disabled;
-}
-
-function refreshPostComposerMode() {
-  const board = $('fBoard')?.value || 'FREE';
-  const pictureMode = board === 'PICTURES';
-  if (pictureMode) {
-    alert('Use the Pictures Studio to publish gallery posts.');
-    hide('postOverlay');
-    legacyOpenPicturesDesigner(editingPostId || null);
-    return;
-  }
-  const overlayModal = $('postOverlay')?.querySelector('.modal');
-  overlayModal?.classList.toggle('pictureStudioMode', pictureMode);
-  const titleEl = $('postOverlay')?.querySelector('.modal-h strong');
-  const isEditing = !!editingPostId;
-  if (titleEl) titleEl.textContent = pictureMode ? (isEditing ? 'Edit Picture Gallery' : 'Create Picture Gallery') : (isEditing ? 'Edit Post' : 'Create Post');
-  if ($('btnSavePost')) $('btnSavePost').textContent = pictureMode ? (isEditing ? 'Save Gallery' : 'Publish Gallery') : (isEditing ? 'Save Changes' : 'Post Listing');
-  if ($('pictureStudioShell')) $('pictureStudioShell').style.display = pictureMode ? 'grid' : 'none';
-
-  setFieldMode('fStatus', !pictureMode, { label: 'Status' });
-  setFieldMode('fPrice', !pictureMode, { label: 'Price (optional)', placeholder: '0 for free, 25, 100…' });
-  setFieldMode('fDesc', !pictureMode, { label: 'Description', placeholder: 'Condition, pickup window, details…' });
-  setFieldMode('fPhoto', !pictureMode, { label: 'Photos (optional)' });
-  setFieldMode('fTitle', true, { label: pictureMode ? 'Gallery title (optional)' : 'Title', placeholder: pictureMode ? 'Employee appreciation lunch • New inventory shoot…' : 'e.g. Free couch • Garage sale Saturday…' });
-  setFieldMode('fLocation', true, { label: pictureMode ? 'Event / location (optional)' : 'Location (optional)', placeholder: pictureMode ? 'Regal Honda showroom • Lakeland • March 2026' : 'Lakeland, Plant City…' });
-  setFieldMode('fContact', true, { label: pictureMode ? 'Photographer credit / contact (optional)' : 'Contact person name / details (optional)', placeholder: pictureMode ? 'Ariel Restituyo Garcia • Regal Lakeland' : 'Contact name | text/call/email or where to find you at work' });
-
-  const boardSelect = $('fBoard');
-  if (boardSelect) boardSelect.disabled = false;
-}
-
-function hydratePictureStudioFromListing(item) {
-  const urls = getListingImageUrls(item);
-  const layouts = Array.isArray(item?.imageLayouts) ? item.imageLayouts : [];
-  if (!urls.length) {
-    resetPictureStudioItems();
-    return;
-  }
-  setPictureStudioItems(urls.map((url, index) => ({
-    url,
-    name: `${item?.title || 'Gallery'} ${index + 1}`,
-    layout: layouts[index] || 'standard'
-  })));
-}
-
-function syncHeroComposerButtons() {
-  const heroPostBtn = $('heroPostBtn');
-  const heroPicturesBtn = $('heroPicturesBtn');
-  const onPicturesBoard = activeBoard === 'PICTURES';
-  if (heroPostBtn) heroPostBtn.style.display = onPicturesBoard ? 'none' : '';
-  if (heroPicturesBtn) {
-    heroPicturesBtn.style.display = onPicturesBoard && canPostPicturesBoard() ? '' : 'none';
-    heroPicturesBtn.textContent = 'Open Pictures Studio';
-  }
-}
-
-function studioBlockId() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `studio-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
-}
-
-function normalizeStudioBlockSize(value, type = 'image') {
-  const clean = String(value || '').toLowerCase();
-  if (type === 'text') {
-    if (['column', 'wide', 'hero'].includes(clean)) return clean;
-    return 'wide';
-  }
-  if (['standard', 'wide', 'hero'].includes(clean)) return clean;
-  return 'wide';
-}
-
-function normalizeStudioBlockHeight(value) {
-  const next = Number(value || 0);
-  if (!Number.isFinite(next)) return 280;
-  return Math.min(640, Math.max(180, Math.round(next)));
-}
-
-function normalizeStudioBlockAlign(value) {
-  const clean = String(value || '').toLowerCase();
-  if (['left', 'center', 'right'].includes(clean)) return clean;
-  return 'center';
-}
-
-function setPicturesDesignerToolsCollapsed(collapsed) {
-  pictureDesignerToolsCollapsed = !!collapsed;
-  const overlay = $('picturesDesignerOverlay');
-  if (overlay) overlay.classList.toggle('tools-collapsed', pictureDesignerToolsCollapsed);
-  const toggleBtn = $('picturesDesignerToggleTools');
-  if (toggleBtn) toggleBtn.textContent = pictureDesignerToolsCollapsed ? 'Show Tools' : 'Hide Tools';
-  const showBtn = $('picturesDesignerShowTools');
-  if (showBtn) showBtn.style.display = pictureDesignerToolsCollapsed ? 'inline-flex' : 'none';
-}
-
-function studioSizeToLegacyLayout(size) {
-  if (size === 'hero') return 'hero';
-  if (size === 'wide') return 'wide';
-  return 'standard';
-}
-
-function legacyLayoutToStudioSize(layout) {
-  if (layout === 'hero') return 'hero';
-  if (layout === 'wide' || layout === 'tall') return 'wide';
-  return 'standard';
-}
-
-function legacyCreatePicturesDesignerImageBlock({ file = null, url = '', caption = '', size = 'wide', align = 'center', height = 280, name = '' } = {}) {
-  const previewUrl = file ? URL.createObjectURL(file) : String(url || '');
-  return {
-    id: studioBlockId(),
-    type: 'image',
-    file,
-    previewUrl,
-    sourceUrl: String(url || ''),
-    caption: String(caption || ''),
-    size: normalizeStudioBlockSize(size, 'image'),
-    align: normalizeStudioBlockAlign(align),
-    height: normalizeStudioBlockHeight(height),
-    name: String(name || (file?.name || 'Photo'))
-  };
-}
-
-function legacyCreatePicturesDesignerTextBlock({ heading = '', text = '', size = 'wide', align = 'center', style = 'body' } = {}) {
-  return {
-    id: studioBlockId(),
-    type: 'text',
-    heading: String(heading || ''),
-    text: String(text || ''),
-    size: normalizeStudioBlockSize(size, 'text'),
-    align: normalizeStudioBlockAlign(align),
-    style: ['body', 'hero', 'note'].includes(String(style || '').toLowerCase()) ? String(style || '').toLowerCase() : 'body'
-  };
-}
-
-function releasePicturesDesignerBlock(block) {
-  if (block?.type === 'image' && block?.file && block?.previewUrl) {
-    try { URL.revokeObjectURL(block.previewUrl); } catch {}
-  }
-}
-
-function legacyClearPicturesDesigner(silent = false) {
-  if (!silent && pictureDesignerBlocks.length && !confirm('Clear the current gallery canvas?')) return;
-  pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
-  pictureDesignerBlocks = [];
-  pictureDesignerDragId = '';
-  pictureDesignerResizeState = null;
-  legacyRenderPicturesDesigner();
-}
-
-function legacyResetPicturesDesigner() {
-  legacyClearPicturesDesigner(true);
-  pictureDesignerEditingId = null;
-  if ($('studioTitle')) $('studioTitle').value = '';
-  if ($('studioLocation')) $('studioLocation').value = '';
-  if ($('studioContact')) $('studioContact').value = '';
-  legacyUpdatePicturesDesignerStatus();
-}
-
-function legacyUpdatePicturesDesignerStatus() {
-  const statusEl = $('studioStatusLine');
-  if (!statusEl) return;
-  const imageCount = pictureDesignerBlocks.filter((block) => block.type === 'image').length;
-  const textCount = pictureDesignerBlocks.filter((block) => block.type === 'text').length;
-  const title = $('studioTitle')?.value.trim() || (pictureDesignerEditingId ? 'Editing gallery' : 'New gallery');
-  statusEl.textContent = `${title} • ${imageCount} photo${imageCount === 1 ? '' : 's'} • ${textCount} text block${textCount === 1 ? '' : 's'}`;
-}
-
-function setPicturesDesignerBlocks(nextBlocks) {
-  pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
-  pictureDesignerBlocks = nextBlocks;
-  legacyRenderPicturesDesigner();
-}
-
-function insertPicturesDesignerBlocks(newBlocks, insertIndex = null) {
-  const blocks = Array.isArray(newBlocks) ? newBlocks.filter(Boolean) : [newBlocks].filter(Boolean);
-  if (!blocks.length) return;
-  if (insertIndex === null || insertIndex === undefined || insertIndex < 0 || insertIndex > pictureDesignerBlocks.length) {
-    pictureDesignerBlocks = [...pictureDesignerBlocks, ...blocks];
-  } else {
-    pictureDesignerBlocks = [
-      ...pictureDesignerBlocks.slice(0, insertIndex),
-      ...blocks,
-      ...pictureDesignerBlocks.slice(insertIndex)
-    ];
-  }
-  legacyRenderPicturesDesigner();
-}
-
-function legacyAddFilesToPicturesDesigner(files, insertIndex = null) {
-  const images = (files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
-  if (!images.length) return;
-  insertPicturesDesignerBlocks(images.map((file) => legacyCreatePicturesDesignerImageBlock({ file })), insertIndex);
-}
-
-function legacyAddTextBlockToPicturesDesigner(insertIndex = null, style = 'body') {
-  insertPicturesDesignerBlocks(legacyCreatePicturesDesignerTextBlock({ style, size: style === 'hero' ? 'hero' : 'wide' }), insertIndex);
-}
-
-function relegacyRenderPicturesDesignerPreserveScroll() {
-  const overlay = $('picturesDesignerOverlay');
-  const top = overlay ? overlay.scrollTop : window.scrollY;
-  legacyRenderPicturesDesigner();
-  if (overlay) overlay.scrollTop = top;
-  else window.scrollTo({ top });
-}
-
-function legacyUpdatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
-  const shouldRender = options.render !== false;
-  pictureDesignerBlocks = pictureDesignerBlocks.map((block) => {
-    if (block.id !== blockId) return block;
-    const next = { ...block, ...patch };
-    if (next.type === 'image') {
-      next.size = normalizeStudioBlockSize(next.size, 'image');
-      next.align = normalizeStudioBlockAlign(next.align);
-      next.height = normalizeStudioBlockHeight(next.height);
-      next.caption = String(next.caption || '');
-    } else {
-      next.size = normalizeStudioBlockSize(next.size, 'text');
-      next.align = normalizeStudioBlockAlign(next.align);
-      next.heading = String(next.heading || '');
-      next.text = String(next.text || '');
-      next.style = ['body', 'hero', 'note'].includes(String(next.style || '').toLowerCase()) ? String(next.style || '').toLowerCase() : 'body';
-    }
-    return next;
-  });
-  legacyUpdatePicturesDesignerStatus();
-  if (shouldRender) relegacyRenderPicturesDesignerPreserveScroll();
-}
-
-function legacyMovePicturesDesignerBlock(blockId, direction = 'down') {
-  const index = pictureDesignerBlocks.findIndex((block) => block.id === blockId);
-  if (index < 0) return;
-  const swapIndex = direction === 'up' ? index - 1 : index + 1;
-  if (swapIndex < 0 || swapIndex >= pictureDesignerBlocks.length) return;
-  const clone = pictureDesignerBlocks.slice();
-  [clone[index], clone[swapIndex]] = [clone[swapIndex], clone[index]];
-  pictureDesignerBlocks = clone;
-  legacyRenderPicturesDesigner();
-}
-
-function legacyReorderPicturesDesignerBlocks(fromId, toId) {
-  if (!fromId || !toId || fromId === toId) return;
-  const fromIndex = pictureDesignerBlocks.findIndex((block) => block.id === fromId);
-  const toIndex = pictureDesignerBlocks.findIndex((block) => block.id === toId);
-  if (fromIndex < 0 || toIndex < 0) return;
-  const clone = pictureDesignerBlocks.slice();
-  const [moved] = clone.splice(fromIndex, 1);
-  clone.splice(toIndex, 0, moved);
-  pictureDesignerBlocks = clone;
-  legacyRenderPicturesDesigner();
-}
-
-function relegacyMovePicturesDesignerBlock(blockId) {
-  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
-  if (target) releasePicturesDesignerBlock(target);
-  pictureDesignerBlocks = pictureDesignerBlocks.filter((block) => block.id !== blockId);
-  legacyRenderPicturesDesigner();
-}
-
-function legacyDuplicatePicturesDesignerBlock(blockId) {
-  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
-  if (!target) return;
-  const clone = target.type === 'image'
-    ? legacyCreatePicturesDesignerImageBlock({ url: target.sourceUrl || target.previewUrl, caption: target.caption, size: target.size, align: target.align, height: target.height, name: target.name })
-    : legacyCreatePicturesDesignerTextBlock({ heading: target.heading, text: target.text, size: target.size, align: target.align, style: target.style });
-  const idx = pictureDesignerBlocks.findIndex((block) => block.id === blockId);
-  insertPicturesDesignerBlocks(clone, idx + 1);
-}
-
-function bindPicturesDesignerDrag() {
-  document.querySelectorAll('.studioCanvasBlock').forEach((card) => {
-    card.draggable = true;
-    card.ondragstart = (event) => {
-      const target = event.target;
-      if (target?.closest('button, input, textarea, select, option, label, .studioResizeHandle, .studioBlockField')) {
-        event.preventDefault();
-        return false;
-      }
-      if (!target?.closest('.studioBlockToolbar, .studioBlockLabel')) {
-        event.preventDefault();
-        return false;
-      }
-      pictureDesignerDragId = card.dataset.blockId || '';
-      card.classList.add('is-dragging');
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-      return true;
-    };
-    card.ondragend = () => {
-      pictureDesignerDragId = '';
-      card.classList.remove('is-dragging');
-      document.querySelectorAll('.studioCanvasBlock').forEach((node) => node.classList.remove('is-over'));
-    };
-    card.ondragover = (event) => {
-      event.preventDefault();
-      card.classList.add('is-over');
-    };
-    card.ondragleave = () => card.classList.remove('is-over');
-    card.ondrop = (event) => {
-      event.preventDefault();
-      card.classList.remove('is-over');
-      legacyReorderPicturesDesignerBlocks(pictureDesignerDragId, card.dataset.blockId || '');
-    };
-  });
-  document.querySelectorAll('.studioCanvasBlock button, .studioCanvasBlock input, .studioCanvasBlock textarea, .studioCanvasBlock select').forEach((el) => {
-    el.draggable = false;
-    el.onmousedown = (event) => event.stopPropagation();
-  });
-  document.querySelectorAll('.studioResizeHandle').forEach((handle) => {
-    handle.draggable = false;
-    handle.onmousedown = (event) => event.stopPropagation();
-    handle.onpointerdown = (event) => {
-      event.stopPropagation();
-      startPicturesDesignerResize(event, handle.dataset.blockId || '');
-    };
-  });
-}
-
-function startPicturesDesignerResize(event, blockId) {
-  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId && entry.type === 'image');
-  if (!block) return;
-  event.preventDefault();
-  pictureDesignerResizeState = {
-    blockId,
-    startY: event.clientY,
-    startHeight: normalizeStudioBlockHeight(block.height)
-  };
-  document.body.classList.add('studio-resizing');
-}
-
-function legacyHandlePicturesDesignerPointerMove(event) {
-  if (!pictureDesignerResizeState) return;
-  const nextHeight = normalizeStudioBlockHeight(pictureDesignerResizeState.startHeight + (event.clientY - pictureDesignerResizeState.startY));
-  const block = pictureDesignerBlocks.find((entry) => entry.id === pictureDesignerResizeState.blockId);
-  if (!block) return;
-  block.height = nextHeight;
-  const stage = document.querySelector(`.studioCanvasBlock[data-block-id="${pictureDesignerResizeState.blockId}"] .studioBlockImageStage`);
-  if (stage) stage.style.setProperty('--studio-image-height', `${nextHeight}px`);
-}
-
-function legacyStopPicturesDesignerResize() {
-  if (!pictureDesignerResizeState) return;
-  pictureDesignerResizeState = null;
-  document.body.classList.remove('studio-resizing');
-  legacyRenderPicturesDesigner();
-}
-
-function legacyRenderPicturesDesigner() {
-  const canvas = $('picturesDesignerCanvas');
-  if (!canvas) return;
-  if (!pictureDesignerBlocks.length) {
-    canvas.innerHTML = `
-      <div class="studioEmptyState">
-        <div class="studioEmptyIcon">🖼️</div>
-        <strong>Start building the gallery</strong>
-        <span>Add images or text blocks to begin.</span>
-      </div>
-      <div class="studioCanvasInsertShell">
-        <button class="studioInsertBar" data-action="studioInsertText" data-index="0" type="button">+ Add text anywhere</button>
-      </div>
-    `;
-    legacyUpdatePicturesDesignerStatus();
-    return;
-  }
-  const metaHeader = `
-    <div class="studioPreviewHeader">
-      <div>
-        <div class="studioPreviewEyebrow">Picture Gallery Preview</div>
-        <h2>${esc($('studioTitle')?.value.trim() || 'Untitled gallery')}</h2>
-        <div class="studioPreviewMeta">
-          <span>${esc($('studioLocation')?.value.trim() || 'Regal Lakeland')}</span>
-          <span>${esc($('studioContact')?.value.trim() || 'Photographer credit')}</span>
-        </div>
-      </div>
-    </div>
-  `;
-  const blockHtml = pictureDesignerBlocks.map((block, index) => {
-    const sizeButtons = block.type === 'image'
-      ? `
-        <div class="studioControlRow">
-          <div class="studioSizeButtons">
-            ${['standard', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="image" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
-          </div>
-          <div class="studioAlignButtons">
-            ${['left', 'center', 'right'].map((align) => `<button class="studioAlignBtn ${normalizeStudioBlockAlign(block.align) === align ? 'active' : ''}" data-action="studioSetAlign" data-block-id="${esc(block.id)}" data-align="${align}" type="button">${esc(align)}</button>`).join('')}
-          </div>
-        </div>
-      `
-      : `
-        <div class="studioControlRow">
-          <div class="studioSizeButtons">
-            ${['column', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="text" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
-          </div>
-          <div class="studioAlignButtons">
-            ${['left', 'center', 'right'].map((align) => `<button class="studioAlignBtn ${normalizeStudioBlockAlign(block.align) === align ? 'active' : ''}" data-action="studioSetAlign" data-block-id="${esc(block.id)}" data-align="${align}" type="button">${esc(align)}</button>`).join('')}
-          </div>
-        </div>
-      `;
-    const insertAbove = `<button class="studioInsertBar studioInsertBar-inline" data-action="studioInsertText" data-index="${index}" type="button">+ Text above</button>`;
-    const insertBelow = `<button class="studioInsertBar studioInsertBar-inline" data-action="studioInsertText" data-index="${index + 1}" type="button">+ Text below</button>`;
-    if (block.type === 'image') {
-      return `
-        <div class="studioCanvasInsertShell">${insertAbove}</div>
-        <article class="studioCanvasBlock studioCanvasBlock-image studioSize-${esc(block.size)} studioAlign-${esc(normalizeStudioBlockAlign(block.align))}" data-block-id="${esc(block.id)}">
-          <div class="studioBlockToolbar">
-            <span class="studioBlockLabel">Image block</span>
-            <div class="studioBlockActions rowBtns">
-              <button class="btn ghost btn-xs" data-action="studioMoveBlockUp" data-block-id="${esc(block.id)}" type="button">Up</button>
-              <button class="btn ghost btn-xs" data-action="studioMoveBlockDown" data-block-id="${esc(block.id)}" type="button">Down</button>
-              <button class="btn ghost btn-xs" data-action="studioDuplicateBlock" data-block-id="${esc(block.id)}" type="button">Duplicate</button>
-              <button class="btn danger btn-xs" data-action="studioRemoveBlock" data-block-id="${esc(block.id)}" type="button">Remove</button>
-            </div>
-          </div>
-          <div class="studioBlockImageStage" style="--studio-image-height:${normalizeStudioBlockHeight(block.height)}px">
-            <img src="${esc(block.previewUrl || block.sourceUrl)}" alt="${esc(block.name || 'Gallery image')}" loading="lazy" />
-            <button class="studioResizeHandle" data-block-id="${esc(block.id)}" type="button" aria-label="Resize image"></button>
-          </div>
-          ${sizeButtons}
-          <div class="field studioBlockField">
-            <label>Caption under image</label>
-            <input data-studio-field="caption" data-block-id="${esc(block.id)}" value="${esc(block.caption || '')}" placeholder="Write a caption for this image" />
-          </div>
-        </article>
-        <div class="studioCanvasInsertShell">${insertBelow}</div>
-      `;
-    }
-    return `
-      <div class="studioCanvasInsertShell">${insertAbove}</div>
-      <article class="studioCanvasBlock studioCanvasBlock-text studioTextSize-${esc(block.size)} studioTextStyle-${esc(block.style || 'body')} studioAlign-${esc(normalizeStudioBlockAlign(block.align))}" data-block-id="${esc(block.id)}">
-        <div class="studioBlockToolbar">
-          <span class="studioBlockLabel">Text block</span>
-          <div class="studioBlockActions rowBtns">
-            <button class="btn ghost btn-xs" data-action="studioMoveBlockUp" data-block-id="${esc(block.id)}" type="button">Up</button>
-            <button class="btn ghost btn-xs" data-action="studioMoveBlockDown" data-block-id="${esc(block.id)}" type="button">Down</button>
-            <button class="btn ghost btn-xs" data-action="studioDuplicateBlock" data-block-id="${esc(block.id)}" type="button">Duplicate</button>
-            <button class="btn danger btn-xs" data-action="studioRemoveBlock" data-block-id="${esc(block.id)}" type="button">Remove</button>
-          </div>
-        </div>
-        ${sizeButtons}
-        <div class="grid2 studioTextControls">
-          <div class="field studioBlockField">
-            <label>Heading (optional)</label>
-            <input data-studio-field="heading" data-block-id="${esc(block.id)}" value="${esc(block.heading || '')}" placeholder="Section heading" />
-          </div>
-          <div class="field studioBlockField">
-            <label>Style</label>
-            <select data-studio-style="true" data-block-id="${esc(block.id)}">
-              <option value="body" ${block.style === 'body' ? 'selected' : ''}>Body</option>
-              <option value="hero" ${block.style === 'hero' ? 'selected' : ''}>Hero</option>
-              <option value="note" ${block.style === 'note' ? 'selected' : ''}>Note</option>
-            </select>
-          </div>
-        </div>
-        <div class="field studioBlockField">
-          <label>Text</label>
-          <textarea data-studio-field="text" data-block-id="${esc(block.id)}" rows="5" placeholder="Write a caption section, event story, quote, or announcement...">${esc(block.text || '')}</textarea>
-        </div>
-      </article>
-      <div class="studioCanvasInsertShell">${insertBelow}</div>
-    `;
-  }).join('');
-  canvas.innerHTML = metaHeader + blockHtml;
-  bindPicturesDesignerDrag();
-  legacyUpdatePicturesDesignerStatus();
-}
-
-function legacyOpenPicturesDesigner(postId = null) {
-  if (!currentUser) {
-    alert('Please log in first.');
-    return;
-  }
-  if (!hasRulesAcceptance(currentProfile)) {
-    showRulesOverlay();
-    alert('You must accept the marketplace rules before using the Pictures Studio.');
-    return;
-  }
-  if (!canPostPicturesBoard()) {
-    alert('Only approved gallery managers can use the Pictures Studio.');
-    return;
-  }
-  legacyResetPicturesDesigner();
-  if (postId) {
-    const item = listings.find((entry) => entry.id === postId);
-    if (!item || !canModify(item)) {
-      alert('You do not have permission to edit this gallery.');
-      return;
-    }
-    pictureDesignerEditingId = postId;
-    if ($('studioTitle')) $('studioTitle').value = item.title || '';
-    if ($('studioLocation')) $('studioLocation').value = item.location || '';
-    if ($('studioContact')) $('studioContact').value = item.contact || '';
-    const blocks = getPictureGalleryBlocks(item).map((block) => block.type === 'image'
-      ? legacyCreatePicturesDesignerImageBlock({ url: block.url, caption: block.caption || '', size: block.size || legacyLayoutToStudioSize(block.layout), align: block.align || 'center', height: block.height || 280, name: block.name || item.title || 'Photo' })
-      : legacyCreatePicturesDesignerTextBlock({ heading: block.heading || '', text: block.text || '', size: block.size || 'wide', align: block.align || 'center', style: block.style || 'body' }));
-    pictureDesignerBlocks = blocks;
-  }
-  legacyRenderPicturesDesigner();
-  legacyUpdatePicturesDesignerStatus();
-  setPicturesDesignerToolsCollapsed(false);
-  show('picturesDesignerOverlay');
-}
-
-function legacyClosePicturesDesigner() {
-  hide('picturesDesignerOverlay');
-  setPicturesDesignerToolsCollapsed(false);
-  legacyResetPicturesDesigner();
-}
-
-function configurePostBoardOptions() {
-  const boardSelect = $('fBoard');
-  if (!boardSelect) return;
-  const picturesOption = Array.from(boardSelect.options).find((opt) => opt.value === 'PICTURES');
-  if (picturesOption) {
-    const allowed = false;
-    picturesOption.disabled = !allowed;
-    picturesOption.hidden = true;
-    if (!allowed && boardSelect.value === 'PICTURES') boardSelect.value = 'FREE';
-  }
-  refreshPhotoFieldHint();
-  refreshPostComposerMode();
-  syncHeroComposerButtons();
-}
-
-function refreshPhotoFieldHint() {
-  const hint = $('photoFieldHint');
-  if (!hint) return;
-  const board = $('fBoard')?.value || 'FREE';
-  if (board === 'PICTURES') {
-    hint.textContent = canPostPicturesBoard()
-      ? 'Pictures uses the dedicated Pictures Studio for gallery design.'
-      : 'Pictures is a curated gallery board managed by admins, moderators, and Ariel Restituyo Garcia.';
-    return;
-  }
-  hint.textContent = 'Normal posts stay compact in the feed with a standard preview image. Open the thread to view the full photo.';
 }
 
 function threadReadStorageKey() {
@@ -2163,14 +1343,14 @@ function updateAuthUI() {
   if ($('adminLink')) $('adminLink').style.display = showAdmin ? 'inline-flex' : 'none';
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
+  refreshPicturesPostingUI();
   if ($('threadAlertsBadge')) $('threadAlertsBadge').style.display = loggedIn && threadUnreadCount ? 'inline-flex' : 'none';
   if ($('heroThreadAlert')) $('heroThreadAlert').style.display = loggedIn && threadUnreadCount ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
   if (!loggedIn) { hidePasswordGate(); hideRulesOverlay(); }
-  configurePostBoardOptions();
 
   if (loggedIn) {
-    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'eventImageOverlay'];
+    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'eventImageOverlay', 'picturesStudioOverlay'];
     const hasVisibleModal = visibleOverlayIds.some((overlayId) => {
       const o = $(overlayId);
       return o && (o.style.display === 'flex' || o.style.display === 'block');
@@ -2948,8 +2128,23 @@ function formatDate(ms) {
   try { return new Date(Number(ms || Date.now())).toLocaleString(); } catch { return '—'; }
 }
 
+function getPictureLayoutElements(item) {
+  const direct = item?.pictureLayout?.elements;
+  if (Array.isArray(direct)) return direct;
+  const legacy = item?.pictureBlocks;
+  if (Array.isArray(legacy)) return legacy;
+  return [];
+}
+
 function getListingImageUrls(item) {
   const urls = [];
+  const layoutElements = getPictureLayoutElements(item);
+  layoutElements.forEach((el) => {
+    if (el?.type === 'image') {
+      const clean = String(el.url || '').trim();
+      if (clean && !urls.includes(clean)) urls.push(clean);
+    }
+  });
   if (Array.isArray(item?.imageUrls)) {
     item.imageUrls.forEach((url) => {
       const clean = String(url || '').trim();
@@ -2961,71 +2156,6 @@ function getListingImageUrls(item) {
     if (clean && !urls.includes(clean)) urls.unshift(clean);
   });
   return urls.filter(Boolean);
-}
-
-function getListingImageLayouts(item) {
-  if (!Array.isArray(item?.imageLayouts)) return [];
-  return item.imageLayouts.map((layout) => normalizePictureLayout(layout));
-}
-
-function getPictureGalleryBlocks(item) {
-  if (Array.isArray(item?.galleryBlocks) && item.galleryBlocks.length) {
-    return item.galleryBlocks.map((block, index) => {
-      if (String(block?.type || '').toLowerCase() === 'text') {
-        return {
-          id: block.id || `text-${index}`,
-          type: 'text',
-          heading: String(block.heading || ''),
-          text: String(block.text || ''),
-          size: normalizeStudioBlockSize(block.size, 'text'),
-          align: normalizeStudioBlockAlign(block.align),
-          style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style || '').toLowerCase() : 'body'
-        };
-      }
-      return {
-        id: block.id || `image-${index}`,
-        type: 'image',
-        url: String(block.url || block.src || ''),
-        caption: String(block.caption || ''),
-        size: normalizeStudioBlockSize(block.size || legacyLayoutToStudioSize(block.layout), 'image'),
-        align: normalizeStudioBlockAlign(block.align),
-        height: normalizeStudioBlockHeight(block.height || 280),
-        layout: studioSizeToLegacyLayout(block.size || legacyLayoutToStudioSize(block.layout))
-      };
-    }).filter((block) => (block.type === 'image' ? block.url : (block.heading || block.text)));
-  }
-  const urls = getListingImageUrls(item);
-  const layouts = getListingImageLayouts(item);
-  const captions = Array.isArray(item?.imageCaptions) ? item.imageCaptions : [];
-  const imageBlocks = urls.map((url, index) => ({
-    id: `image-${index}`,
-    type: 'image',
-    url,
-    caption: String(captions[index] || ''),
-    size: legacyLayoutToStudioSize(layouts[index] || 'standard'),
-    align: 'center',
-    height: layouts[index] === 'hero' ? 420 : 280,
-    layout: layouts[index] || 'standard'
-  }));
-  const desc = String(item?.description || item?.desc || '').trim();
-  if (desc) {
-    imageBlocks.push({
-      id: 'legacy-text-1',
-      type: 'text',
-      heading: '',
-      text: desc,
-      size: 'wide',
-      align: 'center',
-      style: 'body'
-    });
-  }
-  return imageBlocks;
-}
-
-function getPictureGalleryImages(item) {
-  return getPictureGalleryBlocks(item)
-    .filter((block) => block.type === 'image')
-    .map((block) => ({ url: block.url, layout: studioSizeToLegacyLayout(block.size), size: block.size, caption: block.caption || '', height: block.height || 280 }));
 }
 
 function getListingDisplayValue(item) {
@@ -3040,74 +2170,39 @@ function getListingDisplayValue(item) {
 }
 
 function buildGalleryPreview(item) {
-  const images = getPictureGalleryImages(item);
+  const images = getListingImageUrls(item);
   if (!images.length) return '';
   const preview = images.slice(0, 4);
   const extra = images.length - preview.length;
-  return `<div class="galleryPreview galleryPreview-${preview.length}">${preview.map((image, idx) => `<div class="galleryPreviewCell ${idx === 0 ? 'primary' : ''} layout-${esc(image.layout)}"><img src="${esc(image.url)}" alt="${esc(item?.title || 'Gallery image')}" loading="lazy" /></div>`).join('')}${extra > 0 ? `<div class="galleryPreviewMore">+${extra}</div>` : ''}</div>`;
+  return `<div class="galleryPreview galleryPreview-${preview.length}">${preview.map((url, idx) => `<div class="galleryPreviewCell ${idx === 0 ? 'primary' : ''}"><img src="${esc(url)}" alt="${esc(item?.title || 'Gallery image')}" loading="lazy" /></div>`).join('')}${extra > 0 ? `<div class="galleryPreviewMore">+${extra}</div>` : ''}</div>`;
 }
 
 function buildThreadGallery(item) {
-  const blocks = getPictureGalleryBlocks(item);
-  if (!blocks.length) return '';
-  return `
-    <div class="publishedGalleryFlow">
-      ${blocks.map((block, index) => {
-        if (block.type === 'text') {
-          return `
-            <section class="publishedGalleryBlock publishedGalleryText publishedGalleryText-${esc(block.style || 'body')} text-size-${esc(block.size || 'wide')} align-${esc(normalizeStudioBlockAlign(block.align))}">
-              ${block.heading ? `<h3>${esc(block.heading)}</h3>` : ''}
-              ${block.text ? `<p>${esc(block.text).replaceAll('\n', '<br>')}</p>` : '<p>Add copy in Pictures Studio.</p>'}
-            </section>
-          `;
-        }
-        return `
-          <figure class="publishedGalleryBlock publishedGalleryImage size-${esc(block.size || 'wide')} align-${esc(normalizeStudioBlockAlign(block.align))}" style="--published-image-height:${normalizeStudioBlockHeight(block.height || 280)}px">
-            <img class="thread-gallery-image" src="${esc(block.url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (index + 1))}" loading="lazy" />
-            ${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ''}
-          </figure>
-        `;
-      }).join('')}
-    </div>
-  `;
-}
-
-function buildPictureGalleryFeed(items) {
-  return `<div class="pictureGalleryGrid">${items.map((item) => {
-    const images = getPictureGalleryImages(item);
-    const preview = images.slice(0, 4);
-    const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
-    const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
-    const posterName = getPosterDisplayName(item);
-    const canEdit = canModify(item);
-    const quickDelete = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : '';
-    const openButton = `<button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open Gallery</button>`;
-    const editButton = canEdit ? `<button class="btn ghost" data-action="editPost" data-id="${esc(item.id)}" type="button">Edit</button>` : '';
-    const markButton = canEdit && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : '';
-    const mosaicClass = `pictureMosaic pictureMosaic-${Math.min(Math.max(preview.length, 1), 4)}`;
-    const mosaic = preview.length
-      ? `<div class="${mosaicClass}">${preview.map((image, idx) => `<div class="pictureMosaicCell ${idx === 0 ? 'lead' : ''} layout-${esc(image.layout)}"><img src="${esc(image.url)}" alt="${esc((item?.title || 'Picture') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}${images.length > preview.length ? `<div class="pictureMosaicMore">+${images.length - preview.length}</div>` : ''}</div>`
-      : `<div class="${mosaicClass}"><div class="pictureMosaicCell lead pictureMosaicPlaceholder"><span>No image</span></div></div>`;
-    return `
-      <article class="pictureGalleryCard ${item.featured ? 'pictureGalleryCard-featured' : ''}" data-thread-card-id="${esc(item.id)}">
-        <button class="pictureGalleryMedia" data-action="openThread" data-id="${esc(item.id)}" type="button" aria-label="Open ${esc(item.title || 'gallery')}">
-          ${mosaic}
-          <div class="pictureGalleryOverlay">
-            <span class="pictureGalleryTag">Pictures</span>
-            <span class="pictureGalleryCount">${esc(images.length ? `${images.length} photo${images.length === 1 ? '' : 's'}` : 'Gallery')}</span>
-          </div>
-        </button>
-        <div class="pictureGalleryCardBody">
-          <div class="pictureGalleryCardTop">
-            <div class="pictureGalleryTitle">${esc(item.title || 'Untitled')}</div>
-            <span class="status ${statusClass}">${esc(statusText)}</span>
-          </div>
-          <div class="pictureGalleryMeta"><span>${esc(posterName)}</span><span>${esc(item.location || 'Regal Lakeland')}</span><span>${esc(formatDate(item.createdAtMs))}</span></div>
-          <div class="pictureGalleryActions rowBtns">${openButton}${editButton}${markButton}${quickDelete}</div>
-        </div>
-      </article>
-    `;
-  }).join('')}</div>`;
+  const layout = item?.pictureLayout || null;
+  const elements = getPictureLayoutElements(item);
+  if (layout && Array.isArray(elements) && elements.length) {
+    const canvasHeight = Number(layout.canvasHeight || 1400);
+    const blocks = [...elements].sort((a, b) => Number(a.z || 0) - Number(b.z || 0)).map((el) => {
+      const x = Number(el.x || 0);
+      const y = Number(el.y || 0);
+      const w = Math.max(80, Number(el.w || 300));
+      const h = Math.max(50, Number(el.h || 180));
+      if (el.type === 'image') {
+        return `<div class="psViewBlock" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">
+          <img src="${esc(el.url || '')}" alt="${esc(el.caption || item?.title || 'Gallery image')}" loading="lazy" />
+          ${el.caption ? `<div class="psViewCaption">${esc(el.caption)}</div>` : ''}
+        </div>`;
+      }
+      return `<div class="psViewBlock" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">
+        <div class="psViewText" style="font-size:${Number(el.fontSize || 32)}px;font-weight:${Number(el.fontWeight || 700)};color:${esc(el.color || '#ffffff')};text-align:${esc(el.textAlign || 'left')};font-family:${esc(el.fontFamily || 'Inter, system-ui, sans-serif')};background:${esc(el.bg || 'transparent')};">${esc(el.text || '').replaceAll('
+', '<br>')}</div>
+      </div>`;
+    }).join('');
+    return `<div class="pictureStudioViewer" style="min-height:${canvasHeight}px">${blocks}</div>`;
+  }
+  const images = getListingImageUrls(item);
+  if (!images.length) return '';
+  return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((url, idx) => `<div class="thread-gallery-item"><img class="thread-gallery-image" src="${esc(url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
 }
 
 function canModify(item) {
@@ -3137,17 +2232,14 @@ function resetPostEditor() {
   if ($('fDesc')) $('fDesc').value = '';
   if ($('fContact')) $('fContact').value = '';
   if ($('fPhoto')) $('fPhoto').value = '';
-  resetPictureStudioItems();
-  configurePostBoardOptions();
-  refreshPhotoFieldHint();
-  refreshPostComposerMode();
+  if ($('fBoard')) updatePostFormForBoard($('fBoard').value);
 }
 
 function openPostEditor(id) {
   const item = listings.find((x) => x.id === id);
   if (!item || !canModify(item)) return;
   if (String(item.board || '').toUpperCase() === 'PICTURES') {
-    legacyOpenPicturesDesigner(id);
+    openPicturesStudio(item);
     return;
   }
   editingPostId = id;
@@ -3162,14 +2254,6 @@ function openPostEditor(id) {
   if ($('fDesc')) $('fDesc').value = item.description || item.desc || '';
   if ($('fContact')) $('fContact').value = item.contact || '';
   if ($('fPhoto')) $('fPhoto').value = '';
-  if (String(item.board || '').toUpperCase() === 'PICTURES') {
-    hydratePictureStudioFromListing(item);
-  } else {
-    resetPictureStudioItems();
-  }
-  configurePostBoardOptions();
-  refreshPhotoFieldHint();
-  refreshPostComposerMode();
   show('postOverlay');
 }
 
@@ -3184,21 +2268,11 @@ function renderListings() {
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  const feedTitleEl = document.querySelector('.feedPanel .section-title');
-  const feedSubEl = document.querySelector('.feedPanel .section-sub');
-  if (feedTitleEl) feedTitleEl.textContent = activeBoard === 'PICTURES' ? 'Picture Gallery' : 'Listings';
-  if (feedSubEl) feedSubEl.textContent = activeBoard === 'PICTURES' ? 'Curated photo stories with live-designed layouts, captions, and text sections.' : 'Recent activity inside the selected board';
-  if ($('btnNew')) {
-    $('btnNew').style.display = activeBoard === 'PICTURES' && !canPostPicturesBoard() ? 'none' : '';
-    $('btnNew').textContent = activeBoard === 'PICTURES' && canPostPicturesBoard() ? '+ Studio' : '+ Post';
-  }
   if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
   if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   updateHeroPeopleStats();
   renderEventSpotlight();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
-  if ($('heroFreeBtn')) $('heroFreeBtn').textContent = activeBoard === 'PICTURES' ? 'Browse Free Items' : 'Browse Free Items';
-  syncHeroComposerButtons();
 
   if (!data.length) {
     wrap.innerHTML = '';
@@ -3209,12 +2283,7 @@ function renderListings() {
 
   empty.style.display = 'none';
   wrap.classList.toggle('pictureBoardActive', activeBoard === 'PICTURES');
-  if (activeBoard === 'PICTURES') {
-    wrap.innerHTML = buildPictureGalleryFeed(data);
-    updateThreadNotificationUI();
-    return;
-  }
-
+  refreshPicturesPostingUI();
   wrap.innerHTML = data.map((item) => {
     const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
     const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
@@ -3231,9 +2300,9 @@ function renderListings() {
       : '';
     const boardLabel = BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board;
     const imageUrls = getListingImageUrls(item);
-    const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
-    const galleryPreview = isPictureBoard ? buildGalleryPreview(item) : '';
+    const galleryPreview = buildGalleryPreview(item);
     const visualValue = getListingDisplayValue(item);
+    const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
     const sideMeta = isPictureBoard
       ? `<div class="topicMeta topicMetaRight"><span>${esc(imageUrls.length ? `${imageUrls.length} image${imageUrls.length === 1 ? '' : 's'}` : 'No images')}</span><span>${esc(item.location || 'Regal gallery')}</span></div>`
       : `<div class="topicMeta topicMetaRight"><span>${esc(item.location || 'No location')}</span><span>${esc(item.contact || 'No contact')}</span></div>`;
@@ -3298,42 +2367,33 @@ async function handleSavePost() {
     return;
   }
 
-  const rawTitle = $('fTitle')?.value.trim() || '';
-  const rawDescription = $('fDesc')?.value.trim() || '';
+  const title = $('fTitle')?.value.trim();
+  const description = $('fDesc')?.value.trim();
   const board = $('fBoard')?.value || 'BUYSELL';
-  const pictureMode = board === 'PICTURES';
-  if (pictureMode) {
-    alert('Use the Pictures Studio to publish gallery posts.');
-    hide('postOverlay');
-    legacyOpenPicturesDesigner(editingPostId || null);
-    return;
-  }
-  const status = pictureMode ? 'ACTIVE' : ($('fStatus')?.value || 'ACTIVE');
-  if (pictureMode && !canPostPicturesBoard()) {
-    alert('Only approved gallery managers can post in Pictures.');
-    return;
-  }
+  const status = $('fStatus')?.value || 'ACTIVE';
   const location = $('fLocation')?.value.trim() || '';
   const contact = $('fContact')?.value.trim() || '';
-  const priceRaw = pictureMode ? '0' : ($('fPrice')?.value.trim() || '');
+  const priceRaw = $('fPrice')?.value.trim() || '';
   const files = Array.from($('fPhoto')?.files || []);
-
-  const title = rawTitle || (pictureMode ? `Gallery • ${new Date().toLocaleDateString()}` : '');
-  const description = pictureMode ? rawDescription : rawDescription;
 
   if (!title) {
     alert('Enter a title.');
     return;
   }
-  if (!pictureMode && !description) {
+  if (board !== 'PICTURES' && !description) {
     alert('Enter a description.');
+    return;
+  }
+  if (board === 'PICTURES' && canManagePictures()) {
+    openPicturesStudio(editingPostId ? (listings.find((x) => x.id === editingPostId) || null) : null, {
+      title, location, contact, status, priceRaw
+    });
     return;
   }
 
   const moderationScan = detectModerationIssues([title, description, location, contact].join(' '));
   let imageUrl = '';
   let imageUrls = [];
-  let imageLayouts = [];
   isSavingPost = true;
   if ($('btnSavePost')) $('btnSavePost').disabled = true;
   try {
@@ -3346,32 +2406,8 @@ async function handleSavePost() {
       }
       imageUrl = existing.imageUrl || existing.photo || '';
       imageUrls = getListingImageUrls(existing);
-      imageLayouts = getListingImageLayouts(existing);
     }
-
-    if (pictureMode) {
-      const studioItems = pictureStudioItems.slice();
-      if (!studioItems.length) {
-        alert('Please add at least one photo for the Pictures board.');
-        return;
-      }
-      const finalUrls = [];
-      const finalLayouts = [];
-      for (const [index, item] of studioItems.entries()) {
-        if (item.file) {
-          const safeName = `${Date.now()}-${index}-${String(item.file.name || 'photo').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
-          await uploadBytes(storageRef, item.file);
-          finalUrls.push(await getDownloadURL(storageRef));
-        } else if (item.sourceUrl || item.previewUrl) {
-          finalUrls.push(item.sourceUrl || item.previewUrl);
-        }
-        finalLayouts.push(normalizePictureLayout(item.layout));
-      }
-      imageUrls = finalUrls;
-      imageLayouts = finalLayouts;
-      imageUrl = finalUrls[0] || '';
-    } else if (files.length) {
+    if (files.length) {
       const uploadedUrls = [];
       for (const [index, file] of files.entries()) {
         const safeName = `${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
@@ -3381,10 +2417,9 @@ async function handleSavePost() {
       }
       imageUrls = uploadedUrls;
       imageUrl = uploadedUrls[0] || '';
-      imageLayouts = [];
     }
 
-    if (pictureMode && !imageUrls.length && !imageUrl) {
+    if (board === 'PICTURES' && !imageUrls.length && !imageUrl) {
       alert('Please upload at least one photo for the Pictures board.');
       return;
     }
@@ -3403,7 +2438,6 @@ async function handleSavePost() {
       photo: imageUrl,
       imageUrl,
       imageUrls,
-      imageLayouts,
       moderationFlagged: moderationScan.flagged,
       moderationLabels: moderationScan.matchedLabels,
       moderationMatchedTerms: moderationScan.matchedTerms,
@@ -3440,18 +2474,64 @@ async function handleSavePost() {
       lastThreadTitle: title
     }, { force: true });
 
+    if (moderationScan.flagged && listingId && (!editingPostId || !existing?.moderationFlagged)) {
+      await createModerationFlag({
+        sourceType: 'listing',
+        sourceKey: `listing:${listingId}`,
+        listingId,
+        listingTitle: title,
+        userEmail: currentUser.email || '',
+        displayName: currentProfile.displayName || currentUser.email || '',
+        textSnippet: buildModerationSnippet(`${title} — ${description}`),
+        matchedLabels: moderationScan.matchedLabels,
+        matchedTerms: moderationScan.matchedTerms,
+        severity: moderationScan.severity,
+        createdByUid: currentUser.uid,
+        createdByEmail: currentUser.email || ''
+      });
+    }
+
     resetPostEditor();
     hide('postOverlay');
-  } catch (error) {
-    console.error('Save post error', error);
-    alert(error?.message || 'Could not save post.');
+  } catch (err) {
+    console.error(err);
+    alert(`${err?.code || 'post_error'} — ${err?.message || 'Unable to save post.'}`);
   } finally {
     isSavingPost = false;
     if ($('btnSavePost')) $('btnSavePost').disabled = false;
   }
 }
 
+async function handleMarkSold(id) {
+  const item = listings.find((x) => x.id === id);
+  if (!item || !canModify(item)) return;
 
+  try {
+    await updateDoc(doc(db, 'listings', id), {
+      status: 'SOLD',
+      reactivationRequested: false,
+      updatedAt: serverTimestamp()
+    });
+  } catch (err) {
+    console.error(err);
+    alert(err?.message || 'Unable to update post.');
+  }
+}
+
+async function handleRequestActive(id) {
+  const item = listings.find((x) => x.id === id);
+  if (!item || !currentUser || currentUser.uid !== item.uid) return;
+  try {
+    await updateDoc(doc(db, 'listings', id), {
+      reactivationRequested: true,
+      reactivationRequestedAt: Date.now(),
+      updatedAt: serverTimestamp()
+    });
+  } catch (err) {
+    console.error(err);
+    alert(err?.message || 'Unable to request reactivation.');
+  }
+}
 
 async function openThread(id) {
   if (!hasRulesAcceptance(currentProfile)) {
@@ -3735,914 +2815,537 @@ class HeroSlider extends HTMLElement {
 
 customElements.define('hero-slider', HeroSlider);
 
-/* ===== Ultimate Pictures Studio page-builder overrides ===== */
-let pictureDesignerSelectedId = '';
-let pictureDesignerCanvasHeight = 1800;
-let pictureDesignerSnapEnabled = true;
-let pictureDesignerInteractionState = null;
-const PICTURES_DESIGN_BASE_WIDTH = 1200;
 
-function clampStudioNumber(value, min, max, fallback = min) {
-  const next = Number(value);
-  if (!Number.isFinite(next)) return fallback;
-  return Math.min(max, Math.max(min, next));
+const PICTURES_STUDIO_ALLOWED_EMAILS = new Set(['ariel.r@regallakeland.com']);
+const PICTURES_STUDIO_GRID = 20;
+let picturesStudioState = {
+  open: false,
+  editingId: null,
+  elements: [],
+  selectedId: '',
+  canvasHeight: 1800,
+  zoom: 1,
+  snap: true,
+  preview: false,
+  meta: { title: '', location: '', contact: '', status: 'ACTIVE', priceRaw: '' },
+  drag: null,
+  resize: null
+};
+
+function canManagePictures() {
+  const email = normalizeEmail(currentUser?.email || currentProfile?.email || '');
+  return !!currentUser && !!currentProfile && canCompleteMarketplaceLogin(currentProfile) && (canModerate() || PICTURES_STUDIO_ALLOWED_EMAILS.has(email));
 }
 
-function normalizeStudioPercent(value, fallback = 10, min = 0, max = 100) {
-  return Number(clampStudioNumber(value, min, max, fallback).toFixed(2));
-}
-
-function normalizeStudioDimensionPercent(value, fallback = 28, min = 4, max = 100) {
-  return Number(clampStudioNumber(value, min, max, fallback).toFixed(2));
-}
-
-function normalizeStudioLayer(value, fallback = 2) {
-  return Math.round(clampStudioNumber(value, 1, 99, fallback));
-}
-
-function normalizeStudioOpacity(value, fallback = 1) {
-  return Number(clampStudioNumber(value, 0.2, 1, fallback).toFixed(2));
-}
-
-function normalizeStudioRadius(value, fallback = 18) {
-  return Math.round(clampStudioNumber(value, 0, 40, fallback));
-}
-
-function normalizeStudioFontSize(value, fallback = 18) {
-  return Math.round(clampStudioNumber(value, 14, 88, fallback));
-}
-
-function normalizeStudioFit(value) {
-  return String(value || '').toLowerCase() === 'contain' ? 'contain' : 'cover';
-}
-
-function normalizePictureGalleryCanvasHeight(value) {
-  return Math.round(clampStudioNumber(value, 900, 4200, 1800));
-}
-
-function getPictureGalleryCanvasHeight(item) {
-  return normalizePictureGalleryCanvasHeight(item?.galleryCanvasHeight || item?.canvasHeight || 1800);
-}
-
-function defaultPicturesDesignerPlacement(type = 'image') {
-  const count = pictureDesignerBlocks.length;
-  const col = count % 3;
-  const row = Math.floor(count / 3) % 5;
-  if (type === 'text') {
-    return {
-      x: 6 + (col * 28),
-      y: 12 + (row * 14),
-      w: 32,
-      h: 16,
-      z: count + 2
-    };
+function refreshPicturesPostingUI() {
+  const isPictureBoard = activeBoard === 'PICTURES';
+  const canPostPictures = canManagePictures();
+  const topBtn = $('btnNew');
+  const heroBtn = $('heroPostBtn');
+  if (topBtn) {
+    topBtn.textContent = isPictureBoard && canPostPictures ? 'Open Pictures Studio' : '+ Post';
+    topBtn.style.display = currentUser && (!isPictureBoard || canPostPictures) ? 'inline-flex' : 'none';
   }
-  return {
-    x: 6 + (col * 30),
-    y: 10 + (row * 18),
-    w: 28,
-    h: 22,
-    z: count + 2
-  };
-}
-
-function normalizePicturesDesignerBlock(block = {}, index = 0) {
-  const placement = defaultPicturesDesignerPlacement(block.type === 'text' ? 'text' : 'image');
-  const common = {
-    id: block.id || studioBlockId(),
-    type: block.type === 'text' ? 'text' : 'image',
-    x: normalizeStudioPercent(block.x, placement.x, 0, 96),
-    y: normalizeStudioPercent(block.y, placement.y, 0, 96),
-    w: normalizeStudioDimensionPercent(block.w, placement.w, 6, 100),
-    h: normalizeStudioDimensionPercent(block.h, placement.h, 6, 100),
-    z: normalizeStudioLayer(block.z, index + 2),
-    opacity: normalizeStudioOpacity(block.opacity, 1),
-    radius: normalizeStudioRadius(block.radius, 18)
-  };
-  if (common.x + common.w > 100) common.x = Math.max(0, 100 - common.w);
-  if (common.y + common.h > 100) common.y = Math.max(0, 100 - common.h);
-
-  if (common.type === 'text') {
-    return {
-      ...common,
-      heading: String(block.heading || ''),
-      text: String(block.text || ''),
-      fontSize: normalizeStudioFontSize(block.fontSize, String(block.style || '').toLowerCase() === 'hero' ? 34 : 18),
-      fontWeight: String(block.fontWeight || (String(block.style || '').toLowerCase() === 'hero' ? '800' : '600')),
-      fontFamily: String(block.fontFamily || 'Inter, system-ui, sans-serif'),
-      textColor: String(block.textColor || '#ffffff'),
-      bgColor: String(block.bgColor || (String(block.style || '').toLowerCase() === 'note' ? '#161d29' : '#10151f')),
-      textAlign: ['left', 'center', 'right'].includes(String(block.textAlign || '').toLowerCase()) ? String(block.textAlign).toLowerCase() : normalizeStudioBlockAlign(block.align),
-      style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style).toLowerCase() : 'body'
-    };
+  if (heroBtn) {
+    heroBtn.textContent = isPictureBoard && canPostPictures ? 'Open Pictures Studio' : 'Post Item';
+    heroBtn.style.display = currentUser && (!isPictureBoard || canPostPictures) ? 'inline-flex' : 'none';
   }
+}
+
+function updatePostFormForBoard(board) {
+  const normalized = String(board || 'FREE').toUpperCase();
+  const isPictures = normalized === 'PICTURES';
+  const descField = $('fDesc')?.closest('.field');
+  const priceField = $('fPrice')?.closest('.field');
+  const photoHint = $('photoFieldHint');
+  if (descField) descField.style.display = isPictures ? 'none' : '';
+  if (priceField) priceField.style.display = isPictures ? 'none' : '';
+  if (photoHint) photoHint.textContent = isPictures
+    ? 'Pictures galleries are best created in Pictures Studio. Multiple uploads and full freeform layout are supported there.'
+    : 'Pictures board supports multiple image uploads. Other boards use the first image as the preview thumbnail.';
+}
+
+function createPicturesStudioId(prefix = 'ps') {
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizePicturesStudioElement(el, index = 0) {
+  const type = el?.type === 'image' ? 'image' : 'text';
   return {
-    ...common,
-    file: block.file || null,
-    previewUrl: block.previewUrl || block.url || '',
-    sourceUrl: String(block.sourceUrl || block.url || block.src || ''),
-    caption: String(block.caption || ''),
-    fit: normalizeStudioFit(block.fit),
-    name: String(block.name || 'Photo')
+    id: el?.id || createPicturesStudioId(type === 'image' ? 'img' : 'txt'),
+    type,
+    x: Number(el?.x || 40 + (index * 30)),
+    y: Number(el?.y || 40 + (index * 30)),
+    w: Math.max(120, Number(el?.w || (type === 'image' ? 420 : 520))),
+    h: Math.max(80, Number(el?.h || (type === 'image' ? 320 : 120))),
+    z: Number(el?.z || index + 1),
+    url: String(el?.url || ''),
+    caption: String(el?.caption || ''),
+    text: String(el?.text || (type === 'text' ? 'New text' : '')),
+    fontSize: Number(el?.fontSize || (type === 'text' ? 36 : 16)),
+    fontWeight: Number(el?.fontWeight || (type === 'text' ? 700 : 500)),
+    color: String(el?.color || '#ffffff'),
+    bg: String(el?.bg || 'transparent'),
+    textAlign: String(el?.textAlign || 'left'),
+    fontFamily: String(el?.fontFamily || 'Inter, system-ui, sans-serif')
   };
 }
 
-function createPicturesDesignerImageBlock({ file = null, url = '', caption = '', name = '', x, y, w, h, z, fit = 'cover', radius = 18, opacity = 1 } = {}) {
-  const previewUrl = file ? URL.createObjectURL(file) : String(url || '');
-  return normalizePicturesDesignerBlock({
-    id: studioBlockId(),
-    type: 'image',
-    file,
-    previewUrl,
-    sourceUrl: String(url || ''),
-    caption,
-    name: name || file?.name || 'Photo',
-    x, y, w, h, z, fit, radius, opacity
-  }, pictureDesignerBlocks.length);
+function resetPicturesStudioState() {
+  picturesStudioState = {
+    open: false,
+    editingId: null,
+    elements: [],
+    selectedId: '',
+    canvasHeight: 1800,
+    zoom: 1,
+    snap: true,
+    preview: false,
+    meta: { title: '', location: '', contact: '', status: 'ACTIVE', priceRaw: '' },
+    drag: null,
+    resize: null
+  };
 }
 
-function createPicturesDesignerTextBlock({ heading = '', text = '', x, y, w, h, z, fontSize, fontWeight, fontFamily, textColor, bgColor, textAlign, style = 'body', radius = 18, opacity = 1 } = {}) {
-  return normalizePicturesDesignerBlock({
-    id: studioBlockId(),
-    type: 'text',
-    heading,
-    text,
-    x, y, w, h, z,
-    fontSize,
-    fontWeight,
-    fontFamily,
-    textColor,
-    bgColor,
-    textAlign,
-    style,
-    radius,
-    opacity
-  }, pictureDesignerBlocks.length);
+function hydratePicturesStudioFromItem(item, seedMeta = null) {
+  const layout = item?.pictureLayout || {};
+  const elements = getPictureLayoutElements(item);
+  picturesStudioState.open = true;
+  picturesStudioState.editingId = item?.id || null;
+  picturesStudioState.elements = (elements || []).map(normalizePicturesStudioElement);
+  picturesStudioState.selectedId = picturesStudioState.elements[0]?.id || '';
+  picturesStudioState.canvasHeight = Number(layout.canvasHeight || 1800);
+  picturesStudioState.zoom = 1;
+  picturesStudioState.snap = true;
+  picturesStudioState.preview = false;
+  picturesStudioState.meta = {
+    title: seedMeta?.title || item?.title || '',
+    location: seedMeta?.location || item?.location || '',
+    contact: seedMeta?.contact || item?.contact || '',
+    status: seedMeta?.status || item?.status || 'ACTIVE',
+    priceRaw: seedMeta?.priceRaw || String(item?.price || '')
+  };
 }
 
-function getPicturesDesignerSelectedBlock() {
-  return pictureDesignerBlocks.find((block) => block.id === pictureDesignerSelectedId) || null;
-}
-
-function refreshStudioSnapToggle() {
-  const btn = $('studioSnapToggle');
-  if (btn) btn.textContent = `Snap: ${pictureDesignerSnapEnabled ? 'On' : 'Off'}`;
-}
-
-function setPicturesDesignerCanvasHeight(value, options = {}) {
-  pictureDesignerCanvasHeight = normalizePictureGalleryCanvasHeight(value);
-  const input = $('studioCanvasHeight');
-  if (input && String(input.value) !== String(pictureDesignerCanvasHeight)) input.value = String(pictureDesignerCanvasHeight);
-  if (options.render !== false) renderPicturesDesigner();
-}
-
-function selectPicturesDesignerBlock(blockId = '') {
-  pictureDesignerSelectedId = blockId || '';
-  document.querySelectorAll('.designerFreeBlock').forEach((node) => node.classList.toggle('is-selected', node.dataset.blockId === pictureDesignerSelectedId));
-  syncPicturesDesignerInspector();
-  updatePicturesDesignerStatus();
-}
-
-function syncPicturesDesignerInspector() {
-  const block = getPicturesDesignerSelectedBlock();
-  const noSelection = $('studioNoSelection');
-  const panel = $('studioSelectedPanel');
-  const imageControls = $('studioImageControls');
-  const imageStyleControls = $('studioImageStyleControls');
-  const textControls = $('studioTextControls');
-  if (!block) {
-    if (noSelection) noSelection.style.display = '';
-    if (panel) panel.style.display = 'none';
+function openPicturesStudio(item = null, seedMeta = null) {
+  if (!canManagePictures()) {
+    alert('Only admins and approved Pictures contributors can build galleries here.');
     return;
   }
-  if (noSelection) noSelection.style.display = 'none';
-  if (panel) panel.style.display = 'block';
-  if ($('studioSelectedType')) $('studioSelectedType').value = block.type === 'image' ? 'Image' : 'Text';
-  if ($('studioLayer')) $('studioLayer').value = String(block.z || 1);
-  if ($('studioPosX')) $('studioPosX').value = String(block.x || 0);
-  if ($('studioPosY')) $('studioPosY').value = String(block.y || 0);
-  if ($('studioSizeW')) $('studioSizeW').value = String(block.w || 10);
-  if ($('studioSizeH')) $('studioSizeH').value = String(block.h || 10);
-  if (imageControls) imageControls.style.display = block.type === 'image' ? 'grid' : 'none';
-  if (imageStyleControls) imageStyleControls.style.display = block.type === 'image' ? 'grid' : 'none';
-  if (textControls) textControls.style.display = block.type === 'text' ? 'block' : 'none';
-  if (block.type === 'image') {
-    if ($('studioImageCaption')) $('studioImageCaption').value = block.caption || '';
-    if ($('studioImageFit')) $('studioImageFit').value = normalizeStudioFit(block.fit);
-    if ($('studioRadius')) $('studioRadius').value = String(block.radius || 18);
-    if ($('studioOpacity')) $('studioOpacity').value = String(block.opacity || 1);
+  if (item) {
+    hydratePicturesStudioFromItem(item, seedMeta);
   } else {
-    if ($('studioTextHeading')) $('studioTextHeading').value = block.heading || '';
-    if ($('studioTextBody')) $('studioTextBody').value = block.text || '';
-    if ($('studioFontSize')) $('studioFontSize').value = String(block.fontSize || 18);
-    if ($('studioFontWeight')) $('studioFontWeight').value = String(block.fontWeight || '600');
-    if ($('studioFontFamily')) $('studioFontFamily').value = String(block.fontFamily || 'Inter, system-ui, sans-serif');
-    if ($('studioTextColor')) $('studioTextColor').value = block.textColor || '#ffffff';
-    if ($('studioBgColor')) $('studioBgColor').value = block.bgColor || '#10151f';
-    if ($('studioTextAlign')) $('studioTextAlign').value = block.textAlign || 'left';
-    if ($('studioRadius')) $('studioRadius').value = String(block.radius || 18);
-    if ($('studioOpacity')) $('studioOpacity').value = String(block.opacity || 1);
+    resetPicturesStudioState();
+    picturesStudioState.open = true;
+    picturesStudioState.meta = { title: seedMeta?.title || '', location: seedMeta?.location || '', contact: seedMeta?.contact || '', status: seedMeta?.status || 'ACTIVE', priceRaw: seedMeta?.priceRaw || '' };
+    picturesStudioState.elements = [
+      normalizePicturesStudioElement({ type: 'text', text: 'Photo Gallery Title', x: 60, y: 50, w: 700, h: 90, fontSize: 58, fontWeight: 800 }, 0),
+      normalizePicturesStudioElement({ type: 'text', text: 'Add a subtitle, event details, or photographer note here.', x: 60, y: 145, w: 620, h: 70, fontSize: 24, fontWeight: 500, color: '#d8e3ee' }, 1)
+    ];
+    picturesStudioState.selectedId = picturesStudioState.elements[0]?.id || '';
   }
+  syncPicturesStudioFields();
+  renderPicturesStudio();
+  show('picturesStudioOverlay');
 }
 
-function updatePicturesDesignerStatus() {
-  const statusEl = $('studioStatusLine');
-  if (!statusEl) return;
-  const imageCount = pictureDesignerBlocks.filter((block) => block.type === 'image').length;
-  const textCount = pictureDesignerBlocks.filter((block) => block.type === 'text').length;
-  const selected = getPicturesDesignerSelectedBlock();
-  const title = $('studioTitle')?.value.trim() || (pictureDesignerEditingId ? 'Editing gallery' : 'New gallery');
-  const selectedText = selected ? ` • Selected: ${selected.type === 'image' ? 'Image' : 'Text'}` : '';
-  statusEl.textContent = `${title} • ${imageCount} photo${imageCount === 1 ? '' : 's'} • ${textCount} text block${textCount === 1 ? '' : 's'} • ${pictureDesignerCanvasHeight}px page height${selectedText}`;
+function closePicturesStudio() {
+  hide('picturesStudioOverlay');
+  resetPicturesStudioState();
 }
 
-function clearPicturesDesigner(silent = false) {
-  if (!silent && pictureDesignerBlocks.length && !confirm('Clear the current gallery canvas?')) return;
-  pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
-  pictureDesignerBlocks = [];
-  pictureDesignerDragId = '';
-  pictureDesignerSelectedId = '';
-  pictureDesignerInteractionState = null;
-  renderPicturesDesigner();
+function syncPicturesStudioFields() {
+  if ($('psTitle')) $('psTitle').value = picturesStudioState.meta.title || '';
+  if ($('psLocation')) $('psLocation').value = picturesStudioState.meta.location || '';
+  if ($('psContact')) $('psContact').value = picturesStudioState.meta.contact || '';
+  if ($('psCanvasHeight')) $('psCanvasHeight').value = String(picturesStudioState.canvasHeight || 1800);
+  if ($('psCanvasHeightLabel')) $('psCanvasHeightLabel').textContent = `${picturesStudioState.canvasHeight || 1800} px`;
+  if ($('btnPsToggleGrid')) $('btnPsToggleGrid').textContent = `Snap Grid: ${picturesStudioState.snap ? 'On' : 'Off'}`;
+  if ($('btnPsPreview')) $('btnPsPreview').textContent = picturesStudioState.preview ? 'Exit Preview' : 'Preview Layout';
 }
 
-function resetPicturesDesigner() {
-  clearPicturesDesigner(true);
-  pictureDesignerEditingId = null;
-  pictureDesignerCanvasHeight = 1800;
-  pictureDesignerSnapEnabled = true;
-  if ($('studioTitle')) $('studioTitle').value = '';
-  if ($('studioLocation')) $('studioLocation').value = '';
-  if ($('studioContact')) $('studioContact').value = '';
-  if ($('studioCanvasHeight')) $('studioCanvasHeight').value = '1800';
-  refreshStudioSnapToggle();
-  syncPicturesDesignerInspector();
-  updatePicturesDesignerStatus();
+function picturesStudioSelectedElement() {
+  return picturesStudioState.elements.find((el) => el.id === picturesStudioState.selectedId) || null;
 }
 
-function addFilesToPicturesDesigner(files) {
-  const images = (files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
-  if (!images.length) return;
-  const blocks = images.map((file, index) => {
-    const place = defaultPicturesDesignerPlacement('image');
-    return createPicturesDesignerImageBlock({
-      file,
-      x: place.x + (index * 2),
-      y: place.y + (index * 2),
-      w: place.w,
-      h: place.h,
-      z: pictureDesignerBlocks.length + index + 2
-    });
-  });
-  pictureDesignerBlocks = [...pictureDesignerBlocks, ...blocks];
-  pictureDesignerSelectedId = blocks.at(-1)?.id || pictureDesignerSelectedId;
-  renderPicturesDesigner();
+function sortPicturesStudioElements() {
+  picturesStudioState.elements.sort((a, b) => Number(a.z || 0) - Number(b.z || 0));
 }
 
-function addTextBlockToPicturesDesigner(_insertIndex = null, style = 'body') {
-  const place = defaultPicturesDesignerPlacement('text');
-  const block = createPicturesDesignerTextBlock({
-    heading: style === 'hero' ? 'Title goes here' : '',
-    text: style === 'hero' ? 'Click here and type your headline or event callout.' : 'Click here and type your text.',
-    x: place.x,
-    y: place.y,
-    w: style === 'hero' ? 52 : place.w,
-    h: style === 'hero' ? 18 : place.h,
-    z: pictureDesignerBlocks.length + 2,
-    fontSize: style === 'hero' ? 34 : 18,
-    fontWeight: style === 'hero' ? '800' : '600',
-    style,
-    bgColor: style === 'hero' ? '#0f1520' : '#10151f'
-  });
-  pictureDesignerBlocks = [...pictureDesignerBlocks, block];
-  pictureDesignerSelectedId = block.id;
-  renderPicturesDesigner();
+function clampPicturesStudioElement(el) {
+  el.x = Math.max(0, Math.min(Number(el.x || 0), 1400 - Math.max(100, Number(el.w || 100))));
+  el.y = Math.max(0, Math.min(Number(el.y || 0), Number(picturesStudioState.canvasHeight || 1800) - Math.max(60, Number(el.h || 60))));
+  el.w = Math.max(120, Math.min(1600, Number(el.w || 300)));
+  el.h = Math.max(80, Math.min(1800, Number(el.h || 200)));
 }
 
-function updatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
-  const shouldRender = options.render !== false;
-  pictureDesignerBlocks = pictureDesignerBlocks.map((block, index) => {
-    if (block.id !== blockId) return block;
-    return normalizePicturesDesignerBlock({ ...block, ...patch }, index);
-  });
-  if (!pictureDesignerBlocks.some((block) => block.id === pictureDesignerSelectedId)) pictureDesignerSelectedId = '';
-  if (shouldRender) renderPicturesDesigner();
-  else {
-    updatePicturesDesignerBlockElement(blockId);
-    syncPicturesDesignerInspector();
-    updatePicturesDesignerStatus();
-  }
-}
-
-function removePicturesDesignerBlock(blockId) {
-  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
-  if (target) releasePicturesDesignerBlock(target);
-  pictureDesignerBlocks = pictureDesignerBlocks.filter((block) => block.id !== blockId);
-  if (pictureDesignerSelectedId === blockId) pictureDesignerSelectedId = pictureDesignerBlocks.at(-1)?.id || '';
-  renderPicturesDesigner();
-}
-
-function duplicatePicturesDesignerBlock(blockId) {
-  const target = pictureDesignerBlocks.find((block) => block.id === blockId);
-  if (!target) return;
-  const clone = target.type === 'image'
-    ? createPicturesDesignerImageBlock({
-        url: target.sourceUrl || target.previewUrl,
-        caption: target.caption,
-        name: target.name,
-        x: Math.min(92, (target.x || 0) + 2),
-        y: Math.min(92, (target.y || 0) + 2),
-        w: target.w,
-        h: target.h,
-        z: (target.z || 1) + 1,
-        fit: target.fit,
-        radius: target.radius,
-        opacity: target.opacity
-      })
-    : createPicturesDesignerTextBlock({
-        heading: target.heading,
-        text: target.text,
-        x: Math.min(92, (target.x || 0) + 2),
-        y: Math.min(92, (target.y || 0) + 2),
-        w: target.w,
-        h: target.h,
-        z: (target.z || 1) + 1,
-        fontSize: target.fontSize,
-        fontWeight: target.fontWeight,
-        fontFamily: target.fontFamily,
-        textColor: target.textColor,
-        bgColor: target.bgColor,
-        textAlign: target.textAlign,
-        style: target.style,
-        radius: target.radius,
-        opacity: target.opacity
-      });
-  pictureDesignerBlocks = [...pictureDesignerBlocks, clone];
-  pictureDesignerSelectedId = clone.id;
-  renderPicturesDesigner();
-}
-
-function movePicturesDesignerBlock(blockId, direction = 'up') {
-  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId);
-  if (!block) return;
-  const delta = direction === 'up' ? 1 : -1;
-  updatePicturesDesignerBlock(blockId, { z: normalizeStudioLayer((block.z || 1) + delta, block.z || 1) });
-}
-
-function reorderPicturesDesignerBlocks(fromId, toId) {
-  const from = pictureDesignerBlocks.find((entry) => entry.id === fromId);
-  const to = pictureDesignerBlocks.find((entry) => entry.id === toId);
-  if (!from || !to) return;
-  const temp = from.z;
-  updatePicturesDesignerBlock(fromId, { z: to.z }, { render: false });
-  updatePicturesDesignerBlock(toId, { z: temp }, { render: false });
-  renderPicturesDesigner();
-}
-
-function picturesDesignerBlockInlineStyle(block) {
-  return [
-    `left:${block.x}%`,
-    `top:${block.y}%`,
-    `width:${block.w}%`,
-    `height:${block.h}%`,
-    `z-index:${block.z}`,
-    `opacity:${block.opacity}`
-  ].join(';');
-}
-
-function updatePicturesDesignerBlockElement(blockId) {
-  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId);
-  if (!block) return;
-  const el = document.querySelector(`.designerFreeBlock[data-block-id="${blockId}"]`);
-  if (!el) return;
-  el.style.cssText = picturesDesignerBlockInlineStyle(block);
-  const inner = el.querySelector('.published-inner, .designerTextCard, .designerImageCard');
-  if (inner) {
-    inner.style.borderRadius = `${block.radius || 18}px`;
-  }
-  if (block.type === 'image') {
-    const img = el.querySelector('img');
-    if (img) {
-      img.style.objectFit = normalizeStudioFit(block.fit);
-      img.style.borderRadius = `${block.radius || 18}px ${block.radius || 18}px 0 0`;
-    }
-    const cap = el.querySelector('.designerImageCaption');
-    if (cap) cap.innerHTML = esc(block.caption || '').replaceAll('\n', '<br>');
-  } else {
-    const card = el.querySelector('.designerTextCard');
-    if (card) {
-      card.style.background = block.bgColor || '#10151f';
-      card.style.color = block.textColor || '#ffffff';
-      card.style.textAlign = block.textAlign || 'left';
-      card.style.borderRadius = `${block.radius || 18}px`;
-      card.style.fontFamily = block.fontFamily || 'Inter, system-ui, sans-serif';
-      card.style.fontSize = `${block.fontSize || 18}px`;
-      card.style.fontWeight = String(block.fontWeight || '600');
-    }
-    const heading = el.querySelector('.designerTextHeading');
-    const body = el.querySelector('.designerTextBody');
-    if (heading) heading.innerHTML = esc(block.heading || '').replaceAll('\n', '<br>');
-    if (body) body.innerHTML = esc(block.text || '').replaceAll('\n', '<br>');
-  }
-}
-
-function renderPicturesDesigner() {
-  const canvas = $('picturesDesignerCanvas');
+function applyPicturesStudioZoom() {
+  const canvas = $('psCanvas');
   if (!canvas) return;
-  const title = $('studioTitle')?.value.trim() || 'Untitled gallery';
-  const location = $('studioLocation')?.value.trim() || 'Regal Lakeland';
-  const contact = $('studioContact')?.value.trim() || 'Gallery manager';
-  if (!pictureDesignerBlocks.length) {
-    canvas.innerHTML = `
-      <div class="designerCanvasEmpty">
-        <div class="designerCanvasEmptyInner">
-          <strong>Build the Pictures page visually</strong>
-          <span>Add photos or text, then drag them anywhere on the page. Resize from the bottom-right corner and use the inspector on the left for captions, fonts, colors, and layering.</span>
+  canvas.style.transform = `scale(${picturesStudioState.zoom || 1})`;
+  if ($('psZoomLabel')) $('psZoomLabel').textContent = `${Math.round((picturesStudioState.zoom || 1) * 100)}%`;
+}
+
+function fitPicturesStudioWidth() {
+  const viewport = $('psViewport');
+  if (!viewport) return;
+  const usable = Math.max(720, viewport.clientWidth - 80);
+  picturesStudioState.zoom = Math.min(1.1, Math.max(0.45, usable / 1400));
+  applyPicturesStudioZoom();
+}
+
+function adjustPicturesStudioZoom(delta) {
+  picturesStudioState.zoom = Math.max(0.4, Math.min(1.6, Number((picturesStudioState.zoom + delta).toFixed(2))));
+  applyPicturesStudioZoom();
+}
+
+function renderPicturesStudioLayers() {
+  const wrap = $('psLayers');
+  if (!wrap) return;
+  const items = [...picturesStudioState.elements].sort((a, b) => Number(b.z || 0) - Number(a.z || 0));
+  wrap.innerHTML = items.map((el) => `<button class="picturesStudioLayer ${el.id === picturesStudioState.selectedId ? 'active' : ''}" type="button" data-ps-layer="${esc(el.id)}"><span>${esc(el.type === 'image' ? (el.caption || 'Image') : (el.text || 'Text'))}</span><strong>${esc(el.type)}</strong></button>`).join('');
+  wrap.querySelectorAll('[data-ps-layer]').forEach((btn) => btn.addEventListener('click', () => {
+    picturesStudioState.selectedId = btn.dataset.psLayer || '';
+    renderPicturesStudio();
+  }));
+}
+
+function renderPicturesStudioSelectionPanel() {
+  const selected = picturesStudioSelectedElement();
+  const hasSelection = !!selected;
+  if ($('psNoSelection')) $('psNoSelection').style.display = hasSelection ? 'none' : '';
+  if ($('psSelectionPanel')) $('psSelectionPanel').style.display = hasSelection ? '' : 'none';
+  if (!selected) return;
+  if ($('psWidth')) $('psWidth').value = String(Math.round(selected.w || 300));
+  if ($('psHeight')) $('psHeight').value = String(Math.round(selected.h || 200));
+  if ($('psFontSize')) $('psFontSize').value = String(Math.round(selected.fontSize || 32));
+  if ($('psFontWeight')) $('psFontWeight').value = String(selected.fontWeight || 700);
+  if ($('psTextColor')) $('psTextColor').value = selected.color || '#ffffff';
+  if ($('psBgColor')) $('psBgColor').value = selected.bg && selected.bg !== 'transparent' ? selected.bg : '#0f1720';
+  if ($('psTextAlign')) $('psTextAlign').value = selected.textAlign || 'left';
+  if ($('psFontFamily')) $('psFontFamily').value = selected.fontFamily || 'Inter, system-ui, sans-serif';
+}
+
+function renderPicturesStudio() {
+  syncPicturesStudioFields();
+  const canvas = $('psCanvas');
+  if (!canvas) return;
+  canvas.classList.toggle('grid-off', !picturesStudioState.snap || picturesStudioState.preview);
+  canvas.style.minHeight = `${picturesStudioState.canvasHeight || 1800}px`;
+  canvas.innerHTML = '';
+  sortPicturesStudioElements();
+  const sorted = [...picturesStudioState.elements];
+  sorted.forEach((el) => {
+    clampPicturesStudioElement(el);
+    const block = document.createElement('div');
+    block.className = `psBlock ${el.id === picturesStudioState.selectedId ? 'selected' : ''}`;
+    block.dataset.psId = el.id;
+    block.style.left = `${el.x}px`;
+    block.style.top = `${el.y}px`;
+    block.style.width = `${el.w}px`;
+    block.style.height = `${el.h}px`;
+    block.style.zIndex = String(el.z || 1);
+    if (el.type === 'image') {
+      block.innerHTML = `
+        <div class="psBlockControls"><span class="psMiniChip">Image</span></div>
+        <div class="psImageFrame">
+          <img src="${esc(el.url || '')}" alt="${esc(el.caption || 'Gallery image')}" draggable="false" />
+          <div class="psImageCaption" contenteditable="${picturesStudioState.preview ? 'false' : 'true'}" data-ps-caption="${esc(el.id)}">${esc(el.caption || 'Add caption')}</div>
         </div>
-      </div>
-    `;
-    syncPicturesDesignerInspector();
-    updatePicturesDesignerStatus();
-    refreshStudioSnapToggle();
-    return;
-  }
-  const sortedBlocks = pictureDesignerBlocks.slice().sort((a, b) => (a.z || 0) - (b.z || 0));
-  canvas.innerHTML = `
-    <div class="picturesDesignerStageWrap">
-      <div class="picturesDesignerStage ${pictureDesignerSnapEnabled ? '' : 'stage-snap-off'}" id="picturesDesignerStage" style="aspect-ratio:${PICTURES_DESIGN_BASE_WIDTH} / ${pictureDesignerCanvasHeight};">
-        <div class="picturesDesignerStageMeta">
-          <div class="picturesDesignerStageMetaTitle">
-            <strong>${esc(title)}</strong>
-            <span>${esc(location)} • ${esc(contact)}</span>
-          </div>
-          <div class="picturesDesignerStageHint">Move handle • Resize corner • Click text to type</div>
-        </div>
-        ${sortedBlocks.map((block) => {
-          if (block.type === 'image') {
-            return `
-              <article class="designerFreeBlock ${pictureDesignerSelectedId === block.id ? 'is-selected' : ''}" data-block-id="${esc(block.id)}" style="${picturesDesignerBlockInlineStyle(block)}">
-                <div class="designerBlockChrome">
-                  <div class="designerBlockToolbar">
-                    <div class="chip designerMoveHandle" data-studio-move="${esc(block.id)}">Move image</div>
-                    <div class="chip">Layer ${esc(block.z)}</div>
-                  </div>
-                  <figure class="designerImageCard" style="border-radius:${block.radius}px">
-                    <img src="${esc(block.previewUrl || block.sourceUrl)}" alt="${esc(block.name || 'Gallery image')}" loading="lazy" style="object-fit:${esc(normalizeStudioFit(block.fit))};border-radius:${block.radius}px ${block.radius}px 0 0" />
-                    ${block.caption ? `<figcaption class="designerImageCaption">${esc(block.caption).replaceAll('\n', '<br>')}</figcaption>` : '<figcaption class="designerImageCaption">Add a caption from the left panel.</figcaption>'}
-                  </figure>
-                  <button class="designerResizeHandle" data-studio-resize="${esc(block.id)}" type="button" aria-label="Resize image"></button>
-                </div>
-              </article>
-            `;
-          }
-          return `
-            <article class="designerFreeBlock ${pictureDesignerSelectedId === block.id ? 'is-selected' : ''}" data-block-id="${esc(block.id)}" style="${picturesDesignerBlockInlineStyle(block)}">
-              <div class="designerBlockChrome">
-                <div class="designerBlockToolbar">
-                  <div class="chip designerMoveHandle" data-studio-move="${esc(block.id)}">Move text</div>
-                  <div class="chip">Layer ${esc(block.z)}</div>
-                </div>
-                <div class="designerTextCard" style="background:${esc(block.bgColor || '#10151f')};color:${esc(block.textColor || '#ffffff')};text-align:${esc(block.textAlign || 'left')};border-radius:${block.radius}px;font-family:${esc(block.fontFamily || 'Inter, system-ui, sans-serif')};font-size:${esc(block.fontSize || 18)}px;font-weight:${esc(block.fontWeight || '600')}">
-                  <div class="designerTextHeading" contenteditable="true" spellcheck="true" data-studio-editable="heading" data-block-id="${esc(block.id)}" data-placeholder="Optional heading">${esc(block.heading || '').replaceAll('\n', '<br>')}</div>
-                  <div class="designerTextBody" contenteditable="true" spellcheck="true" data-studio-editable="text" data-block-id="${esc(block.id)}" data-placeholder="Type your text here...">${esc(block.text || '').replaceAll('\n', '<br>')}</div>
-                </div>
-                <button class="designerResizeHandle" data-studio-resize="${esc(block.id)}" type="button" aria-label="Resize text block"></button>
-              </div>
-            </article>
-          `;
-        }).join('')}
-      </div>
-    </div>
-  `;
-  bindPicturesDesignerBuilderEvents();
-  syncPicturesDesignerInspector();
-  updatePicturesDesignerStatus();
-  refreshStudioSnapToggle();
-}
-
-function bindPicturesDesignerBuilderEvents() {
-  const stage = $('picturesDesignerStage');
-  if (!stage) return;
-  stage.addEventListener('click', (event) => {
-    if (event.target === stage) selectPicturesDesignerBlock('');
-  });
-  stage.querySelectorAll('.designerFreeBlock').forEach((node) => {
-    node.addEventListener('mousedown', (event) => {
-      if (event.target.closest('[data-studio-move], [data-studio-resize], [contenteditable="true"]')) return;
-      selectPicturesDesignerBlock(node.dataset.blockId || '');
-    });
-  });
-  stage.querySelectorAll('[data-studio-move]').forEach((handle) => {
-    handle.addEventListener('pointerdown', (event) => startPicturesDesignerInteraction(event, handle.dataset.studioMove || '', 'move'));
-  });
-  stage.querySelectorAll('[data-studio-resize]').forEach((handle) => {
-    handle.addEventListener('pointerdown', (event) => startPicturesDesignerInteraction(event, handle.dataset.studioResize || '', 'resize'));
-  });
-  stage.querySelectorAll('[data-studio-editable]').forEach((editable) => {
-    editable.addEventListener('focus', () => selectPicturesDesignerBlock(editable.dataset.blockId || ''));
-    editable.addEventListener('input', () => {
-      const blockId = editable.dataset.blockId || '';
-      const field = editable.dataset.studioEditable || 'text';
-      const textValue = editable.innerText.replace(/\u00A0/g, ' ');
-      updatePicturesDesignerBlock(blockId, { [field]: textValue }, { render: false });
-      if (field === 'heading' && $('studioTextHeading')) $('studioTextHeading').value = textValue;
-      if (field === 'text' && $('studioTextBody')) $('studioTextBody').value = textValue;
-    });
-  });
-}
-
-function startPicturesDesignerInteraction(event, blockId, mode = 'move') {
-  const block = pictureDesignerBlocks.find((entry) => entry.id === blockId);
-  const stage = $('picturesDesignerStage');
-  if (!block || !stage) return;
-  const rect = stage.getBoundingClientRect();
-  selectPicturesDesignerBlock(blockId);
-  pictureDesignerInteractionState = {
-    blockId,
-    mode,
-    rect,
-    startX: event.clientX,
-    startY: event.clientY,
-    initialX: block.x,
-    initialY: block.y,
-    initialW: block.w,
-    initialH: block.h
-  };
-  document.body.classList.add(mode === 'resize' ? 'studio-resizing' : 'studio-dragging');
-  event.preventDefault();
-}
-
-function applySnap(value) {
-  const step = pictureDesignerSnapEnabled ? 1 : 0.25;
-  return Math.round(value / step) * step;
-}
-
-function handlePicturesDesignerPointerMove(event) {
-  const state = pictureDesignerInteractionState;
-  if (!state) return;
-  const block = pictureDesignerBlocks.find((entry) => entry.id === state.blockId);
-  if (!block) return;
-  const dx = ((event.clientX - state.startX) / state.rect.width) * 100;
-  const dy = ((event.clientY - state.startY) / state.rect.height) * 100;
-  if (state.mode === 'move') {
-    block.x = normalizeStudioPercent(applySnap(state.initialX + dx), state.initialX, 0, Math.max(0, 100 - block.w));
-    block.y = normalizeStudioPercent(applySnap(state.initialY + dy), state.initialY, 0, Math.max(0, 100 - block.h));
-  } else {
-    block.w = normalizeStudioDimensionPercent(applySnap(state.initialW + dx), state.initialW, 6, Math.max(6, 100 - block.x));
-    block.h = normalizeStudioDimensionPercent(applySnap(state.initialH + dy), state.initialH, 6, Math.max(6, 100 - block.y));
-  }
-  updatePicturesDesignerBlockElement(block.id);
-  syncPicturesDesignerInspector();
-  updatePicturesDesignerStatus();
-}
-
-function stopPicturesDesignerResize() {
-  if (!pictureDesignerInteractionState) return;
-  pictureDesignerInteractionState = null;
-  document.body.classList.remove('studio-resizing', 'studio-dragging');
-}
-
-function openPicturesDesigner(postId = null) {
-  if (!currentUser) {
-    alert('Please log in first.');
-    return;
-  }
-  if (!hasRulesAcceptance(currentProfile)) {
-    showRulesOverlay();
-    alert('You must accept the marketplace rules before using the Pictures Studio.');
-    return;
-  }
-  if (!canPostPicturesBoard()) {
-    alert('Only approved gallery managers can use the Pictures Studio.');
-    return;
-  }
-  resetPicturesDesigner();
-  if (postId) {
-    const item = listings.find((entry) => entry.id === postId);
-    if (!item || !canModify(item)) {
-      alert('You do not have permission to edit this gallery.');
-      return;
-    }
-    pictureDesignerEditingId = postId;
-    pictureDesignerCanvasHeight = getPictureGalleryCanvasHeight(item);
-    if ($('studioCanvasHeight')) $('studioCanvasHeight').value = String(pictureDesignerCanvasHeight);
-    if ($('studioTitle')) $('studioTitle').value = item.title || '';
-    if ($('studioLocation')) $('studioLocation').value = item.location || '';
-    if ($('studioContact')) $('studioContact').value = item.contact || '';
-    pictureDesignerBlocks = getPictureGalleryBlocksDesigner(item).map((block, index) => normalizePicturesDesignerBlock(block, index));
-    pictureDesignerSelectedId = pictureDesignerBlocks[0]?.id || '';
-  }
-  renderPicturesDesigner();
-  setPicturesDesignerToolsCollapsed(false);
-  show('picturesDesignerOverlay');
-}
-
-function closePicturesDesigner() {
-  hide('picturesDesignerOverlay');
-  setPicturesDesignerToolsCollapsed(false);
-  resetPicturesDesigner();
-}
-
-function getPictureGalleryBlocksDesigner(item) {
-  const canvasHeight = getPictureGalleryCanvasHeight(item);
-  if (Array.isArray(item?.galleryBlocks) && item.galleryBlocks.length) {
-    return item.galleryBlocks.map((block, index) => normalizePicturesDesignerBlock({
-      ...block,
-      type: String(block?.type || '').toLowerCase() === 'text' ? 'text' : 'image',
-      sourceUrl: block.url || block.src || block.sourceUrl || '',
-      previewUrl: block.url || block.src || block.previewUrl || ''
-    }, index)).filter((block) => (block.type === 'image' ? (block.sourceUrl || block.previewUrl) : (block.heading || block.text)));
-  }
-  const urls = getListingImageUrls(item);
-  const captions = Array.isArray(item?.imageCaptions) ? item.imageCaptions : [];
-  const blocks = urls.map((url, index) => normalizePicturesDesignerBlock({
-    id: `legacy-image-${index}`,
-    type: 'image',
-    url,
-    sourceUrl: url,
-    previewUrl: url,
-    caption: String(captions[index] || ''),
-    x: 6,
-    y: 10 + (index * 26),
-    w: 88,
-    h: 22,
-    z: index + 2,
-    fit: 'cover',
-    radius: 18,
-    opacity: 1
-  }, index));
-  const desc = String(item?.description || item?.desc || '').trim();
-  if (desc) {
-    blocks.push(normalizePicturesDesignerBlock({
-      id: 'legacy-text',
-      type: 'text',
-      heading: '',
-      text: desc,
-      x: 8,
-      y: Math.min(88, 12 + (urls.length * 26)),
-      w: 84,
-      h: 14,
-      z: urls.length + 3,
-      fontSize: 18,
-      fontWeight: '600',
-      fontFamily: 'Inter, system-ui, sans-serif',
-      textColor: '#ffffff',
-      bgColor: '#10151f',
-      textAlign: 'left',
-      radius: 18,
-      opacity: 1
-    }, urls.length + 1));
-  }
-  return blocks.map((block) => ({ ...block, canvasHeight }));
-}
-
-function buildThreadGalleryDesigner(item) {
-  const blocks = getPictureGalleryBlocksDesigner(item);
-  if (!blocks.length) return '';
-  const canvasHeight = getPictureGalleryCanvasHeight(item);
-  const title = item?.title || 'Gallery';
-  const meta = `${item?.location || 'Regal Lakeland'}${item?.contact ? ` • ${item.contact}` : ''}`;
-  return `
-    <div class="publishedGalleryCanvasWrap">
-      <div class="publishedGalleryCanvas" style="aspect-ratio:${PICTURES_DESIGN_BASE_WIDTH} / ${canvasHeight};">
-        <div class="publishedGalleryCanvasMeta">
-          <div class="meta-card"><strong>${esc(title)}</strong><span>${esc(meta)}</span></div>
-        </div>
-        ${blocks.sort((a, b) => (a.z || 0) - (b.z || 0)).map((block, index) => {
-          const style = `left:${block.x}%;top:${block.y}%;width:${block.w}%;height:${block.h}%;z-index:${block.z};opacity:${block.opacity};`;
-          if (block.type === 'image') {
-            return `
-              <figure class="publishedGalleryFloatBlock published-image" style="${style}">
-                <div class="published-inner" style="border-radius:${block.radius || 18}px">
-                  <img src="${esc(block.sourceUrl || block.previewUrl)}" alt="${esc(title + ' ' + (index + 1))}" loading="lazy" style="object-fit:${esc(normalizeStudioFit(block.fit))};border-radius:${block.radius || 18}px ${block.radius || 18}px 0 0" />
-                  ${block.caption ? `<figcaption>${esc(block.caption).replaceAll('\n', '<br>')}</figcaption>` : ''}
-                </div>
-              </figure>
-            `;
-          }
-          return `
-            <section class="publishedGalleryFloatBlock published-text" style="${style}">
-              <div class="published-inner" style="background:${esc(block.bgColor || '#10151f')};color:${esc(block.textColor || '#ffffff')};text-align:${esc(block.textAlign || 'left')};border-radius:${block.radius || 18}px;font-family:${esc(block.fontFamily || 'Inter, system-ui, sans-serif')};font-size:${esc(block.fontSize || 18)}px;font-weight:${esc(block.fontWeight || '600')}">
-                ${block.heading ? `<div class="published-heading">${esc(block.heading).replaceAll('\n', '<br>')}</div>` : ''}
-                <div class="published-body">${esc(block.text || '').replaceAll('\n', '<br>')}</div>
-              </div>
-            </section>
-          `;
-        }).join('')}
-      </div>
-    </div>
-  `;
-}
-
-async function handleSavePicturesDesigner() {
-  if (isSavingPost) return;
-  if (!canPostPicturesBoard()) {
-    alert('Only approved gallery managers can publish in Pictures.');
-    return;
-  }
-  const title = $('studioTitle')?.value.trim() || `Gallery • ${new Date().toLocaleDateString()}`;
-  const location = $('studioLocation')?.value.trim() || '';
-  const contact = $('studioContact')?.value.trim() || '';
-  const imageBlocks = pictureDesignerBlocks.filter((block) => block.type === 'image');
-  if (!imageBlocks.length) {
-    alert('Add at least one photo before publishing the gallery.');
-    return;
-  }
-  const textSummary = pictureDesignerBlocks
-    .filter((block) => block.type === 'text')
-    .map((block) => [block.heading, block.text].filter(Boolean).join('\n'))
-    .filter(Boolean)
-    .join('\n\n');
-  const moderationScan = detectModerationIssues([title, location, contact, textSummary].join(' '));
-  isSavingPost = true;
-  if ($('studioSaveBtn')) $('studioSaveBtn').disabled = true;
-  try {
-    let existing = null;
-    if (pictureDesignerEditingId) {
-      existing = listings.find((item) => item.id === pictureDesignerEditingId) || null;
-      if (!existing || !canModify(existing)) {
-        alert('You do not have permission to edit this gallery.');
-        return;
-      }
-    }
-    const finalBlocks = [];
-    const imageUrls = [];
-    const imageLayouts = [];
-    const imageCaptions = [];
-    for (const [index, block] of pictureDesignerBlocks.entries()) {
-      if (block.type === 'text') {
-        finalBlocks.push({
-          id: block.id,
-          type: 'text',
-          heading: String(block.heading || '').trim(),
-          text: String(block.text || '').trim(),
-          x: block.x,
-          y: block.y,
-          w: block.w,
-          h: block.h,
-          z: block.z,
-          opacity: normalizeStudioOpacity(block.opacity, 1),
-          radius: normalizeStudioRadius(block.radius, 18),
-          fontSize: normalizeStudioFontSize(block.fontSize, 18),
-          fontWeight: String(block.fontWeight || '600'),
-          fontFamily: String(block.fontFamily || 'Inter, system-ui, sans-serif'),
-          textColor: String(block.textColor || '#ffffff'),
-          bgColor: String(block.bgColor || '#10151f'),
-          textAlign: ['left', 'center', 'right'].includes(String(block.textAlign || '').toLowerCase()) ? String(block.textAlign).toLowerCase() : 'left',
-          style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style).toLowerCase() : 'body'
-        });
-        continue;
-      }
-      let finalUrl = String(block.sourceUrl || '').trim();
-      if (block.file) {
-        const safeName = `${Date.now()}-${index}-${String(block.file.name || 'photo').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
-        await uploadBytes(storageRef, block.file);
-        finalUrl = await getDownloadURL(storageRef);
-      }
-      if (!finalUrl) continue;
-      const cleanCaption = String(block.caption || '').trim();
-      finalBlocks.push({
-        id: block.id,
-        type: 'image',
-        url: finalUrl,
-        caption: cleanCaption,
-        x: block.x,
-        y: block.y,
-        w: block.w,
-        h: block.h,
-        z: block.z,
-        fit: normalizeStudioFit(block.fit),
-        radius: normalizeStudioRadius(block.radius, 18),
-        opacity: normalizeStudioOpacity(block.opacity, 1),
-        name: String(block.name || 'Photo')
-      });
-      imageUrls.push(finalUrl);
-      imageLayouts.push('wide');
-      imageCaptions.push(cleanCaption);
-    }
-    if (!imageUrls.length) {
-      alert('At least one valid image is required to publish this gallery.');
-      return;
-    }
-    const nowMs = Date.now();
-    const payload = {
-      category: 'PICTURES',
-      board: 'PICTURES',
-      status: 'ACTIVE',
-      title,
-      desc: textSummary,
-      description: textSummary,
-      location,
-      contact,
-      price: 0,
-      photo: imageUrls[0] || '',
-      imageUrl: imageUrls[0] || '',
-      imageUrls,
-      imageLayouts,
-      imageCaptions,
-      galleryBlocks: finalBlocks,
-      galleryCanvasHeight: pictureDesignerCanvasHeight,
-      moderationFlagged: moderationScan.flagged,
-      moderationLabels: moderationScan.matchedLabels,
-      moderationMatchedTerms: moderationScan.matchedTerms,
-      moderationSeverity: moderationScan.severity,
-      updatedAt: serverTimestamp(),
-      updatedAtMs: nowMs
-    };
-    if (existing) {
-      await updateDoc(doc(db, 'listings', existing.id), payload);
-      await logMarketplaceActivity(`Updated picture gallery: ${title}`, { type: 'gallery_update', lastBoardVisited: 'PICTURES', lastThreadId: existing.id, lastThreadTitle: title });
+        ${picturesStudioState.preview ? '' : '<div class="psHandle e" data-ps-resize="e"></div><div class="psHandle s" data-ps-resize="s"></div><div class="psHandle se" data-ps-resize="se"></div>'}
+      `;
     } else {
-      Object.assign(payload, {
-        uid: currentUser.uid,
-        authorEmail: currentUser.email || '',
-        authorName: currentProfile?.displayName || currentUser.displayName || currentUser.email || 'Marketplace Member',
-        createdAt: serverTimestamp(),
-        createdAtMs: nowMs,
-        soldAt: null,
-        soldAtMs: null,
-        views: 0,
-        likes: 0,
-        commentsCount: 0,
-        hidden: false,
-        deleted: false,
-        threadParticipants: [],
-        lastReplyAt: null,
-        lastReplyAtMs: 0,
-        lastReplyByUid: '',
-        lastReplyByEmail: '',
-        updatedByUid: currentUser.uid,
-        updatedByEmail: currentUser.email || ''
-      });
-      const created = await addDoc(collection(db, 'listings'), payload);
-      await logMarketplaceActivity(`Published picture gallery: ${title}`, { type: 'gallery_publish', lastBoardVisited: 'PICTURES', lastThreadId: created.id, lastThreadTitle: title });
+      block.innerHTML = `
+        <div class="psBlockControls"><span class="psMiniChip">Text</span></div>
+        <div class="psTextBlock" contenteditable="${picturesStudioState.preview ? 'false' : 'true'}" data-ps-text="${esc(el.id)}" style="font-size:${Number(el.fontSize || 32)}px;font-weight:${Number(el.fontWeight || 700)};color:${esc(el.color || '#ffffff')};text-align:${esc(el.textAlign || 'left')};font-family:${esc(el.fontFamily || 'Inter, system-ui, sans-serif')};background:${esc(el.bg || 'transparent')};">${esc(el.text || '')}</div>
+        ${picturesStudioState.preview ? '' : '<div class="psHandle e" data-ps-resize="e"></div><div class="psHandle s" data-ps-resize="s"></div><div class="psHandle se" data-ps-resize="se"></div>'}
+      `;
     }
-    closePicturesDesigner();
-  } catch (error) {
-    console.error('Save pictures designer error', error);
-    alert(error?.message || 'Could not publish the gallery.');
-  } finally {
-    isSavingPost = false;
-    if ($('studioSaveBtn')) $('studioSaveBtn').disabled = false;
+    canvas.appendChild(block);
+  });
+  bindPicturesStudioCanvas();
+  renderPicturesStudioLayers();
+  renderPicturesStudioSelectionPanel();
+  applyPicturesStudioZoom();
+}
+
+function bindPicturesStudioCanvas() {
+  const canvas = $('psCanvas');
+  if (!canvas) return;
+  canvas.querySelectorAll('.psBlock').forEach((block) => {
+    block.addEventListener('pointerdown', startPicturesStudioPointerAction);
+  });
+  canvas.querySelectorAll('[data-ps-text]').forEach((node) => {
+    node.addEventListener('input', () => {
+      const el = picturesStudioState.elements.find((entry) => entry.id === node.dataset.psText);
+      if (el) el.text = node.textContent || '';
+    });
+    node.addEventListener('blur', () => {
+      const el = picturesStudioState.elements.find((entry) => entry.id === node.dataset.psText);
+      if (el) el.text = node.textContent || '';
+      renderPicturesStudioLayers();
+    });
+    node.addEventListener('pointerdown', (e) => e.stopPropagation());
+  });
+  canvas.querySelectorAll('[data-ps-caption]').forEach((node) => {
+    node.addEventListener('input', () => {
+      const el = picturesStudioState.elements.find((entry) => entry.id === node.dataset.psCaption);
+      if (el) el.caption = node.textContent || '';
+    });
+    node.addEventListener('blur', () => renderPicturesStudioLayers());
+    node.addEventListener('pointerdown', (e) => e.stopPropagation());
+  });
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.target === canvas) {
+      picturesStudioState.selectedId = '';
+      renderPicturesStudioSelectionPanel();
+      renderPicturesStudioLayers();
+      canvas.querySelectorAll('.psBlock').forEach((node) => node.classList.remove('selected'));
+    }
+  }, { once: true });
+}
+
+function startPicturesStudioPointerAction(e) {
+  if (picturesStudioState.preview) return;
+  const block = e.currentTarget;
+  const id = block.dataset.psId || '';
+  const el = picturesStudioState.elements.find((entry) => entry.id === id);
+  if (!el) return;
+  picturesStudioState.selectedId = id;
+  const viewport = $('psViewport');
+  const zoom = picturesStudioState.zoom || 1;
+  const originX = e.clientX;
+  const originY = e.clientY;
+  const startX = Number(el.x || 0);
+  const startY = Number(el.y || 0);
+  const startW = Number(el.w || 300);
+  const startH = Number(el.h || 200);
+  const resizeMode = e.target?.dataset?.psResize || '';
+  const isEditable = e.target?.closest('[contenteditable="true"]');
+  if (isEditable && !resizeMode) {
+    renderPicturesStudioSelectionPanel();
+    renderPicturesStudioLayers();
+    document.querySelectorAll('.psBlock').forEach((node) => node.classList.toggle('selected', node.dataset.psId === id));
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  const move = (evt) => {
+    const dx = (evt.clientX - originX) / zoom;
+    const dy = (evt.clientY - originY) / zoom;
+    if (!resizeMode) {
+      el.x = startX + dx;
+      el.y = startY + dy;
+      if (picturesStudioState.snap) {
+        el.x = Math.round(el.x / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
+        el.y = Math.round(el.y / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
+      }
+    } else {
+      if (resizeMode.includes('e')) {
+        el.w = startW + dx;
+        if (picturesStudioState.snap) el.w = Math.round(el.w / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
+      }
+      if (resizeMode.includes('s')) {
+        el.h = startH + dy;
+        if (picturesStudioState.snap) el.h = Math.round(el.h / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
+      }
+      if (el.type === 'text' && resizeMode.includes('e') && !resizeMode.includes('s')) {
+        el.h = Math.max(80, startH);
+      }
+    }
+    clampPicturesStudioElement(el);
+    block.style.left = `${el.x}px`;
+    block.style.top = `${el.y}px`;
+    block.style.width = `${el.w}px`;
+    block.style.height = `${el.h}px`;
+    if (el.type !== 'image') {
+      const textNode = block.querySelector('.psTextBlock');
+      if (textNode) {
+        textNode.style.fontSize = `${Number(el.fontSize || 32)}px`;
+      }
+    }
+    renderPicturesStudioSelectionPanel();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    renderPicturesStudio();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+async function handlePicturesStudioFiles() {
+  const input = $('psImageInput');
+  const files = Array.from(input?.files || []);
+  if (!files.length || !currentUser) return;
+  const baseY = Math.max(240, ...picturesStudioState.elements.map((el) => Number(el.y || 0) + Number(el.h || 0) + 30), 0);
+  for (const [index, file] of files.entries()) {
+    const safeName = `${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    picturesStudioState.elements.push(normalizePicturesStudioElement({
+      type: 'image',
+      url,
+      caption: file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '),
+      x: 60 + ((index % 2) * 460),
+      y: baseY + (Math.floor(index / 2) * 340),
+      w: 420,
+      h: 300,
+      z: picturesStudioState.elements.length + 1
+    }, picturesStudioState.elements.length))
+  }
+  input.value = '';
+  picturesStudioState.selectedId = picturesStudioState.elements.at(-1)?.id || '';
+  renderPicturesStudio();
+}
+
+function addPicturesStudioTextBlock(kind = 'text') {
+  const presets = {
+    heading: { text: 'New heading', w: 760, h: 90, fontSize: 54, fontWeight: 800, y: 80 },
+    text: { text: 'Add paragraph text here.', w: 560, h: 130, fontSize: 24, fontWeight: 500, y: 180 },
+    caption: { text: 'Add caption', w: 320, h: 70, fontSize: 18, fontWeight: 600, y: 260, bg: 'rgba(0,0,0,0.35)' }
+  };
+  const preset = presets[kind] || presets.text;
+  const block = normalizePicturesStudioElement({
+    type: 'text',
+    ...preset,
+    x: 80,
+    z: picturesStudioState.elements.length + 1
+  }, picturesStudioState.elements.length);
+  picturesStudioState.elements.push(block);
+  picturesStudioState.selectedId = block.id;
+  renderPicturesStudio();
+}
+
+function togglePicturesStudioGrid() {
+  picturesStudioState.snap = !picturesStudioState.snap;
+  renderPicturesStudio();
+}
+
+function togglePicturesStudioPreview() {
+  picturesStudioState.preview = !picturesStudioState.preview;
+  renderPicturesStudio();
+}
+
+function handlePicturesStudioCanvasHeight() {
+  picturesStudioState.canvasHeight = Number($('psCanvasHeight')?.value || 1800);
+  if ($('psCanvasHeightLabel')) $('psCanvasHeightLabel').textContent = `${picturesStudioState.canvasHeight} px`;
+  renderPicturesStudio();
+}
+
+function handlePicturesStudioSelectionControl() {
+  const selected = picturesStudioSelectedElement();
+  if (!selected) return;
+  selected.w = Number($('psWidth')?.value || selected.w || 300);
+  selected.h = Number($('psHeight')?.value || selected.h || 200);
+  selected.fontSize = Number($('psFontSize')?.value || selected.fontSize || 32);
+  selected.fontWeight = Number($('psFontWeight')?.value || selected.fontWeight || 700);
+  selected.color = $('psTextColor')?.value || selected.color || '#ffffff';
+  selected.bg = $('psBgColor')?.value || selected.bg || 'transparent';
+  selected.textAlign = $('psTextAlign')?.value || selected.textAlign || 'left';
+  selected.fontFamily = $('psFontFamily')?.value || selected.fontFamily || 'Inter, system-ui, sans-serif';
+  renderPicturesStudio();
+}
+
+function duplicatePicturesStudioSelection() {
+  const selected = picturesStudioSelectedElement();
+  if (!selected) return;
+  const copy = normalizePicturesStudioElement({ ...selected, id: createPicturesStudioId(selected.type === 'image' ? 'img' : 'txt'), x: Number(selected.x || 0) + 40, y: Number(selected.y || 0) + 40, z: picturesStudioState.elements.length + 1 }, picturesStudioState.elements.length);
+  picturesStudioState.elements.push(copy);
+  picturesStudioState.selectedId = copy.id;
+  renderPicturesStudio();
+}
+
+function deletePicturesStudioSelection() {
+  if (!picturesStudioState.selectedId) return;
+  picturesStudioState.elements = picturesStudioState.elements.filter((el) => el.id !== picturesStudioState.selectedId);
+  picturesStudioState.selectedId = picturesStudioState.elements[0]?.id || '';
+  renderPicturesStudio();
+}
+
+function shiftPicturesStudioLayer(direction = 1) {
+  const selected = picturesStudioSelectedElement();
+  if (!selected) return;
+  selected.z = Math.max(1, Number(selected.z || 1) + direction);
+  sortPicturesStudioElements();
+  renderPicturesStudio();
+}
+
+async function handleSavePicturesStudio() {
+  if (!currentUser || !currentProfile || !canManagePictures()) {
+    alert('You do not have access to save picture galleries.');
+    return;
+  }
+  const title = $('psTitle')?.value.trim() || picturesStudioState.meta.title || `Picture Gallery ${new Date().toLocaleDateString()}`;
+  const location = $('psLocation')?.value.trim() || '';
+  const contact = $('psContact')?.value.trim() || '';
+  const imageUrls = picturesStudioState.elements.filter((el) => el.type === 'image' && el.url).map((el) => el.url);
+  if (!imageUrls.length) {
+    alert('Add at least one photo before saving the gallery.');
+    return;
+  }
+  const nowMs = Date.now();
+  const payload = {
+    category: 'PICTURES',
+    board: 'PICTURES',
+    status: picturesStudioState.meta.status || 'ACTIVE',
+    title,
+    desc: '',
+    description: '',
+    location,
+    contact,
+    price: 0,
+    photo: imageUrls[0] || '',
+    imageUrl: imageUrls[0] || '',
+    imageUrls,
+    pictureLayout: {
+      version: 2,
+      canvasHeight: picturesStudioState.canvasHeight,
+      elements: picturesStudioState.elements.map((el, idx) => ({
+        ...el,
+        z: Number(el.z || idx + 1)
+      }))
+    },
+    moderationFlagged: false,
+    moderationLabels: [],
+    moderationMatchedTerms: [],
+    moderationSeverity: 0,
+    moderationUpdatedAtMs: nowMs,
+    updatedAt: serverTimestamp()
+  };
+  try {
+    let listingId = picturesStudioState.editingId || '';
+    if (listingId) {
+      await updateDoc(doc(db, 'listings', listingId), payload);
+    } else {
+      const createdRef = await addDoc(collection(db, 'listings'), {
+        uid: currentUser.uid,
+        userEmail: currentUser.email || '',
+        displayName: currentProfile.displayName || currentUser.email || '',
+        authorName: currentProfile.displayName || currentUser.email || '',
+        ...payload,
+        replies: [],
+        replyCount: 0,
+        featured: false,
+        hidden: false,
+        reactivationRequested: false,
+        createdAt: serverTimestamp(),
+        createdAtMs: nowMs
+      });
+      listingId = createdRef.id;
+    }
+    closePicturesStudio();
+    await logMarketplaceActivity(`Saved picture gallery: ${title}`, {
+      lastBoardVisited: 'PICTURES',
+      currentView: 'POST',
+      lastThreadId: listingId || '',
+      lastThreadTitle: title
+    }, { force: true });
+  } catch (err) {
+    console.error(err);
+    alert(`${err?.code || 'gallery_error'} — ${err?.message || 'Unable to save gallery.'}`);
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const bind = (id, eventName, handler) => {
-    const el = $(id);
-    if (el) el.addEventListener(eventName, handler);
-  };
-  bind('studioCanvasHeight', 'input', (event) => setPicturesDesignerCanvasHeight(event.target.value));
-  bind('studioCanvasGrowBtn', 'click', () => setPicturesDesignerCanvasHeight(pictureDesignerCanvasHeight + 400));
-  bind('studioCanvasShrinkBtn', 'click', () => setPicturesDesignerCanvasHeight(pictureDesignerCanvasHeight - 400));
-  bind('studioSnapToggle', 'click', () => {
-    pictureDesignerSnapEnabled = !pictureDesignerSnapEnabled;
-    refreshStudioSnapToggle();
-    const stage = $('picturesDesignerStage');
-    if (stage) stage.classList.toggle('stage-snap-off', !pictureDesignerSnapEnabled);
-  });
-  bind('studioDeleteSelectedBtn', 'click', () => {
-    if (pictureDesignerSelectedId) removePicturesDesignerBlock(pictureDesignerSelectedId);
-  });
-  bind('studioDuplicateSelectedBtn', 'click', () => {
-    if (pictureDesignerSelectedId) duplicatePicturesDesignerBlock(pictureDesignerSelectedId);
-  });
-  bind('studioBringForwardBtn', 'click', () => {
-    const block = getPicturesDesignerSelectedBlock();
-    if (block) updatePicturesDesignerBlock(block.id, { z: (block.z || 1) + 1 });
-  });
-  bind('studioSendBackwardBtn', 'click', () => {
-    const block = getPicturesDesignerSelectedBlock();
-    if (block) updatePicturesDesignerBlock(block.id, { z: Math.max(1, (block.z || 1) - 1) });
-  });
-
-  const genericBindings = [
-    ['studioLayer', 'z'],
-    ['studioPosX', 'x'],
-    ['studioPosY', 'y'],
-    ['studioSizeW', 'w'],
-    ['studioSizeH', 'h'],
-    ['studioImageCaption', 'caption'],
-    ['studioImageFit', 'fit'],
-    ['studioRadius', 'radius'],
-    ['studioOpacity', 'opacity'],
-    ['studioTextHeading', 'heading'],
-    ['studioTextBody', 'text'],
-    ['studioFontSize', 'fontSize'],
-    ['studioFontWeight', 'fontWeight'],
-    ['studioFontFamily', 'fontFamily'],
-    ['studioTextColor', 'textColor'],
-    ['studioBgColor', 'bgColor'],
-    ['studioTextAlign', 'textAlign']
-  ];
-  genericBindings.forEach(([id, field]) => {
-    const el = $(id);
-    if (!el) return;
-    const evt = el.tagName === 'SELECT' ? 'change' : 'input';
-    el.addEventListener(evt, () => {
-      if (!pictureDesignerSelectedId) return;
-      updatePicturesDesignerBlock(pictureDesignerSelectedId, { [field]: el.value });
-    });
-  });
-});

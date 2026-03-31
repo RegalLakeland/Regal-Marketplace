@@ -4,8 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Lakeland Private Marketplace</title>
-  <link rel="stylesheet" href="styles.css?v=28" />
-  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="stylesheet" href="styles.css?v=32" />
 </head>
 <body class="auth-open">
   <!-- WOW FACTOR BACKGROUND SLIDER -->
@@ -208,7 +207,6 @@
           <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share events, upload photo galleries, and keep useful finds inside the dealership community.</p>
           <div class="rowBtns hero-actions">
             <button class="btn primary" id="heroPostBtn" type="button">Post Item</button>
-            <button class="btn primary" id="heroPicturesBtn" type="button" style="display:none">Open Pictures Studio</button>
             <button class="btn ghost" id="heroFreeBtn" type="button">Browse Free Items</button>
             <button class="btn ghost notifBtn" id="heroThreadAlert" type="button" style="display:none">0 threads have new activity</button>
           </div>
@@ -365,46 +363,10 @@
             <label>Contact person name / details (optional)</label>
             <input id="fContact" placeholder="Contact name | text/call/email or where to find you at work" />
           </div>
-          <div class="field" id="standardPhotoField">
+          <div class="field">
             <label>Photos (optional)</label>
             <input id="fPhoto" type="file" accept="image/*" multiple />
-            <div class="note" id="photoFieldHint">Normal posts stay compact in the feed with a standard preview image. Open the thread to view the full photo.</div>
-          </div>
-        </div>
-
-        <div class="pictureStudioShell" id="pictureStudioShell" style="display:none">
-          <div class="pictureStudioHeader">
-            <div>
-              <div class="pictureStudioEyebrow">Pictures Studio</div>
-              <h3>Photographer-friendly gallery uploader</h3>
-              <p>Drag photos in, reorder them, and choose how large each image should display in the gallery.</p>
-            </div>
-            <div class="rowBtns">
-              <button class="btn ghost" id="pictureStudioBrowseBtn" type="button">Add Photos</button>
-              <button class="btn ghost" id="pictureStudioClearBtn" type="button">Clear All</button>
-            </div>
-            <input id="pictureDropInput" type="file" accept="image/*" multiple hidden />
-          </div>
-          <div class="pictureStudioGrid">
-            <section class="pictureStudioPanel">
-              <div class="pictureStudioPanelHead">
-                <strong>Upload area</strong>
-                <span id="pictureStudioCount">0 photos ready</span>
-              </div>
-              <button class="pictureDropZone" id="pictureDropZone" type="button">
-                <span class="pictureDropZoneIcon">🖼️</span>
-                <strong>Drop photos here</strong>
-                <span>or click to browse. First photo becomes the gallery cover.</span>
-              </button>
-              <div class="note pictureStudioNote">This board is for curated image sets like work events, store photos, and featured vehicle shoots. Description is optional here.</div>
-            </section>
-            <section class="pictureStudioPanel">
-              <div class="pictureStudioPanelHead">
-                <strong>Photo order & display size</strong>
-                <span>Drag cards to reorder them</span>
-              </div>
-              <div class="pictureStudioList" id="pictureStudioList"></div>
-            </section>
+            <div class="note" id="photoFieldHint">Pictures board supports multiple image uploads. Other boards use the first image as the preview thumbnail.</div>
           </div>
         </div>
 
@@ -413,233 +375,6 @@
       <div class="modal-actions sticky-actions">
         <button class="btn primary" id="btnSavePost" type="button">Post Listing</button>
       </div>
-    </div>
-  </div>
-
-
-  <div class="overlay picturesDesignerOverlay" id="picturesDesignerOverlay" style="display:none;">
-    <div class="picturesDesignerApp">
-      <aside class="picturesDesignerSidebar">
-        <div class="picturesDesignerSidebarHead">
-          <div>
-            <div class="picturesDesignerEyebrow">Pictures Studio</div>
-            <h2>Live gallery designer</h2>
-            <p>Build the actual gallery page at full width, move blocks around live, and collapse the tools when you want a bigger canvas.</p>
-          </div>
-          <div class="picturesDesignerHeadActions rowBtns">
-            <button class="btn ghost" id="picturesDesignerToggleTools" type="button">Hide Tools</button>
-            <button class="btn ghost" id="picturesDesignerCloseTop" type="button">Close</button>
-          </div>
-        </div>
-
-        <div class="picturesDesignerSidebarBody">
-          <div class="field">
-            <label>Gallery title</label>
-            <input id="studioTitle" placeholder="Work event • New inventory spotlight • Team photos" />
-          </div>
-
-          <div class="field">
-            <label>Location / event label (optional)</label>
-            <input id="studioLocation" placeholder="Regal Honda showroom • Lakeland • April 2026" />
-          </div>
-
-          <div class="field">
-            <label>Photographer credit / contact (optional)</label>
-            <input id="studioContact" placeholder="Ariel Restituyo Garcia • Regal Lakeland" />
-          </div>
-
-          <div class="studioActionGrid">
-            <button class="btn primary" id="studioAddPhotosBtn" type="button">Add Photos</button>
-            <button class="btn ghost" id="studioAddTextBtn" type="button">Add Text Block</button>
-            <button class="btn ghost" id="studioAddHeroTextBtn" type="button">Add Title Block</button>
-            <button class="btn ghost" id="studioClearBtn" type="button">Clear Canvas</button>
-          </div>
-
-          <input id="studioImageInput" type="file" accept="image/*" multiple hidden />
-
-          <div class="studioControlCard">
-            <div class="studioControlCardHead">Canvas controls</div>
-            <div class="grid2">
-              <div class="field">
-                <label>Page height</label>
-                <input id="studioCanvasHeight" type="number" min="900" max="4200" step="100" value="1800" />
-              </div>
-              <div class="field">
-                <label>Snap to grid</label>
-                <button class="btn ghost studioFullWidthBtn" id="studioSnapToggle" type="button">Snap: On</button>
-              </div>
-            </div>
-            <div class="rowBtns studioMiniActions">
-              <button class="btn ghost" id="studioCanvasGrowBtn" type="button">+ More Height</button>
-              <button class="btn ghost" id="studioCanvasShrinkBtn" type="button">- Less Height</button>
-            </div>
-            <div class="note">This editor is now a real page builder. Drag blocks anywhere, resize them live, and hide the tools when you want nearly the full screen for layout work.</div>
-          </div>
-
-          <div class="studioControlCard">
-            <div class="studioControlCardHead">Selected element</div>
-            <div class="studioNoSelection" id="studioNoSelection">Click any image or text block on the canvas to edit it.</div>
-            <div id="studioSelectedPanel" style="display:none">
-              <div class="grid2">
-                <div class="field">
-                  <label>Type</label>
-                  <input id="studioSelectedType" disabled />
-                </div>
-                <div class="field">
-                  <label>Layer</label>
-                  <input id="studioLayer" type="number" min="1" max="99" step="1" />
-                </div>
-              </div>
-              <div class="grid2">
-                <div class="field">
-                  <label>X %</label>
-                  <input id="studioPosX" type="number" min="0" max="100" step="0.5" />
-                </div>
-                <div class="field">
-                  <label>Y %</label>
-                  <input id="studioPosY" type="number" min="0" max="100" step="0.5" />
-                </div>
-              </div>
-              <div class="grid2">
-                <div class="field">
-                  <label>Width %</label>
-                  <input id="studioSizeW" type="number" min="4" max="100" step="0.5" />
-                </div>
-                <div class="field">
-                  <label>Height %</label>
-                  <input id="studioSizeH" type="number" min="4" max="100" step="0.5" />
-                </div>
-              </div>
-              <div class="grid2" id="studioImageControls" style="display:none">
-                <div class="field">
-                  <label>Caption</label>
-                  <input id="studioImageCaption" placeholder="Caption under the photo" />
-                </div>
-                <div class="field">
-                  <label>Image fit</label>
-                  <select id="studioImageFit">
-                    <option value="cover">Cover</option>
-                    <option value="contain">Contain</option>
-                  </select>
-                </div>
-              </div>
-              <div class="grid2" id="studioImageStyleControls" style="display:none">
-                <div class="field">
-                  <label>Roundness</label>
-                  <input id="studioRadius" type="range" min="0" max="40" step="1" />
-                </div>
-                <div class="field">
-                  <label>Opacity</label>
-                  <input id="studioOpacity" type="range" min="0.2" max="1" step="0.05" />
-                </div>
-              </div>
-              <div id="studioTextControls" style="display:none">
-                <div class="field">
-                  <label>Heading</label>
-                  <input id="studioTextHeading" placeholder="Optional heading" />
-                </div>
-                <div class="field">
-                  <label>Text</label>
-                  <textarea id="studioTextBody" rows="5" placeholder="Write text anywhere on the page..."></textarea>
-                </div>
-                <div class="grid2">
-                  <div class="field">
-                    <label>Font size</label>
-                    <input id="studioFontSize" type="number" min="14" max="88" step="1" />
-                  </div>
-                  <div class="field">
-                    <label>Weight</label>
-                    <select id="studioFontWeight">
-                      <option value="400">Regular</option>
-                      <option value="500">Medium</option>
-                      <option value="600">Semibold</option>
-                      <option value="700">Bold</option>
-                      <option value="800">Heavy</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="grid2">
-                  <div class="field">
-                    <label>Font</label>
-                    <select id="studioFontFamily">
-                      <option value="Inter, system-ui, sans-serif">Modern Sans</option>
-                      <option value="Arial, Helvetica, sans-serif">Arial</option>
-                      <option value="Georgia, serif">Georgia</option>
-                      <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
-                      <option value="'Times New Roman', serif">Times</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Alignment</label>
-                    <select id="studioTextAlign">
-                      <option value="left">Left</option>
-                      <option value="center">Center</option>
-                      <option value="right">Right</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="grid2">
-                  <div class="field">
-                    <label>Text color</label>
-                    <input id="studioTextColor" type="color" value="#ffffff" />
-                  </div>
-                  <div class="field">
-                    <label>Background</label>
-                    <input id="studioBgColor" type="color" value="#141922" />
-                  </div>
-                </div>
-              </div>
-              <div class="rowBtns studioMiniActions">
-                <button class="btn ghost" id="studioBringForwardBtn" type="button">Bring Forward</button>
-                <button class="btn ghost" id="studioSendBackwardBtn" type="button">Send Backward</button>
-              </div>
-              <div class="rowBtns studioMiniActions">
-                <button class="btn ghost" id="studioDuplicateSelectedBtn" type="button">Duplicate</button>
-                <button class="btn danger" id="studioDeleteSelectedBtn" type="button">Remove</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="studioQuickTips">
-            <strong>Best use tips</strong>
-            <ul>
-              <li>Drag blocks by the move handle so text stays easy to edit.</li>
-              <li>Resize from the bottom-right corner of any selected block.</li>
-              <li>Click directly into text blocks to type live on the page.</li>
-              <li>Use page height to open more room for long event galleries.</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="picturesDesignerSidebarFoot">
-          <div class="studioStatusLine" id="studioStatusLine">No gallery loaded</div>
-          <div class="rowBtns">
-            <button class="btn ghost" id="studioCancelBtn" type="button">Cancel</button>
-            <button class="btn primary" id="studioSaveBtn" type="button">Publish Gallery</button>
-          </div>
-        </div>
-      </aside>
-
-      <section class="picturesDesignerCanvasWrap">
-        <div class="picturesDesignerCanvasHead">
-          <div>
-            <div class="picturesDesignerCanvasTitle">Website layout canvas</div>
-            <div class="picturesDesignerCanvasSub">Build the Pictures page visually. Drag images and text anywhere, resize them live, and use Hide Tools for a near full-screen layout view.</div>
-          </div>
-          <div class="picturesDesignerCanvasHeadActions">
-            <button class="btn ghost picturesDesignerShowTools" id="picturesDesignerShowTools" type="button" style="display:none;">Show Tools</button>
-            <div class="picturesDesignerCanvasBadge">Drag • Resize • Font • Layers</div>
-          </div>
-        </div>
-
-        <div class="picturesDesignerCanvas" id="picturesDesignerCanvas">
-          <div class="studioEmptyState">
-            <div class="studioEmptyIcon">🖼️</div>
-            <strong>Start building the gallery</strong>
-            <span>Add images or text blocks to begin.</span>
-          </div>
-        </div>
-      </section>
     </div>
   </div>
 
@@ -675,6 +410,151 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=31"></script>
+
+  <div class="overlay picturesStudioOverlay" id="picturesStudioOverlay" style="display:none">
+    <div class="picturesStudioApp">
+      <aside class="picturesStudioSidebar">
+        <div class="picturesStudioSidebarHead">
+          <div>
+            <div class="picturesStudioEyebrow">Pictures Studio</div>
+            <h2>Visual Gallery Builder</h2>
+            <p>Drag images and text anywhere on the page. Resize, layer, caption, and compose like a real layout board.</p>
+          </div>
+          <button class="btn ghost" id="btnClosePicturesStudio" type="button">Close</button>
+        </div>
+
+        <div class="picturesStudioSection">
+          <label>Gallery Title</label>
+          <input id="psTitle" type="text" placeholder="Spring work event • New arrivals • Staff spotlight" />
+        </div>
+
+        <div class="picturesStudioGrid2">
+          <div class="picturesStudioSection">
+            <label>Location</label>
+            <input id="psLocation" type="text" placeholder="Lakeland showroom" />
+          </div>
+          <div class="picturesStudioSection">
+            <label>Contact</label>
+            <input id="psContact" type="text" placeholder="Ariel / Marketing" />
+          </div>
+        </div>
+
+        <div class="picturesStudioSection">
+          <label>Canvas Height</label>
+          <input id="psCanvasHeight" type="range" min="900" max="5000" step="50" value="1800" />
+          <div class="picturesStudioMiniMeta"><span>Page height</span><strong id="psCanvasHeightLabel">1800 px</strong></div>
+        </div>
+
+        <div class="picturesStudioSection picturesStudioActions">
+          <button class="btn primary" id="btnPsAddImages" type="button">Add Photos</button>
+          <button class="btn ghost" id="btnPsAddHeading" type="button">Add Heading</button>
+          <button class="btn ghost" id="btnPsAddText" type="button">Add Text</button>
+          <button class="btn ghost" id="btnPsAddCaption" type="button">Add Caption</button>
+          <button class="btn ghost" id="btnPsToggleGrid" type="button">Snap Grid: On</button>
+          <button class="btn ghost" id="btnPsPreview" type="button">Preview Layout</button>
+          <input id="psImageInput" type="file" accept="image/*" multiple hidden />
+        </div>
+
+        <div class="picturesStudioSection">
+          <div class="picturesStudioSectionTitle">Selected Element</div>
+          <div id="psNoSelection" class="note">Select an image or text block to edit it.</div>
+          <div id="psSelectionPanel" style="display:none">
+            <div class="picturesStudioGrid2">
+              <div>
+                <label>Width</label>
+                <input id="psWidth" type="range" min="120" max="1600" step="10" />
+              </div>
+              <div>
+                <label>Height</label>
+                <input id="psHeight" type="range" min="80" max="1600" step="10" />
+              </div>
+            </div>
+            <div class="picturesStudioGrid2">
+              <div>
+                <label>Font Size</label>
+                <input id="psFontSize" type="range" min="14" max="120" step="1" />
+              </div>
+              <div>
+                <label>Weight</label>
+                <select id="psFontWeight">
+                  <option value="400">Regular</option>
+                  <option value="500">Medium</option>
+                  <option value="600">Semibold</option>
+                  <option value="700">Bold</option>
+                  <option value="800">Heavy</option>
+                </select>
+              </div>
+            </div>
+            <div class="picturesStudioGrid2">
+              <div>
+                <label>Text Color</label>
+                <input id="psTextColor" type="color" value="#ffffff" />
+              </div>
+              <div>
+                <label>Background</label>
+                <input id="psBgColor" type="color" value="#0f1720" />
+              </div>
+            </div>
+            <div class="picturesStudioGrid2">
+              <div>
+                <label>Alignment</label>
+                <select id="psTextAlign">
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+              <div>
+                <label>Style</label>
+                <select id="psFontFamily">
+                  <option value="Inter, system-ui, sans-serif">Inter</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Arial, Helvetica, sans-serif">Arial</option>
+                  <option value=""Trebuchet MS", sans-serif">Trebuchet</option>
+                </select>
+              </div>
+            </div>
+            <div class="picturesStudioGrid2">
+              <button class="btn ghost" id="btnPsDuplicate" type="button">Duplicate</button>
+              <button class="btn ghost" id="btnPsBringFront" type="button">Bring Front</button>
+              <button class="btn ghost" id="btnPsSendBack" type="button">Send Back</button>
+              <button class="btn danger" id="btnPsDelete" type="button">Delete</button>
+            </div>
+            <div class="note">Tip: drag blocks anywhere, use the right edge or bottom edge to resize, and drag the corner for both directions.</div>
+          </div>
+        </div>
+
+        <div class="picturesStudioSection">
+          <div class="picturesStudioSectionTitle">Layers</div>
+          <div id="psLayers" class="picturesStudioLayers"></div>
+        </div>
+
+        <div class="picturesStudioFooter">
+          <button class="btn ghost" id="btnPsCancel" type="button">Cancel</button>
+          <button class="btn primary" id="btnPsSave" type="button">Save Gallery</button>
+        </div>
+      </aside>
+
+      <section class="picturesStudioMain">
+        <div class="picturesStudioTopbar">
+          <div>
+            <div class="picturesStudioTopTitle">Live Page Canvas</div>
+            <div class="picturesStudioTopSub">Build the final website layout directly. Drag to move. Use edge handles to resize.</div>
+          </div>
+          <div class="picturesStudioTopActions">
+            <button class="btn ghost" id="btnPsFitWidth" type="button">Fit Width</button>
+            <button class="btn ghost" id="btnPsZoomOut" type="button">−</button>
+            <span class="pill" id="psZoomLabel">100%</span>
+            <button class="btn ghost" id="btnPsZoomIn" type="button">+</button>
+          </div>
+        </div>
+        <div class="picturesStudioCanvasViewport" id="psViewport">
+          <div class="picturesStudioCanvas" id="psCanvas"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=32"></script>
 </body>
 </html>
