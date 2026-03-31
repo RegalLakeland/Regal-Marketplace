@@ -2012,7 +2012,12 @@ function renderBoards() {
 
   const counts = boardCounts();
   wrap.innerHTML = BOARD_DEFS.map((board) => {
+    const isPicturesBoard = board.key === 'PICTURES';
     const last = latestForBoard(board.key);
+    const countText = isPicturesBoard ? 'Open' : String(counts[board.key] || 0);
+    const lastText = isPicturesBoard
+      ? 'Launch the standalone gallery designer'
+      : (last ? esc(last.title || 'Latest post') : 'No posts yet');
     return `
       <button class="boardBtn ${activeBoard === board.key ? 'active' : ''}" data-board="${board.key}" type="button">
         <div>
@@ -2020,8 +2025,8 @@ function renderBoards() {
           <div class="board-desc">${esc(board.desc)}</div>
         </div>
         <div class="board-meta">
-          <div class="board-count">${counts[board.key] || 0}</div>
-          <div class="board-last">${last ? esc(last.title || 'Latest post') : 'No posts yet'}</div>
+          <div class="board-count">${countText}</div>
+          <div class="board-last">${lastText}</div>
         </div>
       </button>
     `;
@@ -2029,7 +2034,12 @@ function renderBoards() {
 
   wrap.querySelectorAll('.boardBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      activeBoard = btn.dataset.board;
+      const boardKey = btn.dataset.board;
+      if (boardKey === 'PICTURES') {
+        window.location.href = 'pictures.html';
+        return;
+      }
+      activeBoard = boardKey;
       renderBoards();
       renderListings();
       const boardMeta = BOARD_DEFS.find((b) => b.key === activeBoard);
@@ -2051,7 +2061,7 @@ function filteredListings() {
   const st = $('st')?.value || 'ALL';
   const sort = $('sort')?.value || 'NEW';
 
-  let data = listings.filter((item) => isVisibleToViewer(item) && (activeBoard === 'ALL' || item.board === activeBoard));
+  let data = listings.filter((item) => isVisibleToViewer(item) && item.board !== 'PICTURES' && (activeBoard === 'ALL' || item.board === activeBoard));
 
   if (st !== 'ALL') {
     data = data.filter((item) => (item.status || 'ACTIVE') === st);
