@@ -2194,8 +2194,7 @@ function buildThreadGallery(item) {
         </div>`;
       }
       return `<div class="psViewBlock" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">
-        <div class="psViewText" style="font-size:${Number(el.fontSize || 32)}px;font-weight:${Number(el.fontWeight || 700)};color:${esc(el.color || '#ffffff')};text-align:${esc(el.textAlign || 'left')};font-family:${esc(el.fontFamily || 'Inter, system-ui, sans-serif')};background:${esc(el.bg || 'transparent')};">${esc(el.text || '').replaceAll('
-', '<br>')}</div>
+        <div class="psViewText" style="font-size:${Number(el.fontSize || 32)}px;font-weight:${Number(el.fontWeight || 700)};color:${esc(el.color || '#ffffff')};text-align:${esc(el.textAlign || 'left')};font-family:${esc(el.fontFamily || 'Inter, system-ui, sans-serif')};background:${esc(el.bg || 'transparent')};">${esc(el.text || '').replaceAll('\n', '<br>')}</div>
       </div>`;
     }).join('');
     return `<div class="pictureStudioViewer" style="min-height:${canvasHeight}px">${blocks}</div>`;
