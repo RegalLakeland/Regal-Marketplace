@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Lakeland Private Marketplace</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=21" />
 </head>
 <body class="auth-open">
   <!-- WOW FACTOR BACKGROUND SLIDER -->
@@ -183,7 +183,7 @@
       </div>
       <div class="title">
         <div class="h1">Private Marketplace</div>
-        <div class="h2">Forum boards for free items, buy and sell, garage sales, events, announcements, and services.</div>
+        <div class="h2">Forum boards for free items, buy and sell, garage sales, events, photo galleries, announcements, and services.</div>
       </div>
     </div>
 
@@ -204,7 +204,7 @@
           <div class="eyebrow">Regal Employee Marketplace</div>
           <h1 id="feedTitle">All Boards</h1>
           <div class="subline" id="countLine">0 shown | 0 total</div>
-          <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share events, and keep useful finds inside the dealership community.</p>
+          <p class="hero-copy">A cleaner, forum-style marketplace for employees to post items, share events, upload photo galleries, and keep useful finds inside the dealership community.</p>
           <div class="rowBtns hero-actions">
             <button class="btn primary" id="heroPostBtn" type="button">Post Item</button>
             <button class="btn ghost" id="heroFreeBtn" type="button">Browse Free Items</button>
@@ -324,6 +324,7 @@
               <option value="GARAGE">Garage Sales</option>
               <option value="EVENTS">Events</option>
               <option value="WORK">Work News</option>
+              <option value="PICTURES">Pictures</option>
               <option value="SERVICES">Local Services</option>
             </select>
           </div>
@@ -363,8 +364,9 @@
             <input id="fContact" placeholder="Contact name | text/call/email or where to find you at work" />
           </div>
           <div class="field">
-            <label>Photo (optional)</label>
-            <input id="fPhoto" type="file" accept="image/*" />
+            <label>Photos (optional)</label>
+            <input id="fPhoto" type="file" accept="image/*" multiple />
+            <div class="note" id="photoFieldHint">Pictures board supports multiple image uploads. Other boards use the first image as the preview thumbnail.</div>
           </div>
         </div>
 
@@ -408,6 +410,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=21"></script>
 </body>
 </html>

@@ -96,7 +96,7 @@ const FILTER_LABELS = {
   DELETED: 'Showing deleted accounts'
 };
 const esc = (s) => String(s ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', WORK:'Work News', SERVICES:'Local Services' };
+const boardLabels = { FREE:'Free Items', BUYSELL:'Buy / Sell', GARAGE:'Garage Sales', EVENTS:'Events', PICTURES:'Pictures', WORK:'Work News', SERVICES:'Local Services' };
 
 function fmtDate(ms) {
   try { return new Date(Number(ms || Date.now())).toLocaleString(); } catch { return '—'; }
@@ -1229,7 +1229,7 @@ function ensureEditModal() {
       </div>
       <div class="modal-b">
         <div class="grid2">
-          <div class="field"><label>Board</label><select id="adminEditBoard"><option value="FREE">Free Items</option><option value="BUYSELL">Buy / Sell</option><option value="GARAGE">Garage Sales</option><option value="EVENTS">Events</option><option value="WORK">Work News</option><option value="SERVICES">Local Services</option></select></div>
+          <div class="field"><label>Board</label><select id="adminEditBoard"><option value="FREE">Free Items</option><option value="BUYSELL">Buy / Sell</option><option value="GARAGE">Garage Sales</option><option value="EVENTS">Events</option><option value="WORK">Work News</option><option value="PICTURES">Pictures</option><option value="SERVICES">Local Services</option></select></div>
           <div class="field"><label>Status</label><select id="adminEditStatus"><option value="ACTIVE">Active</option><option value="SOLD">Closed</option></select></div>
         </div>
         <div class="field"><label>Title</label><input id="adminEditTitle" /></div>

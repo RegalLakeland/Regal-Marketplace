@@ -341,6 +341,7 @@ const BOARD_DEFS = [
   { key: 'BUYSELL', label: 'Buy / Sell', desc: 'Employee marketplace items' },
   { key: 'GARAGE', label: 'Garage Sales', desc: 'Neighborhood and moving sales' },
   { key: 'EVENTS', label: 'Events', desc: 'Meetups, cookouts, birthdays' },
+  { key: 'PICTURES', label: 'Pictures', desc: 'Employee photography and dealership shots' },
   { key: 'WORK', label: 'Work News', desc: 'Dealership updates and notices' },
   { key: 'SERVICES', label: 'Local Services', desc: 'Side work and help needed' }
 ];
@@ -398,6 +399,7 @@ function getClosedLabel(item) {
   const board = String(item?.board || item?.category || '').toUpperCase();
   if (board === 'EVENTS') return 'Ended';
   if (board === 'SERVICES' || board === 'WORK') return 'Completed';
+  if (board === 'PICTURES') return 'Archived';
   return 'Sold';
 }
 
@@ -405,6 +407,7 @@ function getMarkClosedLabel(item) {
   const board = String(item?.board || item?.category || '').toUpperCase();
   if (board === 'EVENTS') return 'Mark Ended';
   if (board === 'SERVICES' || board === 'WORK') return 'Mark Completed';
+  if (board === 'PICTURES') return 'Archive Gallery';
   return 'Mark Sold';
 }
 
@@ -1976,6 +1979,7 @@ function normalizeListing(item) {
     authorName: item.authorName || item.displayName || item.userEmail || '',
     description: item.description || item.desc || '',
     imageUrl: item.imageUrl || item.photo || '',
+    imageUrls: getListingImageUrls(item),
     reactivationRequested: !!item.reactivationRequested,
     featured: !!item.featured,
     hidden: !!item.hidden,
@@ -2090,6 +2094,46 @@ function formatDate(ms) {
   try { return new Date(Number(ms || Date.now())).toLocaleString(); } catch { return '—'; }
 }
 
+function getListingImageUrls(item) {
+  const urls = [];
+  if (Array.isArray(item?.imageUrls)) {
+    item.imageUrls.forEach((url) => {
+      const clean = String(url || '').trim();
+      if (clean && !urls.includes(clean)) urls.push(clean);
+    });
+  }
+  [item?.imageUrl, item?.photo].forEach((url) => {
+    const clean = String(url || '').trim();
+    if (clean && !urls.includes(clean)) urls.unshift(clean);
+  });
+  return urls.filter(Boolean);
+}
+
+function getListingDisplayValue(item) {
+  const board = String(item?.board || item?.category || '').toUpperCase();
+  if (board === 'PICTURES') {
+    const count = getListingImageUrls(item).length;
+    if (count > 1) return `${count} Photos`;
+    if (count === 1) return '1 Photo';
+    return 'Gallery';
+  }
+  return formatPrice(item?.price);
+}
+
+function buildGalleryPreview(item) {
+  const images = getListingImageUrls(item);
+  if (!images.length) return '';
+  const preview = images.slice(0, 4);
+  const extra = images.length - preview.length;
+  return `<div class="galleryPreview galleryPreview-${preview.length}">${preview.map((url, idx) => `<div class="galleryPreviewCell ${idx === 0 ? 'primary' : ''}"><img src="${esc(url)}" alt="${esc(item?.title || 'Gallery image')}" loading="lazy" /></div>`).join('')}${extra > 0 ? `<div class="galleryPreviewMore">+${extra}</div>` : ''}</div>`;
+}
+
+function buildThreadGallery(item) {
+  const images = getListingImageUrls(item);
+  if (!images.length) return '';
+  return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((url, idx) => `<div class="thread-gallery-item"><img class="thread-gallery-image" src="${esc(url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
+}
+
 function canModify(item) {
   return !!currentUser && !!currentProfile && (canModerate() || currentUser.uid === item.uid);
 }
@@ -2162,6 +2206,7 @@ function renderListings() {
   }
 
   empty.style.display = 'none';
+  wrap.classList.toggle('pictureBoardActive', activeBoard === 'PICTURES');
   wrap.innerHTML = data.map((item) => {
     const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
     const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
@@ -2176,8 +2221,16 @@ function renderListings() {
     const posterContactText = posterContact && normalizeEmail(posterContact) !== normalizeEmail(item.authorEmail || item.userEmail || '')
       ? `<span class="topicPosterContact">${esc(posterContact)}</span>`
       : '';
+    const boardLabel = BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board;
+    const imageUrls = getListingImageUrls(item);
+    const galleryPreview = buildGalleryPreview(item);
+    const visualValue = getListingDisplayValue(item);
+    const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
+    const sideMeta = isPictureBoard
+      ? `<div class="topicMeta topicMetaRight"><span>${esc(imageUrls.length ? `${imageUrls.length} image${imageUrls.length === 1 ? '' : 's'}` : 'No images')}</span><span>${esc(item.location || 'Regal gallery')}</span></div>`
+      : `<div class="topicMeta topicMetaRight"><span>${esc(item.location || 'No location')}</span><span>${esc(item.contact || 'No contact')}</span></div>`;
     return `
-      <article class="topicRow ${unread ? 'topicRow-unread' : ''}" data-thread-card-id="${esc(item.id)}">
+      <article class="topicRow ${unread ? 'topicRow-unread' : ''} ${isPictureBoard ? 'galleryTopicRow' : ''}" data-thread-card-id="${esc(item.id)}">
         <div class="topicMain">
           <div class="topicHeader">
             <div class="topicTitleWrap">
@@ -2192,10 +2245,11 @@ function renderListings() {
             ${posterContactText}
           </div>
           <div class="topicMeta">
-            <span>${esc(BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board)}</span>
+            <span>${esc(boardLabel)}</span>
             <span>${esc(formatDate(item.createdAtMs))}</span>
             ${item.lastReplyAtMs ? `<span>${esc(formatDate(item.lastReplyAtMs))} latest reply</span>` : ''}
           </div>
+          ${galleryPreview ? `<div class="topicGalleryPreviewWrap">${galleryPreview}</div>` : ''}
           <div class="topicDesc">${esc(item.description || '').slice(0, 220)}${(item.description || '').length > 220 ? '…' : ''}</div>
           <div class="rowBtns">
             <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
@@ -2206,15 +2260,12 @@ function renderListings() {
             ${requestPending ? `<span class="pill">Awaiting admin review</span>` : ''}
           </div>
         </div>
-        <div class="topicSide">
-          <div class="topicSideTop">
-            <div class="price">${esc(formatPrice(item.price))}</div>
-            ${item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
+        <div class="topicSide ${isPictureBoard ? 'topicSide-gallery' : ''}">
+          <div class="topicSideTop ${isPictureBoard ? 'topicSideTop-gallery' : ''}">
+            <div class="price ${isPictureBoard ? 'galleryPriceTag' : ''}">${esc(visualValue)}</div>
+            ${!isPictureBoard && item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
           </div>
-          <div class="topicMeta topicMetaRight">
-            <span>${esc(item.location || 'No location')}</span>
-            <span>${esc(item.contact || 'No contact')}</span>
-          </div>
+          ${sideMeta}
         </div>
       </article>
     `;
@@ -2246,7 +2297,7 @@ async function handleSavePost() {
   const location = $('fLocation')?.value.trim() || '';
   const contact = $('fContact')?.value.trim() || '';
   const priceRaw = $('fPrice')?.value.trim() || '';
-  const file = $('fPhoto')?.files?.[0] || null;
+  const files = Array.from($('fPhoto')?.files || []);
 
   if (!title) {
     alert('Enter a title.');
@@ -2259,6 +2310,7 @@ async function handleSavePost() {
 
   const moderationScan = detectModerationIssues([title, description, location, contact].join(' '));
   let imageUrl = '';
+  let imageUrls = [];
   isSavingPost = true;
   if ($('btnSavePost')) $('btnSavePost').disabled = true;
   try {
@@ -2270,12 +2322,23 @@ async function handleSavePost() {
         return;
       }
       imageUrl = existing.imageUrl || existing.photo || '';
+      imageUrls = getListingImageUrls(existing);
     }
-    if (file) {
-      const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
-      await uploadBytes(storageRef, file);
-      imageUrl = await getDownloadURL(storageRef);
+    if (files.length) {
+      const uploadedUrls = [];
+      for (const [index, file] of files.entries()) {
+        const safeName = `${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
+        await uploadBytes(storageRef, file);
+        uploadedUrls.push(await getDownloadURL(storageRef));
+      }
+      imageUrls = uploadedUrls;
+      imageUrl = uploadedUrls[0] || '';
+    }
+
+    if (board === 'PICTURES' && !imageUrls.length && !imageUrl) {
+      alert('Please upload at least one photo for the Pictures board.');
+      return;
     }
 
     const nowMs = Date.now();
@@ -2291,6 +2354,7 @@ async function handleSavePost() {
       price: Number(priceRaw || 0),
       photo: imageUrl,
       imageUrl,
+      imageUrls,
       moderationFlagged: moderationScan.flagged,
       moderationLabels: moderationScan.matchedLabels,
       moderationMatchedTerms: moderationScan.matchedTerms,
@@ -2415,12 +2479,12 @@ async function openThread(id) {
           <div class="threadPosterSub">Contact this person first about this thread.</div>
           ${posterContact ? `<div class="threadPosterContact"><span>Best contact</span><strong>${esc(posterContact)}</strong></div>` : ''}
         </div>
-        ${item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
-        <div>${esc(item.description || '')}</div>
-        <div class="topicMeta">
-          <span>${esc(item.location || 'No location')}</span>
+        ${String(item.board || '').toUpperCase() === 'PICTURES' ? buildThreadGallery(item) : (item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : '')}
+        <div class="threadDescriptionCopy">${esc(item.description || '').replaceAll('\n', '<br>')}</div>
+        <div class="topicMeta threadInfoList">
+          <span>${esc(item.location || (String(item.board || '').toUpperCase() === 'PICTURES' ? 'Regal gallery' : 'No location'))}</span>
           <span>${esc(item.contact || 'No contact')}</span>
-          <span>${esc(formatPrice(item.price))}</span>
+          <span>${esc(getListingDisplayValue(item))}</span>
         </div>
         ${deleteThreadBtn ? `<div class="rowBtns">${deleteThreadBtn}</div>` : ''}
       </div>
