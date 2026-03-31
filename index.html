@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Lakeland Private Marketplace</title>
-  <link rel="stylesheet" href="styles.css?v=26" />
+  <link rel="stylesheet" href="styles.css?v=27" />
 </head>
 <body class="auth-open">
   <!-- WOW FACTOR BACKGROUND SLIDER -->
@@ -423,9 +423,12 @@
           <div>
             <div class="picturesDesignerEyebrow">Pictures Studio</div>
             <h2>Live gallery designer</h2>
-            <p>Drag images and text blocks around, resize them live, and build a polished photo page before publishing.</p>
+            <p>Build the actual gallery page at full width, move blocks around live, and collapse the tools when you want a bigger canvas.</p>
           </div>
-          <button class="btn ghost" id="picturesDesignerCloseTop" type="button">Close</button>
+          <div class="picturesDesignerHeadActions rowBtns">
+            <button class="btn ghost" id="picturesDesignerToggleTools" type="button">Hide Tools</button>
+            <button class="btn ghost" id="picturesDesignerCloseTop" type="button">Close</button>
+          </div>
         </div>
 
         <div class="picturesDesignerSidebarBody">
@@ -477,10 +480,13 @@
       <section class="picturesDesignerCanvasWrap">
         <div class="picturesDesignerCanvasHead">
           <div>
-            <div class="picturesDesignerCanvasTitle">Live page preview</div>
-            <div class="picturesDesignerCanvasSub">Only approved gallery managers can publish. Everyone else only sees the finished result.</div>
+            <div class="picturesDesignerCanvasTitle">Full page layout preview</div>
+            <div class="picturesDesignerCanvasSub">Use the whole page width for arranging galleries. Collapse the tool panel anytime for a bigger working canvas.</div>
           </div>
-          <div class="picturesDesignerCanvasBadge">Drag • Resize • Caption • Text</div>
+          <div class="picturesDesignerCanvasHeadActions">
+            <button class="btn ghost picturesDesignerShowTools" id="picturesDesignerShowTools" type="button" style="display:none;">Show Tools</button>
+            <div class="picturesDesignerCanvasBadge">Drag • Resize • Caption • Text</div>
+          </div>
         </div>
 
         <div class="picturesDesignerCanvas" id="picturesDesignerCanvas">
@@ -526,6 +532,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=26"></script>
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>

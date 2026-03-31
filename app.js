@@ -388,6 +388,7 @@ let pictureDesignerBlocks = [];
 let pictureDesignerDragId = '';
 let pictureDesignerEditingId = null;
 let pictureDesignerResizeState = null;
+let pictureDesignerToolsCollapsed = false;
 let lastStatusMessageShown = '';
 let loginInFlight = false;
 let signupInFlight = false;
@@ -719,6 +720,8 @@ function bindStaticEvents() {
   $('studioClearBtn')?.addEventListener('click', () => clearPicturesDesigner());
   $('studioCancelBtn')?.addEventListener('click', closePicturesDesigner);
   $('picturesDesignerCloseTop')?.addEventListener('click', closePicturesDesigner);
+  $('picturesDesignerToggleTools')?.addEventListener('click', () => setPicturesDesignerToolsCollapsed(!pictureDesignerToolsCollapsed));
+  $('picturesDesignerShowTools')?.addEventListener('click', () => setPicturesDesignerToolsCollapsed(false));
   $('studioSaveBtn')?.addEventListener('click', handleSavePicturesDesigner);
   $('picturesDesignerCanvas')?.addEventListener('dragover', (event) => {
     event.preventDefault();
@@ -802,6 +805,10 @@ function bindStaticEvents() {
     }
     if (action === 'studioSetSize') {
       updatePicturesDesignerBlock(actionEl.dataset.blockId || '', { size: normalizeStudioBlockSize(actionEl.dataset.size || '', actionEl.dataset.blockType || 'image') });
+      return;
+    }
+    if (action === 'studioSetAlign') {
+      updatePicturesDesignerBlock(actionEl.dataset.blockId || '', { align: normalizeStudioBlockAlign(actionEl.dataset.align || 'center') });
       return;
     }
 
@@ -1175,6 +1182,22 @@ function normalizeStudioBlockHeight(value) {
   return Math.min(640, Math.max(180, Math.round(next)));
 }
 
+function normalizeStudioBlockAlign(value) {
+  const clean = String(value || '').toLowerCase();
+  if (['left', 'center', 'right'].includes(clean)) return clean;
+  return 'center';
+}
+
+function setPicturesDesignerToolsCollapsed(collapsed) {
+  pictureDesignerToolsCollapsed = !!collapsed;
+  const overlay = $('picturesDesignerOverlay');
+  if (overlay) overlay.classList.toggle('tools-collapsed', pictureDesignerToolsCollapsed);
+  const toggleBtn = $('picturesDesignerToggleTools');
+  if (toggleBtn) toggleBtn.textContent = pictureDesignerToolsCollapsed ? 'Show Tools' : 'Hide Tools';
+  const showBtn = $('picturesDesignerShowTools');
+  if (showBtn) showBtn.style.display = pictureDesignerToolsCollapsed ? 'inline-flex' : 'none';
+}
+
 function studioSizeToLegacyLayout(size) {
   if (size === 'hero') return 'hero';
   if (size === 'wide') return 'wide';
@@ -1187,7 +1210,7 @@ function legacyLayoutToStudioSize(layout) {
   return 'standard';
 }
 
-function createPicturesDesignerImageBlock({ file = null, url = '', caption = '', size = 'wide', height = 280, name = '' } = {}) {
+function createPicturesDesignerImageBlock({ file = null, url = '', caption = '', size = 'wide', align = 'center', height = 280, name = '' } = {}) {
   const previewUrl = file ? URL.createObjectURL(file) : String(url || '');
   return {
     id: studioBlockId(),
@@ -1197,18 +1220,20 @@ function createPicturesDesignerImageBlock({ file = null, url = '', caption = '',
     sourceUrl: String(url || ''),
     caption: String(caption || ''),
     size: normalizeStudioBlockSize(size, 'image'),
+    align: normalizeStudioBlockAlign(align),
     height: normalizeStudioBlockHeight(height),
     name: String(name || (file?.name || 'Photo'))
   };
 }
 
-function createPicturesDesignerTextBlock({ heading = '', text = '', size = 'wide', style = 'body' } = {}) {
+function createPicturesDesignerTextBlock({ heading = '', text = '', size = 'wide', align = 'center', style = 'body' } = {}) {
   return {
     id: studioBlockId(),
     type: 'text',
     heading: String(heading || ''),
     text: String(text || ''),
     size: normalizeStudioBlockSize(size, 'text'),
+    align: normalizeStudioBlockAlign(align),
     style: ['body', 'hero', 'note'].includes(String(style || '').toLowerCase()) ? String(style || '').toLowerCase() : 'body'
   };
 }
@@ -1278,10 +1303,11 @@ function addTextBlockToPicturesDesigner(insertIndex = null, style = 'body') {
 }
 
 function rerenderPicturesDesignerPreserveScroll() {
-  const canvas = $('picturesDesignerCanvas');
-  const top = canvas ? canvas.scrollTop : 0;
+  const overlay = $('picturesDesignerOverlay');
+  const top = overlay ? overlay.scrollTop : window.scrollY;
   renderPicturesDesigner();
-  if (canvas) canvas.scrollTop = top;
+  if (overlay) overlay.scrollTop = top;
+  else window.scrollTo({ top });
 }
 
 function updatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
@@ -1291,10 +1317,12 @@ function updatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
     const next = { ...block, ...patch };
     if (next.type === 'image') {
       next.size = normalizeStudioBlockSize(next.size, 'image');
+      next.align = normalizeStudioBlockAlign(next.align);
       next.height = normalizeStudioBlockHeight(next.height);
       next.caption = String(next.caption || '');
     } else {
       next.size = normalizeStudioBlockSize(next.size, 'text');
+      next.align = normalizeStudioBlockAlign(next.align);
       next.heading = String(next.heading || '');
       next.text = String(next.text || '');
       next.style = ['body', 'hero', 'note'].includes(String(next.style || '').toLowerCase()) ? String(next.style || '').toLowerCase() : 'body';
@@ -1339,8 +1367,8 @@ function duplicatePicturesDesignerBlock(blockId) {
   const target = pictureDesignerBlocks.find((block) => block.id === blockId);
   if (!target) return;
   const clone = target.type === 'image'
-    ? createPicturesDesignerImageBlock({ url: target.sourceUrl || target.previewUrl, caption: target.caption, size: target.size, height: target.height, name: target.name })
-    : createPicturesDesignerTextBlock({ heading: target.heading, text: target.text, size: target.size, style: target.style });
+    ? createPicturesDesignerImageBlock({ url: target.sourceUrl || target.previewUrl, caption: target.caption, size: target.size, align: target.align, height: target.height, name: target.name })
+    : createPicturesDesignerTextBlock({ heading: target.heading, text: target.text, size: target.size, align: target.align, style: target.style });
   const idx = pictureDesignerBlocks.findIndex((block) => block.id === blockId);
   insertPicturesDesignerBlocks(clone, idx + 1);
 }
@@ -1454,13 +1482,23 @@ function renderPicturesDesigner() {
   const blockHtml = pictureDesignerBlocks.map((block, index) => {
     const sizeButtons = block.type === 'image'
       ? `
-        <div class="studioSizeButtons">
-          ${['standard', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="image" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
+        <div class="studioControlRow">
+          <div class="studioSizeButtons">
+            ${['standard', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="image" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
+          </div>
+          <div class="studioAlignButtons">
+            ${['left', 'center', 'right'].map((align) => `<button class="studioAlignBtn ${normalizeStudioBlockAlign(block.align) === align ? 'active' : ''}" data-action="studioSetAlign" data-block-id="${esc(block.id)}" data-align="${align}" type="button">${esc(align)}</button>`).join('')}
+          </div>
         </div>
       `
       : `
-        <div class="studioSizeButtons">
-          ${['column', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="text" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
+        <div class="studioControlRow">
+          <div class="studioSizeButtons">
+            ${['column', 'wide', 'hero'].map((size) => `<button class="studioSizeBtn ${block.size === size ? 'active' : ''}" data-action="studioSetSize" data-block-id="${esc(block.id)}" data-block-type="text" data-size="${size}" type="button">${esc(size)}</button>`).join('')}
+          </div>
+          <div class="studioAlignButtons">
+            ${['left', 'center', 'right'].map((align) => `<button class="studioAlignBtn ${normalizeStudioBlockAlign(block.align) === align ? 'active' : ''}" data-action="studioSetAlign" data-block-id="${esc(block.id)}" data-align="${align}" type="button">${esc(align)}</button>`).join('')}
+          </div>
         </div>
       `;
     const insertAbove = `<button class="studioInsertBar studioInsertBar-inline" data-action="studioInsertText" data-index="${index}" type="button">+ Text above</button>`;
@@ -1468,7 +1506,7 @@ function renderPicturesDesigner() {
     if (block.type === 'image') {
       return `
         <div class="studioCanvasInsertShell">${insertAbove}</div>
-        <article class="studioCanvasBlock studioCanvasBlock-image studioSize-${esc(block.size)}" data-block-id="${esc(block.id)}">
+        <article class="studioCanvasBlock studioCanvasBlock-image studioSize-${esc(block.size)} studioAlign-${esc(normalizeStudioBlockAlign(block.align))}" data-block-id="${esc(block.id)}">
           <div class="studioBlockToolbar">
             <span class="studioBlockLabel">Image block</span>
             <div class="studioBlockActions rowBtns">
@@ -1493,7 +1531,7 @@ function renderPicturesDesigner() {
     }
     return `
       <div class="studioCanvasInsertShell">${insertAbove}</div>
-      <article class="studioCanvasBlock studioCanvasBlock-text studioTextSize-${esc(block.size)} studioTextStyle-${esc(block.style || 'body')}" data-block-id="${esc(block.id)}">
+      <article class="studioCanvasBlock studioCanvasBlock-text studioTextSize-${esc(block.size)} studioTextStyle-${esc(block.style || 'body')} studioAlign-${esc(normalizeStudioBlockAlign(block.align))}" data-block-id="${esc(block.id)}">
         <div class="studioBlockToolbar">
           <span class="studioBlockLabel">Text block</span>
           <div class="studioBlockActions rowBtns">
@@ -1557,17 +1595,19 @@ function openPicturesDesigner(postId = null) {
     if ($('studioLocation')) $('studioLocation').value = item.location || '';
     if ($('studioContact')) $('studioContact').value = item.contact || '';
     const blocks = getPictureGalleryBlocks(item).map((block) => block.type === 'image'
-      ? createPicturesDesignerImageBlock({ url: block.url, caption: block.caption || '', size: block.size || legacyLayoutToStudioSize(block.layout), height: block.height || 280, name: block.name || item.title || 'Photo' })
-      : createPicturesDesignerTextBlock({ heading: block.heading || '', text: block.text || '', size: block.size || 'wide', style: block.style || 'body' }));
+      ? createPicturesDesignerImageBlock({ url: block.url, caption: block.caption || '', size: block.size || legacyLayoutToStudioSize(block.layout), align: block.align || 'center', height: block.height || 280, name: block.name || item.title || 'Photo' })
+      : createPicturesDesignerTextBlock({ heading: block.heading || '', text: block.text || '', size: block.size || 'wide', align: block.align || 'center', style: block.style || 'body' }));
     pictureDesignerBlocks = blocks;
   }
   renderPicturesDesigner();
   updatePicturesDesignerStatus();
+  setPicturesDesignerToolsCollapsed(false);
   show('picturesDesignerOverlay');
 }
 
 function closePicturesDesigner() {
   hide('picturesDesignerOverlay');
+  setPicturesDesignerToolsCollapsed(false);
   resetPicturesDesigner();
 }
 
@@ -2938,6 +2978,7 @@ function getPictureGalleryBlocks(item) {
           heading: String(block.heading || ''),
           text: String(block.text || ''),
           size: normalizeStudioBlockSize(block.size, 'text'),
+          align: normalizeStudioBlockAlign(block.align),
           style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style || '').toLowerCase() : 'body'
         };
       }
@@ -2947,6 +2988,7 @@ function getPictureGalleryBlocks(item) {
         url: String(block.url || block.src || ''),
         caption: String(block.caption || ''),
         size: normalizeStudioBlockSize(block.size || legacyLayoutToStudioSize(block.layout), 'image'),
+        align: normalizeStudioBlockAlign(block.align),
         height: normalizeStudioBlockHeight(block.height || 280),
         layout: studioSizeToLegacyLayout(block.size || legacyLayoutToStudioSize(block.layout))
       };
@@ -2961,6 +3003,7 @@ function getPictureGalleryBlocks(item) {
     url,
     caption: String(captions[index] || ''),
     size: legacyLayoutToStudioSize(layouts[index] || 'standard'),
+    align: 'center',
     height: layouts[index] === 'hero' ? 420 : 280,
     layout: layouts[index] || 'standard'
   }));
@@ -2972,6 +3015,7 @@ function getPictureGalleryBlocks(item) {
       heading: '',
       text: desc,
       size: 'wide',
+      align: 'center',
       style: 'body'
     });
   }
@@ -3011,14 +3055,14 @@ function buildThreadGallery(item) {
       ${blocks.map((block, index) => {
         if (block.type === 'text') {
           return `
-            <section class="publishedGalleryBlock publishedGalleryText publishedGalleryText-${esc(block.style || 'body')} text-size-${esc(block.size || 'wide')}">
+            <section class="publishedGalleryBlock publishedGalleryText publishedGalleryText-${esc(block.style || 'body')} text-size-${esc(block.size || 'wide')} align-${esc(normalizeStudioBlockAlign(block.align))}">
               ${block.heading ? `<h3>${esc(block.heading)}</h3>` : ''}
               ${block.text ? `<p>${esc(block.text).replaceAll('\n', '<br>')}</p>` : '<p>Add copy in Pictures Studio.</p>'}
             </section>
           `;
         }
         return `
-          <figure class="publishedGalleryBlock publishedGalleryImage size-${esc(block.size || 'wide')}" style="--published-image-height:${normalizeStudioBlockHeight(block.height || 280)}px">
+          <figure class="publishedGalleryBlock publishedGalleryImage size-${esc(block.size || 'wide')} align-${esc(normalizeStudioBlockAlign(block.align))}" style="--published-image-height:${normalizeStudioBlockHeight(block.height || 280)}px">
             <img class="thread-gallery-image" src="${esc(block.url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (index + 1))}" loading="lazy" />
             ${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ''}
           </figure>
@@ -3451,6 +3495,7 @@ async function handleSavePicturesDesigner() {
           heading: String(block.heading || '').trim(),
           text: String(block.text || '').trim(),
           size: normalizeStudioBlockSize(block.size, 'text'),
+          align: normalizeStudioBlockAlign(block.align),
           style: ['body', 'hero', 'note'].includes(String(block.style || '').toLowerCase()) ? String(block.style || '').toLowerCase() : 'body'
         });
         continue;
@@ -3471,6 +3516,7 @@ async function handleSavePicturesDesigner() {
         url: finalUrl,
         caption: cleanCaption,
         size: cleanSize,
+        align: normalizeStudioBlockAlign(block.align),
         height: normalizeStudioBlockHeight(block.height)
       });
       imageUrls.push(finalUrl);
