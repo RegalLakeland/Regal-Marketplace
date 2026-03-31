@@ -87,17 +87,36 @@ let uploadInFlight = false;
 let pageOwnerUid = '';
 let pageOwnerEmail = '';
 
+
+function hideStatus() {
+  const banner = $('statusBanner');
+  if (!banner) return;
+  banner.classList.add('hidden');
+}
+
+function showStatus() {
+  const banner = $('statusBanner');
+  if (!banner) return;
+  banner.classList.remove('hidden');
+}
+
 function status(message, sticky = false) {
   const banner = $('statusBanner');
   if (!banner) return;
   banner.textContent = message;
+  showStatus();
   if (statusTimeout) {
     clearTimeout(statusTimeout);
     statusTimeout = null;
   }
   if (!sticky) {
     statusTimeout = setTimeout(() => {
-      banner.textContent = editorMode ? 'Studio ready.' : 'Gallery ready.';
+      if (editorMode) {
+        banner.textContent = 'Studio ready.';
+        showStatus();
+      } else {
+        hideStatus();
+      }
     }, 2400);
   }
 }
@@ -243,6 +262,7 @@ function renderHeader() {
   $('snapToggle').checked = snapEnabled;
   $('shadowToggle').checked = pageState.defaultShadows !== false;
   $('zoomSelect').value = String(zoomPercent);
+  if (!editorMode && $('statusBanner')?.textContent === 'Gallery ready.') hideStatus();
 }
 
 function normalizeHexColor(value, fallback) {
@@ -449,7 +469,7 @@ function startPageListener() {
       selectedId = pageState.elements[0]?.id || '';
     }
     render();
-    status(editorMode ? 'Studio ready.' : 'Gallery ready.');
+    if (editorMode) status('Studio ready.'); else hideStatus();
   }, (error) => {
     console.error(error);
     status(`Load error: ${error.message || error}`, true);
@@ -699,7 +719,7 @@ function bindEvents() {
     editorMode = !editorMode;
     toolsHidden = false;
     syncStudioUrl(editorMode);
-    status(editorMode ? 'Studio ready.' : 'Viewing published gallery.');
+    if (editorMode) status('Studio ready.'); else hideStatus();
     render();
     const stage = $('stageScroll');
     if (stage) stage.scrollTo({ top: 0, behavior: 'smooth' });
