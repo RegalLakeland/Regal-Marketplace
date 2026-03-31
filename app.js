@@ -4457,7 +4457,7 @@ function openPicturesDesigner(postId = null) {
     if ($('studioTitle')) $('studioTitle').value = item.title || '';
     if ($('studioLocation')) $('studioLocation').value = item.location || '';
     if ($('studioContact')) $('studioContact').value = item.contact || '';
-    pictureDesignerBlocks = getPictureGalleryBlocks(item).map((block, index) => normalizePicturesDesignerBlock(block, index));
+    pictureDesignerBlocks = getPictureGalleryBlocksDesigner(item).map((block, index) => normalizePicturesDesignerBlock(block, index));
     pictureDesignerSelectedId = pictureDesignerBlocks[0]?.id || '';
   }
   renderPicturesDesigner();
@@ -4471,7 +4471,7 @@ function closePicturesDesigner() {
   resetPicturesDesigner();
 }
 
-function getPictureGalleryBlocks(item) {
+function getPictureGalleryBlocksDesigner(item) {
   const canvasHeight = getPictureGalleryCanvasHeight(item);
   if (Array.isArray(item?.galleryBlocks) && item.galleryBlocks.length) {
     return item.galleryBlocks.map((block, index) => normalizePicturesDesignerBlock({
@@ -4524,8 +4524,8 @@ function getPictureGalleryBlocks(item) {
   return blocks.map((block) => ({ ...block, canvasHeight }));
 }
 
-function buildThreadGallery(item) {
-  const blocks = getPictureGalleryBlocks(item);
+function buildThreadGalleryDesigner(item) {
+  const blocks = getPictureGalleryBlocksDesigner(item);
   if (!blocks.length) return '';
   const canvasHeight = getPictureGalleryCanvasHeight(item);
   const title = item?.title || 'Gallery';
