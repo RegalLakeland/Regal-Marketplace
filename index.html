@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Regal Lakeland Private Marketplace</title>
   <link rel="icon" href="favicon.ico" sizes="any" />
-  <link rel="stylesheet" href="styles.css?v=33" />
+  <link rel="stylesheet" href="styles.css?v=21" />
 </head>
 <body class="auth-open">
   <!-- WOW FACTOR BACKGROUND SLIDER -->
@@ -325,7 +325,6 @@
               <option value="GARAGE">Garage Sales</option>
               <option value="EVENTS">Events</option>
               <option value="WORK">Work News</option>
-              <option value="PICTURES">Pictures</option>
               <option value="SERVICES">Local Services</option>
             </select>
           </div>
@@ -411,151 +410,6 @@
     </div>
   </div>
 
-
-  <div class="overlay picturesStudioOverlay" id="picturesStudioOverlay" style="display:none">
-    <div class="picturesStudioApp">
-      <aside class="picturesStudioSidebar">
-        <div class="picturesStudioSidebarHead">
-          <div>
-            <div class="picturesStudioEyebrow">Pictures Studio</div>
-            <h2>Visual Gallery Builder</h2>
-            <p>Drag images and text anywhere on the page. Resize, layer, caption, and compose like a real layout board.</p>
-          </div>
-          <button class="btn ghost" id="btnClosePicturesStudio" type="button">Close</button>
-        </div>
-
-        <div class="picturesStudioSection">
-          <label>Gallery Title</label>
-          <input id="psTitle" type="text" placeholder="Spring work event • New arrivals • Staff spotlight" />
-        </div>
-
-        <div class="picturesStudioGrid2">
-          <div class="picturesStudioSection">
-            <label>Location</label>
-            <input id="psLocation" type="text" placeholder="Lakeland showroom" />
-          </div>
-          <div class="picturesStudioSection">
-            <label>Contact</label>
-            <input id="psContact" type="text" placeholder="Ariel / Marketing" />
-          </div>
-        </div>
-
-        <div class="picturesStudioSection">
-          <label>Canvas Height</label>
-          <input id="psCanvasHeight" type="range" min="900" max="5000" step="50" value="1800" />
-          <div class="picturesStudioMiniMeta"><span>Page height</span><strong id="psCanvasHeightLabel">1800 px</strong></div>
-        </div>
-
-        <div class="picturesStudioSection picturesStudioActions">
-          <button class="btn primary" id="btnPsAddImages" type="button">Add Photos</button>
-          <button class="btn ghost" id="btnPsAddHeading" type="button">Add Heading</button>
-          <button class="btn ghost" id="btnPsAddText" type="button">Add Text</button>
-          <button class="btn ghost" id="btnPsAddCaption" type="button">Add Caption</button>
-          <button class="btn ghost" id="btnPsToggleGrid" type="button">Snap Grid: On</button>
-          <button class="btn ghost" id="btnPsPreview" type="button">Preview Layout</button>
-          <input id="psImageInput" type="file" accept="image/*" multiple hidden />
-        </div>
-
-        <div class="picturesStudioSection">
-          <div class="picturesStudioSectionTitle">Selected Element</div>
-          <div id="psNoSelection" class="note">Select an image or text block to edit it.</div>
-          <div id="psSelectionPanel" style="display:none">
-            <div class="picturesStudioGrid2">
-              <div>
-                <label>Width</label>
-                <input id="psWidth" type="range" min="120" max="1600" step="10" />
-              </div>
-              <div>
-                <label>Height</label>
-                <input id="psHeight" type="range" min="80" max="1600" step="10" />
-              </div>
-            </div>
-            <div class="picturesStudioGrid2">
-              <div>
-                <label>Font Size</label>
-                <input id="psFontSize" type="range" min="14" max="120" step="1" />
-              </div>
-              <div>
-                <label>Weight</label>
-                <select id="psFontWeight">
-                  <option value="400">Regular</option>
-                  <option value="500">Medium</option>
-                  <option value="600">Semibold</option>
-                  <option value="700">Bold</option>
-                  <option value="800">Heavy</option>
-                </select>
-              </div>
-            </div>
-            <div class="picturesStudioGrid2">
-              <div>
-                <label>Text Color</label>
-                <input id="psTextColor" type="color" value="#ffffff" />
-              </div>
-              <div>
-                <label>Background</label>
-                <input id="psBgColor" type="color" value="#0f1720" />
-              </div>
-            </div>
-            <div class="picturesStudioGrid2">
-              <div>
-                <label>Alignment</label>
-                <select id="psTextAlign">
-                  <option value="left">Left</option>
-                  <option value="center">Center</option>
-                  <option value="right">Right</option>
-                </select>
-              </div>
-              <div>
-                <label>Style</label>
-                <select id="psFontFamily">
-                  <option value="Inter, system-ui, sans-serif">Inter</option>
-                  <option value="Georgia, serif">Georgia</option>
-                  <option value="Arial, Helvetica, sans-serif">Arial</option>
-                  <option value=""Trebuchet MS", sans-serif">Trebuchet</option>
-                </select>
-              </div>
-            </div>
-            <div class="picturesStudioGrid2">
-              <button class="btn ghost" id="btnPsDuplicate" type="button">Duplicate</button>
-              <button class="btn ghost" id="btnPsBringFront" type="button">Bring Front</button>
-              <button class="btn ghost" id="btnPsSendBack" type="button">Send Back</button>
-              <button class="btn danger" id="btnPsDelete" type="button">Delete</button>
-            </div>
-            <div class="note">Tip: drag blocks anywhere, use the right edge or bottom edge to resize, and drag the corner for both directions.</div>
-          </div>
-        </div>
-
-        <div class="picturesStudioSection">
-          <div class="picturesStudioSectionTitle">Layers</div>
-          <div id="psLayers" class="picturesStudioLayers"></div>
-        </div>
-
-        <div class="picturesStudioFooter">
-          <button class="btn ghost" id="btnPsCancel" type="button">Cancel</button>
-          <button class="btn primary" id="btnPsSave" type="button">Save Gallery</button>
-        </div>
-      </aside>
-
-      <section class="picturesStudioMain">
-        <div class="picturesStudioTopbar">
-          <div>
-            <div class="picturesStudioTopTitle">Live Page Canvas</div>
-            <div class="picturesStudioTopSub">Build the final website layout directly. Drag to move. Use edge handles to resize.</div>
-          </div>
-          <div class="picturesStudioTopActions">
-            <button class="btn ghost" id="btnPsFitWidth" type="button">Fit Width</button>
-            <button class="btn ghost" id="btnPsZoomOut" type="button">−</button>
-            <span class="pill" id="psZoomLabel">100%</span>
-            <button class="btn ghost" id="btnPsZoomIn" type="button">+</button>
-          </div>
-        </div>
-        <div class="picturesStudioCanvasViewport" id="psViewport">
-          <div class="picturesStudioCanvas" id="psCanvas"></div>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <script type="module" src="app.js?v=33"></script>
+  <script type="module" src="app.js?v=34"></script>
 </body>
 </html>

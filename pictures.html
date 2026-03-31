@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Regal Lakeland Pictures</title>
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="pictures.css?v=1" />
+</head>
+<body>
+  <header class="pictures-topbar">
+    <div class="topbar-left">
+      <a class="topbar-link" href="index.html">← Marketplace</a>
+      <div>
+        <div class="topbar-kicker">Regal Lakeland</div>
+        <h1>Pictures</h1>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="user-pill" id="picturesUserPill">Checking access…</div>
+      <button class="topbar-btn" id="toggleStudioBtn" type="button" style="display:none">Open Studio</button>
+      <button class="topbar-btn primary" id="savePageBtn" type="button" style="display:none">Save Layout</button>
+    </div>
+  </header>
+
+  <div class="pictures-shell" id="picturesShell">
+    <aside class="designer-sidebar" id="designerSidebar" style="display:none">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Studio</div>
+        <div class="studio-actions">
+          <button class="studio-btn primary" id="addPhotosBtn" type="button">Add Photos</button>
+          <button class="studio-btn" id="addHeadingBtn" type="button">Add Heading</button>
+          <button class="studio-btn" id="addTextBtn" type="button">Add Text</button>
+          <button class="studio-btn" id="duplicateBlockBtn" type="button">Duplicate</button>
+          <button class="studio-btn danger" id="deleteBlockBtn" type="button">Delete</button>
+        </div>
+        <div class="shortcut-note">Double-click anywhere on the canvas to add text. Drag blocks to move. Use the handles to resize left, right, up, and down.</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Page Settings</div>
+        <div class="field-grid two-col">
+          <label>
+            <span>Title</span>
+            <input id="pageTitleInput" type="text" placeholder="Regal Event Gallery" />
+          </label>
+          <label>
+            <span>Canvas Height</span>
+            <input id="canvasHeightInput" type="number" min="1200" max="10000" step="50" />
+          </label>
+          <label>
+            <span>Canvas Width</span>
+            <input id="canvasWidthInput" type="number" min="1200" max="2600" step="50" />
+          </label>
+          <label>
+            <span>Background</span>
+            <input id="pageBgInput" type="color" value="#0b111b" />
+          </label>
+        </div>
+        <div class="toggle-row">
+          <label><input id="snapToggle" type="checkbox" checked /> Snap to grid</label>
+          <label><input id="shadowToggle" type="checkbox" checked /> Default shadows</label>
+        </div>
+        <div class="field-grid two-col compact-grid">
+          <label>
+            <span>Zoom</span>
+            <select id="zoomSelect">
+              <option value="60">60%</option>
+              <option value="75">75%</option>
+              <option value="90">90%</option>
+              <option value="100" selected>100%</option>
+              <option value="115">115%</option>
+            </select>
+          </label>
+          <label>
+            <span>Tools</span>
+            <button class="studio-btn" id="hideToolsBtn" type="button">Hide Tools</button>
+          </label>
+        </div>
+      </div>
+
+      <div class="sidebar-section" id="selectionPanel">
+        <div class="sidebar-title">Selected Block</div>
+        <div class="empty-mini" id="selectionEmpty">Select an image or text block to edit it.</div>
+        <div id="selectionControls" style="display:none">
+          <div class="field-grid two-col compact-grid">
+            <label><span>X</span><input id="selX" type="number" step="0.1" /></label>
+            <label><span>Y</span><input id="selY" type="number" step="0.1" /></label>
+            <label><span>Width</span><input id="selW" type="number" step="0.1" /></label>
+            <label><span>Height</span><input id="selH" type="number" step="0.1" /></label>
+          </div>
+
+          <div class="align-row">
+            <button class="studio-btn" data-align="left" type="button">Align Left</button>
+            <button class="studio-btn" data-align="center" type="button">Center</button>
+            <button class="studio-btn" data-align="right" type="button">Align Right</button>
+          </div>
+          <div class="align-row">
+            <button class="studio-btn" data-align="top" type="button">Top</button>
+            <button class="studio-btn" data-align="middle" type="button">Middle</button>
+            <button class="studio-btn" data-align="bottom" type="button">Bottom</button>
+          </div>
+
+          <div id="imageControls" style="display:none">
+            <div class="sidebar-subtitle">Image</div>
+            <label>
+              <span>Caption</span>
+              <textarea id="imageCaptionInput" rows="3" placeholder="Optional caption under the image"></textarea>
+            </label>
+            <div class="field-grid two-col compact-grid">
+              <label><span>Fit</span>
+                <select id="imageFitInput">
+                  <option value="cover">Cover</option>
+                  <option value="contain">Contain</option>
+                </select>
+              </label>
+              <label><span>Radius</span><input id="imageRadiusInput" type="number" min="0" max="80" step="1" /></label>
+            </div>
+          </div>
+
+          <div id="textControls" style="display:none">
+            <div class="sidebar-subtitle">Text</div>
+            <label>
+              <span>Text</span>
+              <textarea id="textContentInput" rows="4" placeholder="Type your text"></textarea>
+            </label>
+            <div class="field-grid two-col compact-grid">
+              <label><span>Font</span>
+                <select id="textFontInput">
+                  <option value="Inter, sans-serif">Inter</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="'Playfair Display', Georgia, serif">Playfair</option>
+                  <option value="'Times New Roman', serif">Times</option>
+                </select>
+              </label>
+              <label><span>Size</span><input id="textSizeInput" type="number" min="12" max="160" step="1" /></label>
+              <label><span>Weight</span>
+                <select id="textWeightInput">
+                  <option value="400">Regular</option>
+                  <option value="500">Medium</option>
+                  <option value="600">Semibold</option>
+                  <option value="700">Bold</option>
+                  <option value="800">Heavy</option>
+                </select>
+              </label>
+              <label><span>Align</span>
+                <select id="textAlignInput">
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </label>
+              <label><span>Color</span><input id="textColorInput" type="color" value="#ffffff" /></label>
+              <label><span>Background</span><input id="textBgInput" type="color" value="#000000" /></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Layers</div>
+        <div class="layers-list" id="layersList"></div>
+      </div>
+    </aside>
+
+    <main class="designer-main">
+      <button class="show-tools-fab" id="showToolsBtn" type="button" style="display:none">Show Tools</button>
+      <div class="status-banner" id="statusBanner">Loading gallery…</div>
+      <div class="stage-scroll" id="stageScroll">
+        <div class="stage-shell" id="stageShell">
+          <div class="page-frame" id="pageFrame">
+            <div class="page-canvas" id="pageCanvas"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="lightbox" id="lightbox" style="display:none">
+    <button class="lightbox-close" id="lightboxClose" type="button">×</button>
+    <img id="lightboxImage" alt="Gallery image" />
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+  </div>
+
+  <input id="designerUploadInput" type="file" accept="image/*" multiple hidden />
+  <script type="module" src="pictures.js?v=1"></script>
+</body>
+</html>

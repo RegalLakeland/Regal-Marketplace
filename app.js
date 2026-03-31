@@ -341,7 +341,7 @@ const BOARD_DEFS = [
   { key: 'BUYSELL', label: 'Buy / Sell', desc: 'Employee marketplace items' },
   { key: 'GARAGE', label: 'Garage Sales', desc: 'Neighborhood and moving sales' },
   { key: 'EVENTS', label: 'Events', desc: 'Meetups, cookouts, birthdays' },
-  { key: 'PICTURES', label: 'Pictures', desc: 'Employee photography and dealership shots' },
+  { key: 'PICTURES', label: 'Pictures', desc: 'Standalone photography gallery and page builder' },
   { key: 'WORK', label: 'Work News', desc: 'Dealership updates and notices' },
   { key: 'SERVICES', label: 'Local Services', desc: 'Side work and help needed' }
 ];
@@ -654,10 +654,6 @@ function bindStaticEvents() {
     alert('You must accept the marketplace rules before using the marketplace.');
     return;
   }
-  if (activeBoard === 'PICTURES' && canManagePictures()) {
-    openPicturesStudio();
-    return;
-  }
   resetPostEditor();
   show('postOverlay');
 };
@@ -672,35 +668,6 @@ function bindStaticEvents() {
 
   $('btnSavePost')?.addEventListener('click', handleSavePost);
   $('btnSendReply')?.addEventListener('click', handleSendReply);
-  $('fBoard')?.addEventListener('change', () => updatePostFormForBoard($('fBoard')?.value || 'FREE'));
-
-  $('btnClosePicturesStudio')?.addEventListener('click', closePicturesStudio);
-  $('btnPsCancel')?.addEventListener('click', closePicturesStudio);
-  $('btnPsAddImages')?.addEventListener('click', () => $('psImageInput')?.click());
-  $('psImageInput')?.addEventListener('change', handlePicturesStudioFiles);
-  $('btnPsAddHeading')?.addEventListener('click', () => addPicturesStudioTextBlock('heading'));
-  $('btnPsAddText')?.addEventListener('click', () => addPicturesStudioTextBlock('text'));
-  $('btnPsAddCaption')?.addEventListener('click', () => addPicturesStudioTextBlock('caption'));
-  $('btnPsToggleGrid')?.addEventListener('click', togglePicturesStudioGrid);
-  $('btnPsPreview')?.addEventListener('click', togglePicturesStudioPreview);
-  $('btnPsDuplicate')?.addEventListener('click', duplicatePicturesStudioSelection);
-  $('btnPsBringFront')?.addEventListener('click', () => shiftPicturesStudioLayer(1));
-  $('btnPsSendBack')?.addEventListener('click', () => shiftPicturesStudioLayer(-1));
-  $('btnPsDelete')?.addEventListener('click', deletePicturesStudioSelection);
-  $('btnPsSave')?.addEventListener('click', handleSavePicturesStudio);
-  $('psCanvasHeight')?.addEventListener('input', handlePicturesStudioCanvasHeight);
-  $('psWidth')?.addEventListener('input', handlePicturesStudioSelectionControl);
-  $('psHeight')?.addEventListener('input', handlePicturesStudioSelectionControl);
-  $('psFontSize')?.addEventListener('input', handlePicturesStudioSelectionControl);
-  $('psFontWeight')?.addEventListener('change', handlePicturesStudioSelectionControl);
-  $('psTextColor')?.addEventListener('input', handlePicturesStudioSelectionControl);
-  $('psBgColor')?.addEventListener('input', handlePicturesStudioSelectionControl);
-  $('psTextAlign')?.addEventListener('change', handlePicturesStudioSelectionControl);
-  $('psFontFamily')?.addEventListener('change', handlePicturesStudioSelectionControl);
-  $('btnPsZoomIn')?.addEventListener('click', () => adjustPicturesStudioZoom(0.1));
-  $('btnPsZoomOut')?.addEventListener('click', () => adjustPicturesStudioZoom(-0.1));
-  $('btnPsFitWidth')?.addEventListener('click', fitPicturesStudioWidth);
-
 
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => { const target = btn.dataset.close; if (target === 'postOverlay') resetPostEditor(); hide(target); });
@@ -1343,14 +1310,13 @@ function updateAuthUI() {
   if ($('adminLink')) $('adminLink').style.display = showAdmin ? 'inline-flex' : 'none';
   if ($('btnLogout')) $('btnLogout').style.display = loggedIn ? 'inline-flex' : 'none';
   if ($('btnNew')) $('btnNew').style.display = loggedIn ? 'inline-flex' : 'none';
-  refreshPicturesPostingUI();
   if ($('threadAlertsBadge')) $('threadAlertsBadge').style.display = loggedIn && threadUnreadCount ? 'inline-flex' : 'none';
   if ($('heroThreadAlert')) $('heroThreadAlert').style.display = loggedIn && threadUnreadCount ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
   if (!loggedIn) { hidePasswordGate(); hideRulesOverlay(); }
 
   if (loggedIn) {
-    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'eventImageOverlay', 'picturesStudioOverlay'];
+    const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'eventImageOverlay'];
     const hasVisibleModal = visibleOverlayIds.some((overlayId) => {
       const o = $(overlayId);
       return o && (o.style.display === 'flex' || o.style.display === 'block');
@@ -2046,7 +2012,12 @@ function renderBoards() {
 
   const counts = boardCounts();
   wrap.innerHTML = BOARD_DEFS.map((board) => {
+    const isPicturesBoard = board.key === 'PICTURES';
     const last = latestForBoard(board.key);
+    const countText = isPicturesBoard ? 'Open' : String(counts[board.key] || 0);
+    const lastText = isPicturesBoard
+      ? 'Launch the standalone gallery designer'
+      : (last ? esc(last.title || 'Latest post') : 'No posts yet');
     return `
       <button class="boardBtn ${activeBoard === board.key ? 'active' : ''}" data-board="${board.key}" type="button">
         <div>
@@ -2054,8 +2025,8 @@ function renderBoards() {
           <div class="board-desc">${esc(board.desc)}</div>
         </div>
         <div class="board-meta">
-          <div class="board-count">${counts[board.key] || 0}</div>
-          <div class="board-last">${last ? esc(last.title || 'Latest post') : 'No posts yet'}</div>
+          <div class="board-count">${countText}</div>
+          <div class="board-last">${lastText}</div>
         </div>
       </button>
     `;
@@ -2063,7 +2034,12 @@ function renderBoards() {
 
   wrap.querySelectorAll('.boardBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      activeBoard = btn.dataset.board;
+      const boardKey = btn.dataset.board;
+      if (boardKey === 'PICTURES') {
+        window.location.href = 'pictures.html';
+        return;
+      }
+      activeBoard = boardKey;
       renderBoards();
       renderListings();
       const boardMeta = BOARD_DEFS.find((b) => b.key === activeBoard);
@@ -2085,7 +2061,7 @@ function filteredListings() {
   const st = $('st')?.value || 'ALL';
   const sort = $('sort')?.value || 'NEW';
 
-  let data = listings.filter((item) => isVisibleToViewer(item) && (activeBoard === 'ALL' || item.board === activeBoard));
+  let data = listings.filter((item) => isVisibleToViewer(item) && item.board !== 'PICTURES' && (activeBoard === 'ALL' || item.board === activeBoard));
 
   if (st !== 'ALL') {
     data = data.filter((item) => (item.status || 'ACTIVE') === st);
@@ -2128,23 +2104,8 @@ function formatDate(ms) {
   try { return new Date(Number(ms || Date.now())).toLocaleString(); } catch { return '—'; }
 }
 
-function getPictureLayoutElements(item) {
-  const direct = item?.pictureLayout?.elements;
-  if (Array.isArray(direct)) return direct;
-  const legacy = item?.pictureBlocks;
-  if (Array.isArray(legacy)) return legacy;
-  return [];
-}
-
 function getListingImageUrls(item) {
   const urls = [];
-  const layoutElements = getPictureLayoutElements(item);
-  layoutElements.forEach((el) => {
-    if (el?.type === 'image') {
-      const clean = String(el.url || '').trim();
-      if (clean && !urls.includes(clean)) urls.push(clean);
-    }
-  });
   if (Array.isArray(item?.imageUrls)) {
     item.imageUrls.forEach((url) => {
       const clean = String(url || '').trim();
@@ -2178,27 +2139,6 @@ function buildGalleryPreview(item) {
 }
 
 function buildThreadGallery(item) {
-  const layout = item?.pictureLayout || null;
-  const elements = getPictureLayoutElements(item);
-  if (layout && Array.isArray(elements) && elements.length) {
-    const canvasHeight = Number(layout.canvasHeight || 1400);
-    const blocks = [...elements].sort((a, b) => Number(a.z || 0) - Number(b.z || 0)).map((el) => {
-      const x = Number(el.x || 0);
-      const y = Number(el.y || 0);
-      const w = Math.max(80, Number(el.w || 300));
-      const h = Math.max(50, Number(el.h || 180));
-      if (el.type === 'image') {
-        return `<div class="psViewBlock" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">
-          <img src="${esc(el.url || '')}" alt="${esc(el.caption || item?.title || 'Gallery image')}" loading="lazy" />
-          ${el.caption ? `<div class="psViewCaption">${esc(el.caption)}</div>` : ''}
-        </div>`;
-      }
-      return `<div class="psViewBlock" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">
-        <div class="psViewText" style="font-size:${Number(el.fontSize || 32)}px;font-weight:${Number(el.fontWeight || 700)};color:${esc(el.color || '#ffffff')};text-align:${esc(el.textAlign || 'left')};font-family:${esc(el.fontFamily || 'Inter, system-ui, sans-serif')};background:${esc(el.bg || 'transparent')};">${esc(el.text || '').replaceAll('\n', '<br>')}</div>
-      </div>`;
-    }).join('');
-    return `<div class="pictureStudioViewer" style="min-height:${canvasHeight}px">${blocks}</div>`;
-  }
   const images = getListingImageUrls(item);
   if (!images.length) return '';
   return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((url, idx) => `<div class="thread-gallery-item"><img class="thread-gallery-image" src="${esc(url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
@@ -2231,16 +2171,11 @@ function resetPostEditor() {
   if ($('fDesc')) $('fDesc').value = '';
   if ($('fContact')) $('fContact').value = '';
   if ($('fPhoto')) $('fPhoto').value = '';
-  if ($('fBoard')) updatePostFormForBoard($('fBoard').value);
 }
 
 function openPostEditor(id) {
   const item = listings.find((x) => x.id === id);
   if (!item || !canModify(item)) return;
-  if (String(item.board || '').toUpperCase() === 'PICTURES') {
-    openPicturesStudio(item);
-    return;
-  }
   editingPostId = id;
   const titleEl = $('postOverlay')?.querySelector('.modal-h strong');
   if (titleEl) titleEl.textContent = 'Edit Post';
@@ -2282,7 +2217,6 @@ function renderListings() {
 
   empty.style.display = 'none';
   wrap.classList.toggle('pictureBoardActive', activeBoard === 'PICTURES');
-  refreshPicturesPostingUI();
   wrap.innerHTML = data.map((item) => {
     const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
     const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
@@ -2379,14 +2313,8 @@ async function handleSavePost() {
     alert('Enter a title.');
     return;
   }
-  if (board !== 'PICTURES' && !description) {
+  if (!description) {
     alert('Enter a description.');
-    return;
-  }
-  if (board === 'PICTURES' && canManagePictures()) {
-    openPicturesStudio(editingPostId ? (listings.find((x) => x.id === editingPostId) || null) : null, {
-      title, location, contact, status, priceRaw
-    });
     return;
   }
 
@@ -2813,538 +2741,3 @@ class HeroSlider extends HTMLElement {
 }
 
 customElements.define('hero-slider', HeroSlider);
-
-
-const PICTURES_STUDIO_ALLOWED_EMAILS = new Set(['ariel.r@regallakeland.com']);
-const PICTURES_STUDIO_GRID = 20;
-let picturesStudioState = {
-  open: false,
-  editingId: null,
-  elements: [],
-  selectedId: '',
-  canvasHeight: 1800,
-  zoom: 1,
-  snap: true,
-  preview: false,
-  meta: { title: '', location: '', contact: '', status: 'ACTIVE', priceRaw: '' },
-  drag: null,
-  resize: null
-};
-
-function canManagePictures() {
-  const email = normalizeEmail(currentUser?.email || currentProfile?.email || '');
-  return !!currentUser && !!currentProfile && canCompleteMarketplaceLogin(currentProfile) && (canModerate() || PICTURES_STUDIO_ALLOWED_EMAILS.has(email));
-}
-
-function refreshPicturesPostingUI() {
-  const isPictureBoard = activeBoard === 'PICTURES';
-  const canPostPictures = canManagePictures();
-  const topBtn = $('btnNew');
-  const heroBtn = $('heroPostBtn');
-  if (topBtn) {
-    topBtn.textContent = isPictureBoard && canPostPictures ? 'Open Pictures Studio' : '+ Post';
-    topBtn.style.display = currentUser && (!isPictureBoard || canPostPictures) ? 'inline-flex' : 'none';
-  }
-  if (heroBtn) {
-    heroBtn.textContent = isPictureBoard && canPostPictures ? 'Open Pictures Studio' : 'Post Item';
-    heroBtn.style.display = currentUser && (!isPictureBoard || canPostPictures) ? 'inline-flex' : 'none';
-  }
-}
-
-function updatePostFormForBoard(board) {
-  const normalized = String(board || 'FREE').toUpperCase();
-  const isPictures = normalized === 'PICTURES';
-  const descField = $('fDesc')?.closest('.field');
-  const priceField = $('fPrice')?.closest('.field');
-  const photoHint = $('photoFieldHint');
-  if (descField) descField.style.display = isPictures ? 'none' : '';
-  if (priceField) priceField.style.display = isPictures ? 'none' : '';
-  if (photoHint) photoHint.textContent = isPictures
-    ? 'Pictures galleries are best created in Pictures Studio. Multiple uploads and full freeform layout are supported there.'
-    : 'Pictures board supports multiple image uploads. Other boards use the first image as the preview thumbnail.';
-}
-
-function createPicturesStudioId(prefix = 'ps') {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function normalizePicturesStudioElement(el, index = 0) {
-  const type = el?.type === 'image' ? 'image' : 'text';
-  return {
-    id: el?.id || createPicturesStudioId(type === 'image' ? 'img' : 'txt'),
-    type,
-    x: Number(el?.x || 40 + (index * 30)),
-    y: Number(el?.y || 40 + (index * 30)),
-    w: Math.max(120, Number(el?.w || (type === 'image' ? 420 : 520))),
-    h: Math.max(80, Number(el?.h || (type === 'image' ? 320 : 120))),
-    z: Number(el?.z || index + 1),
-    url: String(el?.url || ''),
-    caption: String(el?.caption || ''),
-    text: String(el?.text || (type === 'text' ? 'New text' : '')),
-    fontSize: Number(el?.fontSize || (type === 'text' ? 36 : 16)),
-    fontWeight: Number(el?.fontWeight || (type === 'text' ? 700 : 500)),
-    color: String(el?.color || '#ffffff'),
-    bg: String(el?.bg || 'transparent'),
-    textAlign: String(el?.textAlign || 'left'),
-    fontFamily: String(el?.fontFamily || 'Inter, system-ui, sans-serif')
-  };
-}
-
-function resetPicturesStudioState() {
-  picturesStudioState = {
-    open: false,
-    editingId: null,
-    elements: [],
-    selectedId: '',
-    canvasHeight: 1800,
-    zoom: 1,
-    snap: true,
-    preview: false,
-    meta: { title: '', location: '', contact: '', status: 'ACTIVE', priceRaw: '' },
-    drag: null,
-    resize: null
-  };
-}
-
-function hydratePicturesStudioFromItem(item, seedMeta = null) {
-  const layout = item?.pictureLayout || {};
-  const elements = getPictureLayoutElements(item);
-  picturesStudioState.open = true;
-  picturesStudioState.editingId = item?.id || null;
-  picturesStudioState.elements = (elements || []).map(normalizePicturesStudioElement);
-  picturesStudioState.selectedId = picturesStudioState.elements[0]?.id || '';
-  picturesStudioState.canvasHeight = Number(layout.canvasHeight || 1800);
-  picturesStudioState.zoom = 1;
-  picturesStudioState.snap = true;
-  picturesStudioState.preview = false;
-  picturesStudioState.meta = {
-    title: seedMeta?.title || item?.title || '',
-    location: seedMeta?.location || item?.location || '',
-    contact: seedMeta?.contact || item?.contact || '',
-    status: seedMeta?.status || item?.status || 'ACTIVE',
-    priceRaw: seedMeta?.priceRaw || String(item?.price || '')
-  };
-}
-
-function openPicturesStudio(item = null, seedMeta = null) {
-  if (!canManagePictures()) {
-    alert('Only admins and approved Pictures contributors can build galleries here.');
-    return;
-  }
-  if (item) {
-    hydratePicturesStudioFromItem(item, seedMeta);
-  } else {
-    resetPicturesStudioState();
-    picturesStudioState.open = true;
-    picturesStudioState.meta = { title: seedMeta?.title || '', location: seedMeta?.location || '', contact: seedMeta?.contact || '', status: seedMeta?.status || 'ACTIVE', priceRaw: seedMeta?.priceRaw || '' };
-    picturesStudioState.elements = [
-      normalizePicturesStudioElement({ type: 'text', text: 'Photo Gallery Title', x: 60, y: 50, w: 700, h: 90, fontSize: 58, fontWeight: 800 }, 0),
-      normalizePicturesStudioElement({ type: 'text', text: 'Add a subtitle, event details, or photographer note here.', x: 60, y: 145, w: 620, h: 70, fontSize: 24, fontWeight: 500, color: '#d8e3ee' }, 1)
-    ];
-    picturesStudioState.selectedId = picturesStudioState.elements[0]?.id || '';
-  }
-  syncPicturesStudioFields();
-  renderPicturesStudio();
-  show('picturesStudioOverlay');
-}
-
-function closePicturesStudio() {
-  hide('picturesStudioOverlay');
-  resetPicturesStudioState();
-}
-
-function syncPicturesStudioFields() {
-  if ($('psTitle')) $('psTitle').value = picturesStudioState.meta.title || '';
-  if ($('psLocation')) $('psLocation').value = picturesStudioState.meta.location || '';
-  if ($('psContact')) $('psContact').value = picturesStudioState.meta.contact || '';
-  if ($('psCanvasHeight')) $('psCanvasHeight').value = String(picturesStudioState.canvasHeight || 1800);
-  if ($('psCanvasHeightLabel')) $('psCanvasHeightLabel').textContent = `${picturesStudioState.canvasHeight || 1800} px`;
-  if ($('btnPsToggleGrid')) $('btnPsToggleGrid').textContent = `Snap Grid: ${picturesStudioState.snap ? 'On' : 'Off'}`;
-  if ($('btnPsPreview')) $('btnPsPreview').textContent = picturesStudioState.preview ? 'Exit Preview' : 'Preview Layout';
-}
-
-function picturesStudioSelectedElement() {
-  return picturesStudioState.elements.find((el) => el.id === picturesStudioState.selectedId) || null;
-}
-
-function sortPicturesStudioElements() {
-  picturesStudioState.elements.sort((a, b) => Number(a.z || 0) - Number(b.z || 0));
-}
-
-function clampPicturesStudioElement(el) {
-  el.x = Math.max(0, Math.min(Number(el.x || 0), 1400 - Math.max(100, Number(el.w || 100))));
-  el.y = Math.max(0, Math.min(Number(el.y || 0), Number(picturesStudioState.canvasHeight || 1800) - Math.max(60, Number(el.h || 60))));
-  el.w = Math.max(120, Math.min(1600, Number(el.w || 300)));
-  el.h = Math.max(80, Math.min(1800, Number(el.h || 200)));
-}
-
-function applyPicturesStudioZoom() {
-  const canvas = $('psCanvas');
-  if (!canvas) return;
-  canvas.style.transform = `scale(${picturesStudioState.zoom || 1})`;
-  if ($('psZoomLabel')) $('psZoomLabel').textContent = `${Math.round((picturesStudioState.zoom || 1) * 100)}%`;
-}
-
-function fitPicturesStudioWidth() {
-  const viewport = $('psViewport');
-  if (!viewport) return;
-  const usable = Math.max(720, viewport.clientWidth - 80);
-  picturesStudioState.zoom = Math.min(1.1, Math.max(0.45, usable / 1400));
-  applyPicturesStudioZoom();
-}
-
-function adjustPicturesStudioZoom(delta) {
-  picturesStudioState.zoom = Math.max(0.4, Math.min(1.6, Number((picturesStudioState.zoom + delta).toFixed(2))));
-  applyPicturesStudioZoom();
-}
-
-function renderPicturesStudioLayers() {
-  const wrap = $('psLayers');
-  if (!wrap) return;
-  const items = [...picturesStudioState.elements].sort((a, b) => Number(b.z || 0) - Number(a.z || 0));
-  wrap.innerHTML = items.map((el) => `<button class="picturesStudioLayer ${el.id === picturesStudioState.selectedId ? 'active' : ''}" type="button" data-ps-layer="${esc(el.id)}"><span>${esc(el.type === 'image' ? (el.caption || 'Image') : (el.text || 'Text'))}</span><strong>${esc(el.type)}</strong></button>`).join('');
-  wrap.querySelectorAll('[data-ps-layer]').forEach((btn) => btn.addEventListener('click', () => {
-    picturesStudioState.selectedId = btn.dataset.psLayer || '';
-    renderPicturesStudio();
-  }));
-}
-
-function renderPicturesStudioSelectionPanel() {
-  const selected = picturesStudioSelectedElement();
-  const hasSelection = !!selected;
-  if ($('psNoSelection')) $('psNoSelection').style.display = hasSelection ? 'none' : '';
-  if ($('psSelectionPanel')) $('psSelectionPanel').style.display = hasSelection ? '' : 'none';
-  if (!selected) return;
-  if ($('psWidth')) $('psWidth').value = String(Math.round(selected.w || 300));
-  if ($('psHeight')) $('psHeight').value = String(Math.round(selected.h || 200));
-  if ($('psFontSize')) $('psFontSize').value = String(Math.round(selected.fontSize || 32));
-  if ($('psFontWeight')) $('psFontWeight').value = String(selected.fontWeight || 700);
-  if ($('psTextColor')) $('psTextColor').value = selected.color || '#ffffff';
-  if ($('psBgColor')) $('psBgColor').value = selected.bg && selected.bg !== 'transparent' ? selected.bg : '#0f1720';
-  if ($('psTextAlign')) $('psTextAlign').value = selected.textAlign || 'left';
-  if ($('psFontFamily')) $('psFontFamily').value = selected.fontFamily || 'Inter, system-ui, sans-serif';
-}
-
-function renderPicturesStudio() {
-  syncPicturesStudioFields();
-  const canvas = $('psCanvas');
-  if (!canvas) return;
-  canvas.classList.toggle('grid-off', !picturesStudioState.snap || picturesStudioState.preview);
-  canvas.style.minHeight = `${picturesStudioState.canvasHeight || 1800}px`;
-  canvas.innerHTML = '';
-  sortPicturesStudioElements();
-  const sorted = [...picturesStudioState.elements];
-  sorted.forEach((el) => {
-    clampPicturesStudioElement(el);
-    const block = document.createElement('div');
-    block.className = `psBlock ${el.id === picturesStudioState.selectedId ? 'selected' : ''}`;
-    block.dataset.psId = el.id;
-    block.style.left = `${el.x}px`;
-    block.style.top = `${el.y}px`;
-    block.style.width = `${el.w}px`;
-    block.style.height = `${el.h}px`;
-    block.style.zIndex = String(el.z || 1);
-    if (el.type === 'image') {
-      block.innerHTML = `
-        <div class="psBlockControls"><span class="psMiniChip">Image</span></div>
-        <div class="psImageFrame">
-          <img src="${esc(el.url || '')}" alt="${esc(el.caption || 'Gallery image')}" draggable="false" />
-          <div class="psImageCaption" contenteditable="${picturesStudioState.preview ? 'false' : 'true'}" data-ps-caption="${esc(el.id)}">${esc(el.caption || 'Add caption')}</div>
-        </div>
-        ${picturesStudioState.preview ? '' : '<div class="psHandle e" data-ps-resize="e"></div><div class="psHandle s" data-ps-resize="s"></div><div class="psHandle se" data-ps-resize="se"></div>'}
-      `;
-    } else {
-      block.innerHTML = `
-        <div class="psBlockControls"><span class="psMiniChip">Text</span></div>
-        <div class="psTextBlock" contenteditable="${picturesStudioState.preview ? 'false' : 'true'}" data-ps-text="${esc(el.id)}" style="font-size:${Number(el.fontSize || 32)}px;font-weight:${Number(el.fontWeight || 700)};color:${esc(el.color || '#ffffff')};text-align:${esc(el.textAlign || 'left')};font-family:${esc(el.fontFamily || 'Inter, system-ui, sans-serif')};background:${esc(el.bg || 'transparent')};">${esc(el.text || '')}</div>
-        ${picturesStudioState.preview ? '' : '<div class="psHandle e" data-ps-resize="e"></div><div class="psHandle s" data-ps-resize="s"></div><div class="psHandle se" data-ps-resize="se"></div>'}
-      `;
-    }
-    canvas.appendChild(block);
-  });
-  bindPicturesStudioCanvas();
-  renderPicturesStudioLayers();
-  renderPicturesStudioSelectionPanel();
-  applyPicturesStudioZoom();
-}
-
-function bindPicturesStudioCanvas() {
-  const canvas = $('psCanvas');
-  if (!canvas) return;
-  canvas.querySelectorAll('.psBlock').forEach((block) => {
-    block.addEventListener('pointerdown', startPicturesStudioPointerAction);
-  });
-  canvas.querySelectorAll('[data-ps-text]').forEach((node) => {
-    node.addEventListener('input', () => {
-      const el = picturesStudioState.elements.find((entry) => entry.id === node.dataset.psText);
-      if (el) el.text = node.textContent || '';
-    });
-    node.addEventListener('blur', () => {
-      const el = picturesStudioState.elements.find((entry) => entry.id === node.dataset.psText);
-      if (el) el.text = node.textContent || '';
-      renderPicturesStudioLayers();
-    });
-    node.addEventListener('pointerdown', (e) => e.stopPropagation());
-  });
-  canvas.querySelectorAll('[data-ps-caption]').forEach((node) => {
-    node.addEventListener('input', () => {
-      const el = picturesStudioState.elements.find((entry) => entry.id === node.dataset.psCaption);
-      if (el) el.caption = node.textContent || '';
-    });
-    node.addEventListener('blur', () => renderPicturesStudioLayers());
-    node.addEventListener('pointerdown', (e) => e.stopPropagation());
-  });
-  canvas.addEventListener('pointerdown', (e) => {
-    if (e.target === canvas) {
-      picturesStudioState.selectedId = '';
-      renderPicturesStudioSelectionPanel();
-      renderPicturesStudioLayers();
-      canvas.querySelectorAll('.psBlock').forEach((node) => node.classList.remove('selected'));
-    }
-  }, { once: true });
-}
-
-function startPicturesStudioPointerAction(e) {
-  if (picturesStudioState.preview) return;
-  const block = e.currentTarget;
-  const id = block.dataset.psId || '';
-  const el = picturesStudioState.elements.find((entry) => entry.id === id);
-  if (!el) return;
-  picturesStudioState.selectedId = id;
-  const viewport = $('psViewport');
-  const zoom = picturesStudioState.zoom || 1;
-  const originX = e.clientX;
-  const originY = e.clientY;
-  const startX = Number(el.x || 0);
-  const startY = Number(el.y || 0);
-  const startW = Number(el.w || 300);
-  const startH = Number(el.h || 200);
-  const resizeMode = e.target?.dataset?.psResize || '';
-  const isEditable = e.target?.closest('[contenteditable="true"]');
-  if (isEditable && !resizeMode) {
-    renderPicturesStudioSelectionPanel();
-    renderPicturesStudioLayers();
-    document.querySelectorAll('.psBlock').forEach((node) => node.classList.toggle('selected', node.dataset.psId === id));
-    return;
-  }
-  e.preventDefault();
-  e.stopPropagation();
-  const move = (evt) => {
-    const dx = (evt.clientX - originX) / zoom;
-    const dy = (evt.clientY - originY) / zoom;
-    if (!resizeMode) {
-      el.x = startX + dx;
-      el.y = startY + dy;
-      if (picturesStudioState.snap) {
-        el.x = Math.round(el.x / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
-        el.y = Math.round(el.y / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
-      }
-    } else {
-      if (resizeMode.includes('e')) {
-        el.w = startW + dx;
-        if (picturesStudioState.snap) el.w = Math.round(el.w / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
-      }
-      if (resizeMode.includes('s')) {
-        el.h = startH + dy;
-        if (picturesStudioState.snap) el.h = Math.round(el.h / PICTURES_STUDIO_GRID) * PICTURES_STUDIO_GRID;
-      }
-      if (el.type === 'text' && resizeMode.includes('e') && !resizeMode.includes('s')) {
-        el.h = Math.max(80, startH);
-      }
-    }
-    clampPicturesStudioElement(el);
-    block.style.left = `${el.x}px`;
-    block.style.top = `${el.y}px`;
-    block.style.width = `${el.w}px`;
-    block.style.height = `${el.h}px`;
-    if (el.type !== 'image') {
-      const textNode = block.querySelector('.psTextBlock');
-      if (textNode) {
-        textNode.style.fontSize = `${Number(el.fontSize || 32)}px`;
-      }
-    }
-    renderPicturesStudioSelectionPanel();
-  };
-  const up = () => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    renderPicturesStudio();
-  };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-}
-
-async function handlePicturesStudioFiles() {
-  const input = $('psImageInput');
-  const files = Array.from(input?.files || []);
-  if (!files.length || !currentUser) return;
-  const baseY = Math.max(240, ...picturesStudioState.elements.map((el) => Number(el.y || 0) + Number(el.h || 0) + 30), 0);
-  for (const [index, file] of files.entries()) {
-    const safeName = `${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const storageRef = ref(storage, `listing-images/${currentUser.uid}/${safeName}`);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-    picturesStudioState.elements.push(normalizePicturesStudioElement({
-      type: 'image',
-      url,
-      caption: file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '),
-      x: 60 + ((index % 2) * 460),
-      y: baseY + (Math.floor(index / 2) * 340),
-      w: 420,
-      h: 300,
-      z: picturesStudioState.elements.length + 1
-    }, picturesStudioState.elements.length))
-  }
-  input.value = '';
-  picturesStudioState.selectedId = picturesStudioState.elements.at(-1)?.id || '';
-  renderPicturesStudio();
-}
-
-function addPicturesStudioTextBlock(kind = 'text') {
-  const presets = {
-    heading: { text: 'New heading', w: 760, h: 90, fontSize: 54, fontWeight: 800, y: 80 },
-    text: { text: 'Add paragraph text here.', w: 560, h: 130, fontSize: 24, fontWeight: 500, y: 180 },
-    caption: { text: 'Add caption', w: 320, h: 70, fontSize: 18, fontWeight: 600, y: 260, bg: 'rgba(0,0,0,0.35)' }
-  };
-  const preset = presets[kind] || presets.text;
-  const block = normalizePicturesStudioElement({
-    type: 'text',
-    ...preset,
-    x: 80,
-    z: picturesStudioState.elements.length + 1
-  }, picturesStudioState.elements.length);
-  picturesStudioState.elements.push(block);
-  picturesStudioState.selectedId = block.id;
-  renderPicturesStudio();
-}
-
-function togglePicturesStudioGrid() {
-  picturesStudioState.snap = !picturesStudioState.snap;
-  renderPicturesStudio();
-}
-
-function togglePicturesStudioPreview() {
-  picturesStudioState.preview = !picturesStudioState.preview;
-  renderPicturesStudio();
-}
-
-function handlePicturesStudioCanvasHeight() {
-  picturesStudioState.canvasHeight = Number($('psCanvasHeight')?.value || 1800);
-  if ($('psCanvasHeightLabel')) $('psCanvasHeightLabel').textContent = `${picturesStudioState.canvasHeight} px`;
-  renderPicturesStudio();
-}
-
-function handlePicturesStudioSelectionControl() {
-  const selected = picturesStudioSelectedElement();
-  if (!selected) return;
-  selected.w = Number($('psWidth')?.value || selected.w || 300);
-  selected.h = Number($('psHeight')?.value || selected.h || 200);
-  selected.fontSize = Number($('psFontSize')?.value || selected.fontSize || 32);
-  selected.fontWeight = Number($('psFontWeight')?.value || selected.fontWeight || 700);
-  selected.color = $('psTextColor')?.value || selected.color || '#ffffff';
-  selected.bg = $('psBgColor')?.value || selected.bg || 'transparent';
-  selected.textAlign = $('psTextAlign')?.value || selected.textAlign || 'left';
-  selected.fontFamily = $('psFontFamily')?.value || selected.fontFamily || 'Inter, system-ui, sans-serif';
-  renderPicturesStudio();
-}
-
-function duplicatePicturesStudioSelection() {
-  const selected = picturesStudioSelectedElement();
-  if (!selected) return;
-  const copy = normalizePicturesStudioElement({ ...selected, id: createPicturesStudioId(selected.type === 'image' ? 'img' : 'txt'), x: Number(selected.x || 0) + 40, y: Number(selected.y || 0) + 40, z: picturesStudioState.elements.length + 1 }, picturesStudioState.elements.length);
-  picturesStudioState.elements.push(copy);
-  picturesStudioState.selectedId = copy.id;
-  renderPicturesStudio();
-}
-
-function deletePicturesStudioSelection() {
-  if (!picturesStudioState.selectedId) return;
-  picturesStudioState.elements = picturesStudioState.elements.filter((el) => el.id !== picturesStudioState.selectedId);
-  picturesStudioState.selectedId = picturesStudioState.elements[0]?.id || '';
-  renderPicturesStudio();
-}
-
-function shiftPicturesStudioLayer(direction = 1) {
-  const selected = picturesStudioSelectedElement();
-  if (!selected) return;
-  selected.z = Math.max(1, Number(selected.z || 1) + direction);
-  sortPicturesStudioElements();
-  renderPicturesStudio();
-}
-
-async function handleSavePicturesStudio() {
-  if (!currentUser || !currentProfile || !canManagePictures()) {
-    alert('You do not have access to save picture galleries.');
-    return;
-  }
-  const title = $('psTitle')?.value.trim() || picturesStudioState.meta.title || `Picture Gallery ${new Date().toLocaleDateString()}`;
-  const location = $('psLocation')?.value.trim() || '';
-  const contact = $('psContact')?.value.trim() || '';
-  const imageUrls = picturesStudioState.elements.filter((el) => el.type === 'image' && el.url).map((el) => el.url);
-  if (!imageUrls.length) {
-    alert('Add at least one photo before saving the gallery.');
-    return;
-  }
-  const nowMs = Date.now();
-  const payload = {
-    category: 'PICTURES',
-    board: 'PICTURES',
-    status: picturesStudioState.meta.status || 'ACTIVE',
-    title,
-    desc: '',
-    description: '',
-    location,
-    contact,
-    price: 0,
-    photo: imageUrls[0] || '',
-    imageUrl: imageUrls[0] || '',
-    imageUrls,
-    pictureLayout: {
-      version: 2,
-      canvasHeight: picturesStudioState.canvasHeight,
-      elements: picturesStudioState.elements.map((el, idx) => ({
-        ...el,
-        z: Number(el.z || idx + 1)
-      }))
-    },
-    moderationFlagged: false,
-    moderationLabels: [],
-    moderationMatchedTerms: [],
-    moderationSeverity: 0,
-    moderationUpdatedAtMs: nowMs,
-    updatedAt: serverTimestamp()
-  };
-  try {
-    let listingId = picturesStudioState.editingId || '';
-    if (listingId) {
-      await updateDoc(doc(db, 'listings', listingId), payload);
-    } else {
-      const createdRef = await addDoc(collection(db, 'listings'), {
-        uid: currentUser.uid,
-        userEmail: currentUser.email || '',
-        displayName: currentProfile.displayName || currentUser.email || '',
-        authorName: currentProfile.displayName || currentUser.email || '',
-        ...payload,
-        replies: [],
-        replyCount: 0,
-        featured: false,
-        hidden: false,
-        reactivationRequested: false,
-        createdAt: serverTimestamp(),
-        createdAtMs: nowMs
-      });
-      listingId = createdRef.id;
-    }
-    closePicturesStudio();
-    await logMarketplaceActivity(`Saved picture gallery: ${title}`, {
-      lastBoardVisited: 'PICTURES',
-      currentView: 'POST',
-      lastThreadId: listingId || '',
-      lastThreadTitle: title
-    }, { force: true });
-  } catch (err) {
-    console.error(err);
-    alert(`${err?.code || 'gallery_error'} — ${err?.message || 'Unable to save gallery.'}`);
-  }
-}
-
