@@ -675,13 +675,13 @@ function bindStaticEvents() {
 
   $('btnNew')?.addEventListener('click', () => {
     if (activeBoard === 'PICTURES' && canPostPicturesBoard()) {
-      openPicturesDesigner();
+      legacyOpenPicturesDesigner();
       return;
     }
     openPost(activeBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : '');
   });
   $('heroPostBtn')?.addEventListener('click', () => openPost(activeBoard === 'PICTURES' ? 'FREE' : ''));
-  $('heroPicturesBtn')?.addEventListener('click', () => openPicturesDesigner());
+  $('heroPicturesBtn')?.addEventListener('click', () => legacyOpenPicturesDesigner());
   $('heroFreeBtn')?.addEventListener('click', () => {
     activeBoard = 'FREE';
     renderBoards();
@@ -712,14 +712,14 @@ function bindStaticEvents() {
 
   $('studioAddPhotosBtn')?.addEventListener('click', () => $('studioImageInput')?.click());
   $('studioImageInput')?.addEventListener('change', (event) => {
-    addFilesToPicturesDesigner(Array.from(event.target.files || []));
+    legacyAddFilesToPicturesDesigner(Array.from(event.target.files || []));
     event.target.value = '';
   });
-  $('studioAddTextBtn')?.addEventListener('click', () => addTextBlockToPicturesDesigner());
-  $('studioAddHeroTextBtn')?.addEventListener('click', () => addTextBlockToPicturesDesigner(null, 'hero'));
-  $('studioClearBtn')?.addEventListener('click', () => clearPicturesDesigner());
-  $('studioCancelBtn')?.addEventListener('click', closePicturesDesigner);
-  $('picturesDesignerCloseTop')?.addEventListener('click', closePicturesDesigner);
+  $('studioAddTextBtn')?.addEventListener('click', () => legacyAddTextBlockToPicturesDesigner());
+  $('studioAddHeroTextBtn')?.addEventListener('click', () => legacyAddTextBlockToPicturesDesigner(null, 'hero'));
+  $('studioClearBtn')?.addEventListener('click', () => legacyClearPicturesDesigner());
+  $('studioCancelBtn')?.addEventListener('click', legacyClosePicturesDesigner);
+  $('picturesDesignerCloseTop')?.addEventListener('click', legacyClosePicturesDesigner);
   $('picturesDesignerToggleTools')?.addEventListener('click', () => setPicturesDesignerToolsCollapsed(!pictureDesignerToolsCollapsed));
   $('picturesDesignerShowTools')?.addEventListener('click', () => setPicturesDesignerToolsCollapsed(false));
   $('studioSaveBtn')?.addEventListener('click', handleSavePicturesDesigner);
@@ -731,13 +731,13 @@ function bindStaticEvents() {
   $('picturesDesignerCanvas')?.addEventListener('drop', (event) => {
     event.preventDefault();
     $('picturesDesignerCanvas')?.classList.remove('is-dragover');
-    addFilesToPicturesDesigner(Array.from(event.dataTransfer?.files || []));
+    legacyAddFilesToPicturesDesigner(Array.from(event.dataTransfer?.files || []));
   });
   ['studioTitle', 'studioLocation', 'studioContact'].forEach((id) => {
-    $(id)?.addEventListener('input', () => { updatePicturesDesignerStatus(); renderPicturesDesigner(); });
+    $(id)?.addEventListener('input', () => { legacyUpdatePicturesDesignerStatus(); legacyRenderPicturesDesigner(); });
   });
-  document.addEventListener('pointermove', handlePicturesDesignerPointerMove);
-  document.addEventListener('pointerup', stopPicturesDesignerResize);
+  document.addEventListener('pointermove', legacyHandlePicturesDesignerPointerMove);
+  document.addEventListener('pointerup', legacyStopPicturesDesignerResize);
 
   $('btnSavePost')?.addEventListener('click', handleSavePost);
   $('btnSendReply')?.addEventListener('click', handleSendReply);
@@ -750,7 +750,7 @@ function bindStaticEvents() {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay && ['postOverlay', 'threadOverlay', 'picturesDesignerOverlay'].includes(overlay.id)) {
         if (overlay.id === 'postOverlay') resetPostEditor();
-        if (overlay.id === 'picturesDesignerOverlay') closePicturesDesigner();
+        if (overlay.id === 'picturesDesignerOverlay') legacyClosePicturesDesigner();
         else hide(overlay.id);
       }
     });
@@ -780,35 +780,35 @@ function bindStaticEvents() {
       return;
     }
     if (action === 'studioInsertText') {
-      addTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length));
+      legacyAddTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length));
       return;
     }
     if (action === 'studioInsertHeroText') {
-      addTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length), 'hero');
+      legacyAddTextBlockToPicturesDesigner(Number(actionEl.dataset.index || pictureDesignerBlocks.length), 'hero');
       return;
     }
     if (action === 'studioRemoveBlock') {
-      removePicturesDesignerBlock(actionEl.dataset.blockId || '');
+      relegacyMovePicturesDesignerBlock(actionEl.dataset.blockId || '');
       return;
     }
     if (action === 'studioMoveBlockUp') {
-      movePicturesDesignerBlock(actionEl.dataset.blockId || '', 'up');
+      legacyMovePicturesDesignerBlock(actionEl.dataset.blockId || '', 'up');
       return;
     }
     if (action === 'studioMoveBlockDown') {
-      movePicturesDesignerBlock(actionEl.dataset.blockId || '', 'down');
+      legacyMovePicturesDesignerBlock(actionEl.dataset.blockId || '', 'down');
       return;
     }
     if (action === 'studioDuplicateBlock') {
-      duplicatePicturesDesignerBlock(actionEl.dataset.blockId || '');
+      legacyDuplicatePicturesDesignerBlock(actionEl.dataset.blockId || '');
       return;
     }
     if (action === 'studioSetSize') {
-      updatePicturesDesignerBlock(actionEl.dataset.blockId || '', { size: normalizeStudioBlockSize(actionEl.dataset.size || '', actionEl.dataset.blockType || 'image') });
+      legacyUpdatePicturesDesignerBlock(actionEl.dataset.blockId || '', { size: normalizeStudioBlockSize(actionEl.dataset.size || '', actionEl.dataset.blockType || 'image') });
       return;
     }
     if (action === 'studioSetAlign') {
-      updatePicturesDesignerBlock(actionEl.dataset.blockId || '', { align: normalizeStudioBlockAlign(actionEl.dataset.align || 'center') });
+      legacyUpdatePicturesDesignerBlock(actionEl.dataset.blockId || '', { align: normalizeStudioBlockAlign(actionEl.dataset.align || 'center') });
       return;
     }
 
@@ -841,14 +841,14 @@ function bindStaticEvents() {
     const blockId = studioField.dataset.blockId || '';
     const field = studioField.dataset.studioField || '';
     if (!blockId || !field) return;
-    updatePicturesDesignerBlock(blockId, { [field]: studioField.value }, { render: false });
+    legacyUpdatePicturesDesignerBlock(blockId, { [field]: studioField.value }, { render: false });
   });
 
   document.body.addEventListener('change', (e) => {
     const studioStyleSelect = e.target.closest('[data-studio-style]');
     if (studioStyleSelect) {
       const blockId = studioStyleSelect.dataset.blockId || '';
-      updatePicturesDesignerBlock(blockId, { style: studioStyleSelect.value || 'body' });
+      legacyUpdatePicturesDesignerBlock(blockId, { style: studioStyleSelect.value || 'body' });
       return;
     }
     const layoutSelect = e.target.closest('[data-picture-layout]');
@@ -1110,7 +1110,7 @@ function refreshPostComposerMode() {
   if (pictureMode) {
     alert('Use the Pictures Studio to publish gallery posts.');
     hide('postOverlay');
-    openPicturesDesigner(editingPostId || null);
+    legacyOpenPicturesDesigner(editingPostId || null);
     return;
   }
   const overlayModal = $('postOverlay')?.querySelector('.modal');
@@ -1210,7 +1210,7 @@ function legacyLayoutToStudioSize(layout) {
   return 'standard';
 }
 
-function createPicturesDesignerImageBlock({ file = null, url = '', caption = '', size = 'wide', align = 'center', height = 280, name = '' } = {}) {
+function legacyCreatePicturesDesignerImageBlock({ file = null, url = '', caption = '', size = 'wide', align = 'center', height = 280, name = '' } = {}) {
   const previewUrl = file ? URL.createObjectURL(file) : String(url || '');
   return {
     id: studioBlockId(),
@@ -1226,7 +1226,7 @@ function createPicturesDesignerImageBlock({ file = null, url = '', caption = '',
   };
 }
 
-function createPicturesDesignerTextBlock({ heading = '', text = '', size = 'wide', align = 'center', style = 'body' } = {}) {
+function legacyCreatePicturesDesignerTextBlock({ heading = '', text = '', size = 'wide', align = 'center', style = 'body' } = {}) {
   return {
     id: studioBlockId(),
     type: 'text',
@@ -1244,25 +1244,25 @@ function releasePicturesDesignerBlock(block) {
   }
 }
 
-function clearPicturesDesigner(silent = false) {
+function legacyClearPicturesDesigner(silent = false) {
   if (!silent && pictureDesignerBlocks.length && !confirm('Clear the current gallery canvas?')) return;
   pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
   pictureDesignerBlocks = [];
   pictureDesignerDragId = '';
   pictureDesignerResizeState = null;
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
 }
 
-function resetPicturesDesigner() {
-  clearPicturesDesigner(true);
+function legacyResetPicturesDesigner() {
+  legacyClearPicturesDesigner(true);
   pictureDesignerEditingId = null;
   if ($('studioTitle')) $('studioTitle').value = '';
   if ($('studioLocation')) $('studioLocation').value = '';
   if ($('studioContact')) $('studioContact').value = '';
-  updatePicturesDesignerStatus();
+  legacyUpdatePicturesDesignerStatus();
 }
 
-function updatePicturesDesignerStatus() {
+function legacyUpdatePicturesDesignerStatus() {
   const statusEl = $('studioStatusLine');
   if (!statusEl) return;
   const imageCount = pictureDesignerBlocks.filter((block) => block.type === 'image').length;
@@ -1274,7 +1274,7 @@ function updatePicturesDesignerStatus() {
 function setPicturesDesignerBlocks(nextBlocks) {
   pictureDesignerBlocks.forEach(releasePicturesDesignerBlock);
   pictureDesignerBlocks = nextBlocks;
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
 }
 
 function insertPicturesDesignerBlocks(newBlocks, insertIndex = null) {
@@ -1289,28 +1289,28 @@ function insertPicturesDesignerBlocks(newBlocks, insertIndex = null) {
       ...pictureDesignerBlocks.slice(insertIndex)
     ];
   }
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
 }
 
-function addFilesToPicturesDesigner(files, insertIndex = null) {
+function legacyAddFilesToPicturesDesigner(files, insertIndex = null) {
   const images = (files || []).filter((file) => file && String(file.type || '').startsWith('image/'));
   if (!images.length) return;
-  insertPicturesDesignerBlocks(images.map((file) => createPicturesDesignerImageBlock({ file })), insertIndex);
+  insertPicturesDesignerBlocks(images.map((file) => legacyCreatePicturesDesignerImageBlock({ file })), insertIndex);
 }
 
-function addTextBlockToPicturesDesigner(insertIndex = null, style = 'body') {
-  insertPicturesDesignerBlocks(createPicturesDesignerTextBlock({ style, size: style === 'hero' ? 'hero' : 'wide' }), insertIndex);
+function legacyAddTextBlockToPicturesDesigner(insertIndex = null, style = 'body') {
+  insertPicturesDesignerBlocks(legacyCreatePicturesDesignerTextBlock({ style, size: style === 'hero' ? 'hero' : 'wide' }), insertIndex);
 }
 
-function rerenderPicturesDesignerPreserveScroll() {
+function relegacyRenderPicturesDesignerPreserveScroll() {
   const overlay = $('picturesDesignerOverlay');
   const top = overlay ? overlay.scrollTop : window.scrollY;
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
   if (overlay) overlay.scrollTop = top;
   else window.scrollTo({ top });
 }
 
-function updatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
+function legacyUpdatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
   const shouldRender = options.render !== false;
   pictureDesignerBlocks = pictureDesignerBlocks.map((block) => {
     if (block.id !== blockId) return block;
@@ -1329,11 +1329,11 @@ function updatePicturesDesignerBlock(blockId, patch = {}, options = {}) {
     }
     return next;
   });
-  updatePicturesDesignerStatus();
-  if (shouldRender) rerenderPicturesDesignerPreserveScroll();
+  legacyUpdatePicturesDesignerStatus();
+  if (shouldRender) relegacyRenderPicturesDesignerPreserveScroll();
 }
 
-function movePicturesDesignerBlock(blockId, direction = 'down') {
+function legacyMovePicturesDesignerBlock(blockId, direction = 'down') {
   const index = pictureDesignerBlocks.findIndex((block) => block.id === blockId);
   if (index < 0) return;
   const swapIndex = direction === 'up' ? index - 1 : index + 1;
@@ -1341,10 +1341,10 @@ function movePicturesDesignerBlock(blockId, direction = 'down') {
   const clone = pictureDesignerBlocks.slice();
   [clone[index], clone[swapIndex]] = [clone[swapIndex], clone[index]];
   pictureDesignerBlocks = clone;
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
 }
 
-function reorderPicturesDesignerBlocks(fromId, toId) {
+function legacyReorderPicturesDesignerBlocks(fromId, toId) {
   if (!fromId || !toId || fromId === toId) return;
   const fromIndex = pictureDesignerBlocks.findIndex((block) => block.id === fromId);
   const toIndex = pictureDesignerBlocks.findIndex((block) => block.id === toId);
@@ -1353,22 +1353,22 @@ function reorderPicturesDesignerBlocks(fromId, toId) {
   const [moved] = clone.splice(fromIndex, 1);
   clone.splice(toIndex, 0, moved);
   pictureDesignerBlocks = clone;
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
 }
 
-function removePicturesDesignerBlock(blockId) {
+function relegacyMovePicturesDesignerBlock(blockId) {
   const target = pictureDesignerBlocks.find((block) => block.id === blockId);
   if (target) releasePicturesDesignerBlock(target);
   pictureDesignerBlocks = pictureDesignerBlocks.filter((block) => block.id !== blockId);
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
 }
 
-function duplicatePicturesDesignerBlock(blockId) {
+function legacyDuplicatePicturesDesignerBlock(blockId) {
   const target = pictureDesignerBlocks.find((block) => block.id === blockId);
   if (!target) return;
   const clone = target.type === 'image'
-    ? createPicturesDesignerImageBlock({ url: target.sourceUrl || target.previewUrl, caption: target.caption, size: target.size, align: target.align, height: target.height, name: target.name })
-    : createPicturesDesignerTextBlock({ heading: target.heading, text: target.text, size: target.size, align: target.align, style: target.style });
+    ? legacyCreatePicturesDesignerImageBlock({ url: target.sourceUrl || target.previewUrl, caption: target.caption, size: target.size, align: target.align, height: target.height, name: target.name })
+    : legacyCreatePicturesDesignerTextBlock({ heading: target.heading, text: target.text, size: target.size, align: target.align, style: target.style });
   const idx = pictureDesignerBlocks.findIndex((block) => block.id === blockId);
   insertPicturesDesignerBlocks(clone, idx + 1);
 }
@@ -1404,7 +1404,7 @@ function bindPicturesDesignerDrag() {
     card.ondrop = (event) => {
       event.preventDefault();
       card.classList.remove('is-over');
-      reorderPicturesDesignerBlocks(pictureDesignerDragId, card.dataset.blockId || '');
+      legacyReorderPicturesDesignerBlocks(pictureDesignerDragId, card.dataset.blockId || '');
     };
   });
   document.querySelectorAll('.studioCanvasBlock button, .studioCanvasBlock input, .studioCanvasBlock textarea, .studioCanvasBlock select').forEach((el) => {
@@ -1433,7 +1433,7 @@ function startPicturesDesignerResize(event, blockId) {
   document.body.classList.add('studio-resizing');
 }
 
-function handlePicturesDesignerPointerMove(event) {
+function legacyHandlePicturesDesignerPointerMove(event) {
   if (!pictureDesignerResizeState) return;
   const nextHeight = normalizeStudioBlockHeight(pictureDesignerResizeState.startHeight + (event.clientY - pictureDesignerResizeState.startY));
   const block = pictureDesignerBlocks.find((entry) => entry.id === pictureDesignerResizeState.blockId);
@@ -1443,14 +1443,14 @@ function handlePicturesDesignerPointerMove(event) {
   if (stage) stage.style.setProperty('--studio-image-height', `${nextHeight}px`);
 }
 
-function stopPicturesDesignerResize() {
+function legacyStopPicturesDesignerResize() {
   if (!pictureDesignerResizeState) return;
   pictureDesignerResizeState = null;
   document.body.classList.remove('studio-resizing');
-  renderPicturesDesigner();
+  legacyRenderPicturesDesigner();
 }
 
-function renderPicturesDesigner() {
+function legacyRenderPicturesDesigner() {
   const canvas = $('picturesDesignerCanvas');
   if (!canvas) return;
   if (!pictureDesignerBlocks.length) {
@@ -1464,7 +1464,7 @@ function renderPicturesDesigner() {
         <button class="studioInsertBar" data-action="studioInsertText" data-index="0" type="button">+ Add text anywhere</button>
       </div>
     `;
-    updatePicturesDesignerStatus();
+    legacyUpdatePicturesDesignerStatus();
     return;
   }
   const metaHeader = `
@@ -1566,10 +1566,10 @@ function renderPicturesDesigner() {
   }).join('');
   canvas.innerHTML = metaHeader + blockHtml;
   bindPicturesDesignerDrag();
-  updatePicturesDesignerStatus();
+  legacyUpdatePicturesDesignerStatus();
 }
 
-function openPicturesDesigner(postId = null) {
+function legacyOpenPicturesDesigner(postId = null) {
   if (!currentUser) {
     alert('Please log in first.');
     return;
@@ -1583,7 +1583,7 @@ function openPicturesDesigner(postId = null) {
     alert('Only approved gallery managers can use the Pictures Studio.');
     return;
   }
-  resetPicturesDesigner();
+  legacyResetPicturesDesigner();
   if (postId) {
     const item = listings.find((entry) => entry.id === postId);
     if (!item || !canModify(item)) {
@@ -1595,20 +1595,20 @@ function openPicturesDesigner(postId = null) {
     if ($('studioLocation')) $('studioLocation').value = item.location || '';
     if ($('studioContact')) $('studioContact').value = item.contact || '';
     const blocks = getPictureGalleryBlocks(item).map((block) => block.type === 'image'
-      ? createPicturesDesignerImageBlock({ url: block.url, caption: block.caption || '', size: block.size || legacyLayoutToStudioSize(block.layout), align: block.align || 'center', height: block.height || 280, name: block.name || item.title || 'Photo' })
-      : createPicturesDesignerTextBlock({ heading: block.heading || '', text: block.text || '', size: block.size || 'wide', align: block.align || 'center', style: block.style || 'body' }));
+      ? legacyCreatePicturesDesignerImageBlock({ url: block.url, caption: block.caption || '', size: block.size || legacyLayoutToStudioSize(block.layout), align: block.align || 'center', height: block.height || 280, name: block.name || item.title || 'Photo' })
+      : legacyCreatePicturesDesignerTextBlock({ heading: block.heading || '', text: block.text || '', size: block.size || 'wide', align: block.align || 'center', style: block.style || 'body' }));
     pictureDesignerBlocks = blocks;
   }
-  renderPicturesDesigner();
-  updatePicturesDesignerStatus();
+  legacyRenderPicturesDesigner();
+  legacyUpdatePicturesDesignerStatus();
   setPicturesDesignerToolsCollapsed(false);
   show('picturesDesignerOverlay');
 }
 
-function closePicturesDesigner() {
+function legacyClosePicturesDesigner() {
   hide('picturesDesignerOverlay');
   setPicturesDesignerToolsCollapsed(false);
-  resetPicturesDesigner();
+  legacyResetPicturesDesigner();
 }
 
 function configurePostBoardOptions() {
@@ -3147,7 +3147,7 @@ function openPostEditor(id) {
   const item = listings.find((x) => x.id === id);
   if (!item || !canModify(item)) return;
   if (String(item.board || '').toUpperCase() === 'PICTURES') {
-    openPicturesDesigner(id);
+    legacyOpenPicturesDesigner(id);
     return;
   }
   editingPostId = id;
@@ -3305,7 +3305,7 @@ async function handleSavePost() {
   if (pictureMode) {
     alert('Use the Pictures Studio to publish gallery posts.');
     hide('postOverlay');
-    openPicturesDesigner(editingPostId || null);
+    legacyOpenPicturesDesigner(editingPostId || null);
     return;
   }
   const status = pictureMode ? 'ACTIVE' : ($('fStatus')?.value || 'ACTIVE');
@@ -3571,7 +3571,7 @@ async function handleSavePicturesDesigner() {
     activeBoard = 'PICTURES';
     renderBoards();
     renderListings();
-    closePicturesDesigner();
+    legacyClosePicturesDesigner();
   } catch (error) {
     console.error('Save pictures designer error', error);
     alert(error?.message || 'Could not publish the gallery.');
