@@ -825,7 +825,7 @@ body.admin-page .btn.primary{background:linear-gradient(180deg, #3b82f6, #2563eb
 body.admin-page .btn.ghost{background:rgba(255,255,255,.03);border-color:rgba(148,163,184,.16)}
 body.admin-page .btn.danger{background:rgba(239,68,68,.16);border-color:rgba(248,113,113,.34)}
 
-.topicList.pictureBoardActive{gap:16px}
+.topicList.pictureBoardActive{gap:0}
 .galleryTopicRow{
   grid-template-columns:minmax(0,1fr) minmax(220px,.38fr);
   align-items:start;
@@ -880,6 +880,131 @@ body.admin-page .btn.danger{background:rgba(239,68,68,.16);border-color:rgba(248
   border:1px solid rgba(96,165,250,.34);
   font-size:16px;
 }
+.pictureGalleryGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+  gap:18px;
+}
+.pictureGalleryCard{
+  display:grid;
+  overflow:hidden;
+  border-radius:24px;
+  border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(13,20,33,.98), rgba(8,13,24,.98));
+  box-shadow:0 20px 42px rgba(0,0,0,.24);
+}
+.pictureGalleryCard-featured{
+  box-shadow:0 20px 42px rgba(0,0,0,.24), 0 0 0 1px rgba(96,165,250,.18);
+}
+.pictureGalleryMedia{
+  position:relative;
+  display:block;
+  width:100%;
+  padding:0;
+  border:0;
+  background:none;
+  cursor:pointer;
+}
+.pictureMosaic{
+  position:relative;
+  display:grid;
+  gap:6px;
+  padding:6px;
+  background:#09111f;
+  aspect-ratio:4 / 4.85;
+}
+.pictureMosaic-1{grid-template-columns:1fr}
+.pictureMosaic-2{grid-template-columns:1fr 1fr}
+.pictureMosaic-3,
+.pictureMosaic-4{grid-template-columns:1.1fr .9fr;grid-template-rows:1fr 1fr}
+.pictureMosaicCell{
+  position:relative;
+  overflow:hidden;
+  border-radius:16px;
+  background:rgba(255,255,255,.05);
+  min-height:120px;
+}
+.pictureMosaicCell.lead{
+  grid-row:1 / span 2;
+  min-height:100%;
+}
+.pictureMosaic-1 .pictureMosaicCell.lead,
+.pictureMosaic-2 .pictureMosaicCell.lead{grid-row:auto}
+.pictureMosaicCell img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  transition:transform .28s ease;
+}
+.pictureGalleryCard:hover .pictureMosaicCell img{transform:scale(1.04)}
+.pictureMosaicPlaceholder{
+  display:grid;
+  place-items:center;
+  color:#afbdd2;
+  font-weight:800;
+}
+.pictureMosaicMore{
+  position:absolute;
+  right:16px;
+  bottom:16px;
+  z-index:2;
+  padding:8px 12px;
+  border-radius:999px;
+  background:rgba(2,6,23,.78);
+  border:1px solid rgba(255,255,255,.2);
+  color:#fff;
+  font-size:12px;
+  font-weight:900;
+}
+.pictureGalleryOverlay{
+  position:absolute;
+  inset:auto 14px 14px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  z-index:2;
+}
+.pictureGalleryTag,
+.pictureGalleryCount{
+  display:inline-flex;
+  align-items:center;
+  padding:8px 12px;
+  border-radius:999px;
+  background:rgba(2,6,23,.72);
+  border:1px solid rgba(255,255,255,.15);
+  color:#f8fbff;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.pictureGalleryCardBody{
+  display:grid;
+  gap:10px;
+  padding:14px 16px 16px;
+}
+.pictureGalleryCardTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.pictureGalleryTitle{
+  font-size:18px;
+  line-height:1.15;
+  font-weight:950;
+  color:#f8fbff;
+}
+.pictureGalleryMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  color:#b9c7d9;
+  font-size:12px;
+}
+.pictureGalleryActions{margin-top:2px}
 .threadDescriptionCopy{color:#dce6f2;line-height:1.7}
 .threadInfoList{gap:12px 18px;flex-wrap:wrap}
 .thread-gallery-wrap{
@@ -916,10 +1041,12 @@ body.admin-page .btn.danger{background:rgba(239,68,68,.16);border-color:rgba(248
   .admin-tools-clean{grid-template-columns:1fr;}
   .activity-main-card,.activity-side-card,.admin-section-card,.admin-stat-card{border-radius:16px}
   .galleryTopicRow{grid-template-columns:1fr}
+  .pictureGalleryGrid{grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));}
 }
 @media (max-width:640px){
   .admin-overview-grid-template{grid-template-columns:1fr;}
   .admin-nav-strip-inner{padding-top:10px;padding-bottom:10px}
   .galleryPreviewCell.primary{min-height:180px}
   .thread-gallery-grid{grid-template-columns:1fr 1fr}
+  .pictureGalleryGrid{grid-template-columns:1fr;}
 }

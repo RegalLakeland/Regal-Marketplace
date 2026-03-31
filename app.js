@@ -341,7 +341,7 @@ const BOARD_DEFS = [
   { key: 'BUYSELL', label: 'Buy / Sell', desc: 'Employee marketplace items' },
   { key: 'GARAGE', label: 'Garage Sales', desc: 'Neighborhood and moving sales' },
   { key: 'EVENTS', label: 'Events', desc: 'Meetups, cookouts, birthdays' },
-  { key: 'PICTURES', label: 'Pictures', desc: 'Employee photography and dealership shots' },
+  { key: 'PICTURES', label: 'Pictures', desc: 'Curated employee photography gallery' },
   { key: 'WORK', label: 'Work News', desc: 'Dealership updates and notices' },
   { key: 'SERVICES', label: 'Local Services', desc: 'Side work and help needed' }
 ];
@@ -655,6 +655,12 @@ function bindStaticEvents() {
     return;
   }
   resetPostEditor();
+  configurePostBoardOptions();
+  const preferredBoard = (activeBoard && activeBoard !== 'ALL') ? activeBoard : 'FREE';
+  if ($('fBoard')) {
+    $('fBoard').value = preferredBoard === 'PICTURES' && !canPostPicturesBoard() ? 'FREE' : preferredBoard;
+  }
+  refreshPhotoFieldHint();
   show('postOverlay');
 };
 
@@ -685,6 +691,7 @@ function bindStaticEvents() {
   $('q')?.addEventListener('input', renderListings);
   $('st')?.addEventListener('change', renderListings);
   $('sort')?.addEventListener('change', renderListings);
+  $('fBoard')?.addEventListener('change', refreshPhotoFieldHint);
 
   document.body.addEventListener('click', async (e) => {
     const actionEl = e.target.closest('[data-action]');
@@ -765,6 +772,10 @@ const PROTECTED_CORE_ADMINS = new Set([
   'janni.r@regallakeland.com'
 ]);
 
+const PICTURES_CURATORS = new Set([
+  'ariel.r@regallakeland.com'
+]);
+
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
@@ -784,6 +795,36 @@ function isViewerAdmin() {
 
 function canModerate() {
   return !!currentProfile && (!!currentProfile.isAdmin || !!currentProfile.isModerator || isProtectedCoreAdmin(currentUser?.email));
+}
+
+function canPostPicturesBoard() {
+  return !!currentUser && (canModerate() || PICTURES_CURATORS.has(normalizeEmail(currentUser?.email)));
+}
+
+function configurePostBoardOptions() {
+  const boardSelect = $('fBoard');
+  if (!boardSelect) return;
+  const picturesOption = Array.from(boardSelect.options).find((opt) => opt.value === 'PICTURES');
+  if (picturesOption) {
+    const allowed = canPostPicturesBoard();
+    picturesOption.disabled = !allowed;
+    picturesOption.hidden = !allowed;
+    if (!allowed && boardSelect.value === 'PICTURES') boardSelect.value = 'FREE';
+  }
+  refreshPhotoFieldHint();
+}
+
+function refreshPhotoFieldHint() {
+  const hint = $('photoFieldHint');
+  if (!hint) return;
+  const board = $('fBoard')?.value || 'FREE';
+  if (board === 'PICTURES') {
+    hint.textContent = canPostPicturesBoard()
+      ? 'Pictures is a curated gallery board for admins and Ariel Restituyo Garcia. Upload one or more images and the gallery page will display them in a photography-style layout.'
+      : 'Pictures is a curated gallery board managed by admins and Ariel Restituyo Garcia.';
+    return;
+  }
+  hint.textContent = 'Normal posts stay compact in the feed with a standard preview image. Open the thread to view the full photo.';
 }
 
 function threadReadStorageKey() {
@@ -1314,6 +1355,7 @@ function updateAuthUI() {
   if ($('heroThreadAlert')) $('heroThreadAlert').style.display = loggedIn && threadUnreadCount ? 'inline-flex' : 'none';
   if ($('loginOverlay')) $('loginOverlay').style.display = loggedIn ? 'none' : 'flex';
   if (!loggedIn) { hidePasswordGate(); hideRulesOverlay(); }
+  configurePostBoardOptions();
 
   if (loggedIn) {
     const visibleOverlayIds = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'eventImageOverlay'];
@@ -2134,6 +2176,44 @@ function buildThreadGallery(item) {
   return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((url, idx) => `<div class="thread-gallery-item"><img class="thread-gallery-image" src="${esc(url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
 }
 
+function buildPictureGalleryFeed(items) {
+  return `<div class="pictureGalleryGrid">${items.map((item) => {
+    const imageUrls = getListingImageUrls(item);
+    const preview = imageUrls.slice(0, 4);
+    const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
+    const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
+    const posterName = getPosterDisplayName(item);
+    const canEdit = canModify(item);
+    const quickDelete = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : '';
+    const openButton = `<button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open Gallery</button>`;
+    const editButton = canEdit ? `<button class="btn ghost" data-action="editPost" data-id="${esc(item.id)}" type="button">Edit</button>` : '';
+    const markButton = canEdit && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : '';
+    const mosaicClass = `pictureMosaic pictureMosaic-${Math.min(Math.max(preview.length, 1), 4)}`;
+    const mosaic = preview.length
+      ? `<div class="${mosaicClass}">${preview.map((url, idx) => `<div class="pictureMosaicCell ${idx === 0 ? 'lead' : ''}"><img src="${esc(url)}" alt="${esc((item?.title || 'Picture') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}${imageUrls.length > preview.length ? `<div class="pictureMosaicMore">+${imageUrls.length - preview.length}</div>` : ''}</div>`
+      : `<div class="${mosaicClass}"><div class="pictureMosaicCell lead pictureMosaicPlaceholder"><span>No image</span></div></div>`;
+    return `
+      <article class="pictureGalleryCard ${item.featured ? 'pictureGalleryCard-featured' : ''}" data-thread-card-id="${esc(item.id)}">
+        <button class="pictureGalleryMedia" data-action="openThread" data-id="${esc(item.id)}" type="button" aria-label="Open ${esc(item.title || 'gallery')}">
+          ${mosaic}
+          <div class="pictureGalleryOverlay">
+            <span class="pictureGalleryTag">Pictures</span>
+            <span class="pictureGalleryCount">${esc(imageUrls.length ? `${imageUrls.length} photo${imageUrls.length === 1 ? '' : 's'}` : 'Gallery')}</span>
+          </div>
+        </button>
+        <div class="pictureGalleryCardBody">
+          <div class="pictureGalleryCardTop">
+            <div class="pictureGalleryTitle">${esc(item.title || 'Untitled')}</div>
+            <span class="status ${statusClass}">${esc(statusText)}</span>
+          </div>
+          <div class="pictureGalleryMeta"><span>${esc(posterName)}</span><span>${esc(item.location || 'Regal Lakeland')}</span><span>${esc(formatDate(item.createdAtMs))}</span></div>
+          <div class="pictureGalleryActions rowBtns">${openButton}${editButton}${markButton}${quickDelete}</div>
+        </div>
+      </article>
+    `;
+  }).join('')}</div>`;
+}
+
 function canModify(item) {
   return !!currentUser && !!currentProfile && (canModerate() || currentUser.uid === item.uid);
 }
@@ -2161,6 +2241,8 @@ function resetPostEditor() {
   if ($('fDesc')) $('fDesc').value = '';
   if ($('fContact')) $('fContact').value = '';
   if ($('fPhoto')) $('fPhoto').value = '';
+  configurePostBoardOptions();
+  refreshPhotoFieldHint();
 }
 
 function openPostEditor(id) {
@@ -2178,6 +2260,8 @@ function openPostEditor(id) {
   if ($('fDesc')) $('fDesc').value = item.description || item.desc || '';
   if ($('fContact')) $('fContact').value = item.contact || '';
   if ($('fPhoto')) $('fPhoto').value = '';
+  configurePostBoardOptions();
+  refreshPhotoFieldHint();
   show('postOverlay');
 }
 
@@ -2192,6 +2276,10 @@ function renderListings() {
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
+  const feedTitleEl = document.querySelector('.feedPanel .section-title');
+  const feedSubEl = document.querySelector('.feedPanel .section-sub');
+  if (feedTitleEl) feedTitleEl.textContent = activeBoard === 'PICTURES' ? 'Picture Gallery' : 'Listings';
+  if (feedSubEl) feedSubEl.textContent = activeBoard === 'PICTURES' ? 'Curated photo uploads shown in an image-first layout.' : 'Recent activity inside the selected board';
   if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
   if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   updateHeroPeopleStats();
@@ -2207,6 +2295,12 @@ function renderListings() {
 
   empty.style.display = 'none';
   wrap.classList.toggle('pictureBoardActive', activeBoard === 'PICTURES');
+  if (activeBoard === 'PICTURES') {
+    wrap.innerHTML = buildPictureGalleryFeed(data);
+    updateThreadNotificationUI();
+    return;
+  }
+
   wrap.innerHTML = data.map((item) => {
     const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
     const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
@@ -2223,9 +2317,9 @@ function renderListings() {
       : '';
     const boardLabel = BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board;
     const imageUrls = getListingImageUrls(item);
-    const galleryPreview = buildGalleryPreview(item);
-    const visualValue = getListingDisplayValue(item);
     const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
+    const galleryPreview = isPictureBoard ? buildGalleryPreview(item) : '';
+    const visualValue = getListingDisplayValue(item);
     const sideMeta = isPictureBoard
       ? `<div class="topicMeta topicMetaRight"><span>${esc(imageUrls.length ? `${imageUrls.length} image${imageUrls.length === 1 ? '' : 's'}` : 'No images')}</span><span>${esc(item.location || 'Regal gallery')}</span></div>`
       : `<div class="topicMeta topicMetaRight"><span>${esc(item.location || 'No location')}</span><span>${esc(item.contact || 'No contact')}</span></div>`;
@@ -2294,6 +2388,10 @@ async function handleSavePost() {
   const description = $('fDesc')?.value.trim();
   const board = $('fBoard')?.value || 'BUYSELL';
   const status = $('fStatus')?.value || 'ACTIVE';
+  if (board === 'PICTURES' && !canPostPicturesBoard()) {
+    alert('Only approved gallery managers can post in Pictures.');
+    return;
+  }
   const location = $('fLocation')?.value.trim() || '';
   const contact = $('fContact')?.value.trim() || '';
   const priceRaw = $('fPrice')?.value.trim() || '';
