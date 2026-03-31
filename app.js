@@ -341,7 +341,7 @@ const BOARD_DEFS = [
   { key: 'BUYSELL', label: 'Buy / Sell', desc: 'Employee marketplace items' },
   { key: 'GARAGE', label: 'Garage Sales', desc: 'Neighborhood and moving sales' },
   { key: 'EVENTS', label: 'Events', desc: 'Meetups, cookouts, birthdays' },
-  { key: 'PICTURES', label: 'Pictures', desc: 'Standalone photography gallery and page builder' },
+  { key: 'PICTURES', label: 'Pictures', desc: 'Employee photography and dealership shots' },
   { key: 'WORK', label: 'Work News', desc: 'Dealership updates and notices' },
   { key: 'SERVICES', label: 'Local Services', desc: 'Side work and help needed' }
 ];

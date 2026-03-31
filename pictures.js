@@ -9,7 +9,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-const PAGE_ID = 'main-gallery';
+const PAGE_ID = 'pictures-home';
 const EXTRA_EDITOR_EMAILS = ['ariel.r@regallakeland.com'];
 const LOCAL_DRAFT_KEY = 'regal_pictures_designer_local_draft_v1';
 
@@ -74,6 +74,8 @@ let unsubPage = null;
 let interaction = null;
 let statusTimeout = null;
 let uploadInFlight = false;
+let pageOwnerUid = '';
+let pageOwnerEmail = '';
 
 function status(message, sticky = false) {
   const banner = $('statusBanner');
@@ -91,16 +93,32 @@ function status(message, sticky = false) {
 }
 
 function pageRef() {
-  return doc(db, 'picturePages', PAGE_ID);
+  return doc(db, 'listings', PAGE_ID);
 }
 
 function isEditor() {
   const email = normalizeEmail(currentUser?.email);
   return !!currentUser && !!currentProfile && (
     !!currentProfile.isAdmin ||
+    !!currentProfile.isModerator ||
     ADMIN_EMAILS.map(normalizeEmail).includes(email) ||
     EXTRA_EDITOR_EMAILS.includes(email)
   );
+}
+
+function isPrivilegedEditor() {
+  const email = normalizeEmail(currentUser?.email);
+  return !!currentUser && !!currentProfile && (
+    !!currentProfile.isAdmin ||
+    !!currentProfile.isModerator ||
+    ADMIN_EMAILS.map(normalizeEmail).includes(email)
+  );
+}
+
+function canSavePage() {
+  if (!isEditor()) return false;
+  if (!pageOwnerUid) return true;
+  return isPrivilegedEditor() || pageOwnerUid === currentUser?.uid;
 }
 
 function selectedElement() {
@@ -345,30 +363,64 @@ function normalizeElementBounds(element) {
   element.y = clamp(Number(element.y || 0), 0, 100 - element.h);
 }
 
-async function ensurePageDoc() {
-  const snap = await getDoc(pageRef());
-  if (snap.exists()) return;
-  if (!isEditor()) {
-    pageState = structuredClone(DEFAULT_STATE);
-    return;
-  }
-  await setDoc(pageRef(), {
-    ...DEFAULT_STATE,
+function pageDocToState(data) {
+  pageOwnerUid = String(data?.uid || '');
+  pageOwnerEmail = normalizeEmail(data?.userEmail || data?.createdByEmail || '');
+  remoteUpdatedAtMs = Number(data?.updatedAtMs || 0);
+  const layout = data?.layoutState || data?.pageState || data?.layout || DEFAULT_STATE;
+  return sanitizeState(maybeRestoreLocalDraft(layout));
+}
+
+function buildLayoutPayload() {
+  const ownerUid = pageOwnerUid || currentUser?.uid || '';
+  const ownerEmail = pageOwnerEmail || normalizeEmail(currentUser?.email || '');
+  const firstImage = pageState.elements.find((element) => element.type === 'image' && element.src);
+  const imageUrls = pageState.elements.filter((element) => element.type === 'image' && element.src).map((element) => element.src).slice(0, 12);
+  return {
+    uid: ownerUid,
+    userEmail: ownerEmail,
+    displayName: currentProfile?.displayName || currentUser?.displayName || currentUser?.email || 'Pictures Studio',
+    board: 'PICTURES',
+    title: 'Pictures Home',
+    description: 'Standalone photography layout',
+    location: 'Regal gallery',
+    status: 'ACTIVE',
+    hidden: true,
+    deleted: false,
+    standaloneGallery: true,
+    layoutType: 'STANDALONE_PAGE',
+    imageUrl: firstImage?.src || '',
+    imageUrls,
+    layoutState: pageState,
     updatedAtMs: Date.now(),
     updatedAt: serverTimestamp(),
+    updatedByUid: currentUser?.uid || '',
+    updatedByEmail: normalizeEmail(currentUser?.email || ''),
     createdAt: serverTimestamp(),
-    createdByEmail: normalizeEmail(currentUser?.email)
-  });
+    createdAtMs: remoteUpdatedAtMs || Date.now(),
+    createdByEmail: ownerEmail
+  };
 }
 
 function startPageListener() {
   if (unsubPage) unsubPage();
   unsubPage = onSnapshot(pageRef(), (snap) => {
-    if (!snap.exists()) return;
+    if (!snap.exists()) {
+      pageOwnerUid = '';
+      pageOwnerEmail = '';
+      if (!dirty) {
+        pageState = sanitizeState(maybeRestoreLocalDraft(DEFAULT_STATE));
+      }
+      if (!pageState.elements.some((element) => element.id === selectedId)) {
+        selectedId = pageState.elements[0]?.id || '';
+      }
+      render();
+      status(editorMode ? 'Studio ready. Save once to publish this page.' : 'No gallery published yet.', true);
+      return;
+    }
     const data = snap.data() || {};
-    remoteUpdatedAtMs = Number(data.updatedAtMs || 0);
     if (editorMode && dirty) return;
-    pageState = sanitizeState(maybeRestoreLocalDraft(data));
+    pageState = pageDocToState(data);
     if (!pageState.elements.some((element) => element.id === selectedId)) {
       selectedId = pageState.elements[0]?.id || '';
     }
@@ -387,18 +439,19 @@ async function loadProfile(uid) {
 
 async function savePage() {
   if (!isEditor() || saveInFlight) return;
+  if (!canSavePage()) {
+    status('This shared page is owned by another account. Have an admin make Ariel a moderator or transfer ownership once.', true);
+    return;
+  }
   saveInFlight = true;
   $('savePageBtn').disabled = true;
   try {
-    const payload = {
-      ...pageState,
-      updatedAtMs: Date.now(),
-      updatedAt: serverTimestamp(),
-      updatedByUid: currentUser.uid,
-      updatedByEmail: normalizeEmail(currentUser.email)
-    };
+    const payload = buildLayoutPayload();
     await setDoc(pageRef(), payload, { merge: true });
+    pageOwnerUid = payload.uid;
+    pageOwnerEmail = payload.userEmail;
     dirty = false;
+    remoteUpdatedAtMs = payload.updatedAtMs;
     localStorage.removeItem(LOCAL_DRAFT_KEY);
     status('Gallery saved.');
   } catch (error) {
@@ -478,7 +531,7 @@ async function uploadAndPlaceImages(files) {
     const urls = [];
     for (const [index, file] of files.entries()) {
       const safeName = `${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const storageRef = ref(storage, `picture-pages/${currentUser.uid}/${safeName}`);
+      const storageRef = ref(storage, `images/${currentUser.uid}/${safeName}`);
       await uploadBytes(storageRef, file);
       urls.push(await getDownloadURL(storageRef));
     }
@@ -816,7 +869,6 @@ async function boot() {
     });
 
     try {
-      await ensurePageDoc();
       startPageListener();
       if (new URLSearchParams(window.location.search).get('edit') === '1' && isEditor()) {
         editorMode = true;
@@ -824,7 +876,7 @@ async function boot() {
       render();
     } catch (error) {
       console.error(error);
-      status(`Gallery access failed: ${error.message || error}`, true);
+      status(`Gallery load failed: ${error.message || error}`, true);
     }
   });
 }
