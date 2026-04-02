@@ -197,20 +197,21 @@ function approvalStateLabel(user) {
   return 'Waiting on admin approval';
 }
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
+function toDisplayNamePiece(piece) {
+  const clean = String(piece || '');
+  if (!clean) return '';
+  if (!/[A-Za-z]/.test(clean)) return clean;
+  const isAllUpper = clean === clean.toUpperCase();
+  const isAllLower = clean === clean.toLowerCase();
+  if (!(isAllUpper || isAllLower)) return clean;
+  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+}
 function normalizePersonName(value) {
-  const cleaned = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!cleaned) return '';
-  return cleaned
+  const raw = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  return raw
     .split(' ')
-    .filter(Boolean)
-    .map((part) => part
-      .split(/([-'’])/)
-      .map((segment) => {
-        if (!segment || /^[-'’]$/.test(segment)) return segment;
-        const lower = segment.toLowerCase();
-        return lower.charAt(0).toUpperCase() + lower.slice(1);
-      })
-      .join(''))
+    .map((part) => part.split(/([\-'])/).map((piece) => /[-']/.test(piece) ? piece : toDisplayNamePiece(piece)).join(''))
     .join(' ');
 }
 function preferredUserName(user, preferPending = false) {
@@ -477,7 +478,7 @@ function mergedRepliesForListing(item) {
           listingId: item.id,
           listingTitle: item.title || '',
           legacyIndex: index,
-          displayName: normalizePersonName(reply?.displayName || '') || reply?.userEmail || 'Unknown',
+          displayName: reply?.displayName || reply?.userEmail || 'Unknown',
           userEmail: reply?.userEmail || '',
           text: reply?.text || '',
           textSnippet: buildSnippet(reply?.text || '', 160),
@@ -521,7 +522,7 @@ function renderListingRows() {
   const rows = listingRowsData.slice();
   $('listingRows').innerHTML = rows.map((item) => {
     const board = item.board || item.category || 'BUYSELL';
-    const poster = normalizePersonName(item.authorName || item.displayName || '') || item.authorEmail || item.userEmail || '—';
+    const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
     const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
     const hiddenPill = item.hidden ? `<div class="note">Hidden from marketplace view</div>` : '';
     const featuredPill = item.featured ? `<div class="note">Featured on homepage</div>` : '';
@@ -707,7 +708,7 @@ function renderModerationRows() {
         <td>${esc(fmtDate(flag.createdAtMs || Date.now()))}</td>
         <td>${esc(typeLabel)}</td>
         <td>${esc(flag.listingTitle || 'Untitled post')}</td>
-        <td><div class="moderation-content">${esc(flag.textSnippet || '—')}</div><div class="note">${esc(normalizePersonName(flag.displayName || '') || flag.userEmail || 'Unknown')}</div></td>
+        <td><div class="moderation-content">${esc(flag.textSnippet || '—')}</div><div class="note">${esc(flag.displayName || flag.userEmail || 'Unknown')}</div></td>
         <td>${esc(reasonText)}</td>
         <td>
           <div class="rowBtns compact-rowBtns">
@@ -1174,7 +1175,7 @@ function renderModerationModal() {
   const openFlags = getOpenFlagsForListing(listing.id);
   const visibleReplyCount = replies.filter((reply) => reply.deleted !== true).length;
   titleEl.textContent = listing.title || 'Thread Moderation';
-  metaEl.textContent = `${boardLabels[listing.board || listing.category || 'BUYSELL'] || (listing.board || listing.category || 'BUYSELL')} • ${normalizePersonName(listing.displayName || listing.authorName || '') || listing.userEmail || 'Unknown poster'} • ${fmtDate(listing.createdAtMs)}`;
+  metaEl.textContent = `${boardLabels[listing.board || listing.category || 'BUYSELL'] || (listing.board || listing.category || 'BUYSELL')} • ${listing.displayName || listing.userEmail || 'Unknown poster'} • ${fmtDate(listing.createdAtMs)}`;
   summaryEl.innerHTML = `
     <div class="mod-stat-line">
       <span class="mod-chip ${visibleReplyCount ? 'good' : ''}">${visibleReplyCount} active repl${visibleReplyCount === 1 ? 'y' : 'ies'}</span>
@@ -1200,7 +1201,7 @@ function renderModerationModal() {
       <div class="replyModerationCard ${reply.flagged ? 'flagged' : ''} ${reply.deleted ? 'deleted' : ''}">
         <div class="replyModerationHead">
           <div class="replyModerationMeta">
-            <div class="replyModerationAuthor">${esc(normalizePersonName(reply.displayName || '') || reply.userEmail || 'Unknown')}</div>
+            <div class="replyModerationAuthor">${esc(reply.displayName || reply.userEmail || 'Unknown')}</div>
             <div class="replyModerationSub">${esc(reply.userEmail || '—')} • ${esc(fmtDate(reply.createdAtMs || Date.now()))}</div>
             ${badges.length ? `<div class="mod-stat-line">${badges.join('')}</div>` : ''}
           </div>
