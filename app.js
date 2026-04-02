@@ -99,7 +99,20 @@ function applyAuthLanguage() {
 }
 
 function normalizePersonName(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  const cleaned = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part
+      .split(/([-'’])/)
+      .map((segment) => {
+        if (!segment || /^[-'’]$/.test(segment)) return segment;
+        const lower = segment.toLowerCase();
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(''))
+    .join(' ');
 }
 
 
@@ -1648,7 +1661,7 @@ async function handleRulesAgreement() {
     return;
   }
 
-  const cleanedTyped = typedName.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const cleanedTyped = normalizePersonName(typedName.replace(/[._-]+/g, ' '));
   const parts = cleanedTyped.split(' ').filter(Boolean);
 
   if (parts.length < 2) {
@@ -1735,7 +1748,7 @@ async function handleResendVerification() {
 
 
 async function handleSaveName() {
-  const name = $('displayNameInput')?.value.trim();
+  const name = normalizePersonName($('displayNameInput')?.value);
   if (!currentUser) {
     alert('Please log in again.');
     return;
@@ -1917,7 +1930,7 @@ function normalizeReplyRecord(reply, source = 'legacy', legacyIndex = -1) {
     flagged: reply?.flagged === true,
     moderationLabels: Array.isArray(reply?.moderationLabels) ? reply.moderationLabels : [],
     moderationMatchedTerms: Array.isArray(reply?.moderationMatchedTerms) ? reply.moderationMatchedTerms : [],
-    displayName: reply?.displayName || reply?.authorName || reply?.userEmail || 'Unknown',
+    displayName: normalizePersonName(reply?.displayName || reply?.authorName || '') || reply?.userEmail || 'Unknown',
     createdAtMs
   };
 }
@@ -1976,7 +1989,7 @@ function normalizeListing(item) {
     ...item,
     board,
     authorEmail: item.authorEmail || item.userEmail || '',
-    authorName: item.authorName || item.displayName || item.userEmail || '',
+    authorName: normalizePersonName(item.authorName || item.displayName || '') || item.userEmail || '',
     description: item.description || item.desc || '',
     imageUrl: item.imageUrl || item.photo || '',
     imageUrls: getListingImageUrls(item),
@@ -1991,27 +2004,17 @@ function normalizeListing(item) {
   };
 }
 
-function shouldCountInBoardSummary(item, boardKey = 'ALL') {
-  if (!item) return false;
-  if (item.hidden) return false;
-  const status = String(item.status || 'ACTIVE').toUpperCase();
-  const board = String(item.board || item.category || '').toUpperCase();
-  if (status === 'SOLD') return false;
-  if (boardKey === 'ALL') return board !== 'PICTURES';
-  return board === String(boardKey || '').toUpperCase();
-}
-
 function boardCounts() {
-  const counts = { ALL: listings.filter((item) => shouldCountInBoardSummary(item, 'ALL')).length };
-  BOARD_DEFS.forEach((b) => {
-    if (b.key !== 'ALL') counts[b.key] = listings.filter((item) => shouldCountInBoardSummary(item, b.key)).length;
-  });
+  const visible = listings.filter((item) => isVisibleToViewer(item));
+  const counts = { ALL: visible.length };
+  BOARD_DEFS.forEach((b) => { if (b.key !== 'ALL') counts[b.key] = 0; });
+  visible.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
   return counts;
 }
 
 
 function latestForBoard(boardKey) {
-  const list = listings.filter((item) => shouldCountInBoardSummary(item, boardKey));
+  const list = listings.filter((item) => isVisibleToViewer(item) && (boardKey === 'ALL' || item.board === boardKey));
   return list[0] || null;
 }
 
@@ -2206,15 +2209,14 @@ function renderListings() {
   const empty = $('empty');
   if (!wrap || !empty) return;
 
-  const summaryBoardKey = activeBoard === 'ALL' ? 'ALL' : activeBoard;
-  const liveListings = listings.filter((item) => shouldCountInBoardSummary(item, summaryBoardKey));
+  const visibleListings = listings.filter((item) => isVisibleToViewer(item));
   const data = filteredListings();
-  const latest = data[0] || liveListings[0] || null;
+  const latest = data[0] || visibleListings[0] || null;
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${liveListings.length} live`;
-  if ($('heroListingCount')) $('heroListingCount').textContent = String(liveListings.length);
+  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
+  if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   updateHeroPeopleStats();
   renderEventSpotlight();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
@@ -2391,8 +2393,8 @@ async function handleSavePost() {
       const createdRef = await addDoc(collection(db, 'listings'), {
         uid: currentUser.uid,
         userEmail: currentUser.email || '',
-        displayName: currentProfile.displayName || currentUser.email || '',
-        authorName: currentProfile.displayName || currentUser.email || '',
+        displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
+        authorName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
         ...payload,
         replies: [],
         replyCount: 0,
@@ -2419,7 +2421,7 @@ async function handleSavePost() {
         listingId,
         listingTitle: title,
         userEmail: currentUser.email || '',
-        displayName: currentProfile.displayName || currentUser.email || '',
+        displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
         textSnippet: buildModerationSnippet(`${title} — ${description}`),
         matchedLabels: moderationScan.matchedLabels,
         matchedTerms: moderationScan.matchedTerms,
@@ -2485,7 +2487,7 @@ async function openThread(id) {
   startActiveThreadRepliesListener(item.id);
   if ($('threadTitle')) $('threadTitle').textContent = item.title || 'Thread';
   if ($('threadMeta')) {
-    $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${item.authorName || item.authorEmail || ''} | ${formatDate(item.createdAtMs)}`;
+    $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${getPosterDisplayName(item)} | ${formatDate(item.createdAtMs)}`;
   }
 
   if ($('threadBody')) {
@@ -2554,7 +2556,7 @@ function renderReplies(replies) {
       <div class="replyItem${r.flagged && canModerate() ? ' moderation-flagged' : ''}">
         <div class="replyTop">
           <div>
-            <div class="replyUser">${esc(r.displayName || r.userEmail || 'Unknown')}</div>
+            <div class="replyUser">${esc(normalizePersonName(r.displayName || '') || r.userEmail || 'Unknown')}</div>
             ${badges.length ? `<div class="replyBadges">${badges.join('')}</div>` : ''}
           </div>
           <div class="replyTime">${esc(formatDate(r.createdAtMs || r.createdAt))}</div>
@@ -2601,7 +2603,7 @@ async function handleSendReply() {
       listingTitle: activeThread.title || '',
       uid: currentUser.uid,
       userEmail: currentUser.email || '',
-      displayName: currentProfile.displayName || currentUser.email || '',
+      displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
       text,
       textSnippet: buildModerationSnippet(text, 160),
       flagged: moderationScan.flagged,
@@ -2639,7 +2641,7 @@ async function handleSendReply() {
         replyId: replyRef.id,
         listingTitle: activeThread.title || '',
         userEmail: currentUser.email || '',
-        displayName: currentProfile.displayName || currentUser.email || '',
+        displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
         textSnippet: buildModerationSnippet(text),
         matchedLabels: moderationScan.matchedLabels,
         matchedTerms: moderationScan.matchedTerms,
