@@ -102,37 +102,6 @@ function normalizePersonName(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
-const NAME_OVERRIDES = {
-  'j.delgado@regallakeland.com': 'Jesel Delgado'
-};
-
-function formatNamePiece(piece) {
-  const value = String(piece || '').toLowerCase();
-  if (!value) return '';
-  if (/^mc[a-z]/.test(value)) {
-    return 'Mc' + value.charAt(2).toUpperCase() + value.slice(3);
-  }
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function professionalDisplayName(value, fallbackEmail = '') {
-  const emailKey = String(fallbackEmail || '').trim().toLowerCase();
-  if (NAME_OVERRIDES[emailKey]) return NAME_OVERRIDES[emailKey];
-
-  let raw = String(value || '').trim();
-  if ((!raw || raw.includes('@')) && emailKey) {
-    raw = emailKey.split('@')[0];
-  }
-  raw = raw.replace(/@.*$/, '').replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!raw) return emailKey || '';
-
-  return raw
-    .split(' ')
-    .filter(Boolean)
-    .map((word) => word.split('-').map((segment) => segment.split("'").map(formatNamePiece).join("'")).join('-'))
-    .join(' ');
-}
-
 
 const MODERATION_KEYWORDS = [
   { label: 'Insults / harassment', terms: ['idiot', 'moron', 'stupid', 'dumbass', 'clown', 'loser', 'delusional', 'pathetic', 'trash', 'garbage', 'need a life', 'shut up'] },
@@ -1073,7 +1042,7 @@ function expectedRulesFullName(profile = currentProfile, user = currentUser) {
     user?.email?.split('@')[0] ||
     ''
   ).trim();
-  return professionalDisplayName(source, profile?.email || user?.email || '');
+  return source.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 
@@ -1948,7 +1917,7 @@ function normalizeReplyRecord(reply, source = 'legacy', legacyIndex = -1) {
     flagged: reply?.flagged === true,
     moderationLabels: Array.isArray(reply?.moderationLabels) ? reply.moderationLabels : [],
     moderationMatchedTerms: Array.isArray(reply?.moderationMatchedTerms) ? reply.moderationMatchedTerms : [],
-    displayName: professionalDisplayName(reply?.displayName || reply?.authorName || '', reply?.userEmail || reply?.authorEmail || '') || reply?.userEmail || 'Unknown',
+    displayName: reply?.displayName || reply?.authorName || reply?.userEmail || 'Unknown',
     createdAtMs
   };
 }
@@ -2022,13 +1991,21 @@ function normalizeListing(item) {
   };
 }
 
+function isMarketplaceSystemPage(item) {
+  if (!item) return false;
+  const board = String(item.board || item.category || '').trim().toUpperCase();
+  const title = String(item.title || '').trim().toUpperCase();
+  const id = String(item.id || '').trim().toLowerCase();
+  return board === 'PICTURES' && (id === 'pictures-home' || title === 'PICTURES HOME');
+}
+
 function isCountableMarketplaceListing(item) {
   if (!item) return false;
   if (!isVisibleToViewer(item)) return false;
-  if (String(item.board || item.category || '').toUpperCase() === 'PICTURES') return false;
+  if (isMarketplaceSystemPage(item)) return false;
+  if (String(item.board || item.category || '').trim().toUpperCase() === 'PICTURES') return false;
   return String(item.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
 }
-
 
 function boardCounts() {
   const visible = listings.filter((item) => isCountableMarketplaceListing(item));
@@ -2100,7 +2077,7 @@ function filteredListings() {
   const st = $('st')?.value || 'ALL';
   const sort = $('sort')?.value || 'NEW';
 
-  let data = listings.filter((item) => isVisibleToViewer(item) && item.board !== 'PICTURES' && (activeBoard === 'ALL' || item.board === activeBoard));
+  let data = listings.filter((item) => isVisibleToViewer(item) && !isMarketplaceSystemPage(item) && item.board !== 'PICTURES' && (activeBoard === 'ALL' || item.board === activeBoard));
 
   if (st !== 'ALL') {
     data = data.filter((item) => (item.status || 'ACTIVE') === st);
@@ -2188,7 +2165,7 @@ function canModify(item) {
 }
 
 function getPosterDisplayName(item) {
-  return professionalDisplayName(item?.authorName || item?.displayName || '', item?.authorEmail || item?.userEmail || '') || item?.authorEmail || item?.userEmail || 'Marketplace Member';
+  return normalizePersonName(item?.authorName || item?.displayName || '') || item?.authorEmail || item?.userEmail || 'Marketplace Member';
 }
 
 function getPosterContactValue(item) {
@@ -2235,14 +2212,14 @@ function renderListings() {
   const empty = $('empty');
   if (!wrap || !empty) return;
 
-  const liveSummaryListings = listings.filter((item) => isCountableMarketplaceListing(item));
+  const visibleListings = listings.filter((item) => isCountableMarketplaceListing(item));
   const data = filteredListings();
-  const latest = data[0] || liveSummaryListings[0] || null;
+  const latest = visibleListings[0] || data[0] || null;
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${liveSummaryListings.length} live`;
-  if ($('heroListingCount')) $('heroListingCount').textContent = String(liveSummaryListings.length);
+  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
+  if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   updateHeroPeopleStats();
   renderEventSpotlight();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
@@ -2513,7 +2490,7 @@ async function openThread(id) {
   startActiveThreadRepliesListener(item.id);
   if ($('threadTitle')) $('threadTitle').textContent = item.title || 'Thread';
   if ($('threadMeta')) {
-    $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${getPosterDisplayName(item)} | ${formatDate(item.createdAtMs)}`;
+    $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${item.authorName || item.authorEmail || ''} | ${formatDate(item.createdAtMs)}`;
   }
 
   if ($('threadBody')) {
@@ -2582,7 +2559,7 @@ function renderReplies(replies) {
       <div class="replyItem${r.flagged && canModerate() ? ' moderation-flagged' : ''}">
         <div class="replyTop">
           <div>
-            <div class="replyUser">${esc(professionalDisplayName(r.displayName || '', r.userEmail || '') || r.userEmail || 'Unknown')}</div>
+            <div class="replyUser">${esc(r.displayName || r.userEmail || 'Unknown')}</div>
             ${badges.length ? `<div class="replyBadges">${badges.join('')}</div>` : ''}
           </div>
           <div class="replyTime">${esc(formatDate(r.createdAtMs || r.createdAt))}</div>

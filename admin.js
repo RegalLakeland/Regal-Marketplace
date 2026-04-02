@@ -198,44 +198,15 @@ function approvalStateLabel(user) {
 }
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
 function normalizePersonName(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
-const NAME_OVERRIDES = {
-  'j.delgado@regallakeland.com': 'Jesel Delgado'
-};
-function formatNamePiece(piece) {
-  const value = String(piece || '').toLowerCase();
-  if (!value) return '';
-  if (/^mc[a-z]/.test(value)) return 'Mc' + value.charAt(2).toUpperCase() + value.slice(3);
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-function professionalDisplayName(value, fallbackEmail = '') {
-  const emailKey = normalizeEmail(fallbackEmail);
-  if (NAME_OVERRIDES[emailKey]) return NAME_OVERRIDES[emailKey];
-  let raw = String(value || '').trim();
-  if ((!raw || raw.includes('@')) && emailKey) raw = emailKey.split('@')[0];
-  raw = raw.replace(/@.*$/, '').replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!raw) return emailKey || '';
-  return raw
-    .split(' ')
-    .filter(Boolean)
-    .map((word) => word.split('-').map((segment) => segment.split("'").map(formatNamePiece).join("'")).join('-'))
-    .join(' ');
-}
-function splitNameParts(name) {
-  const clean = professionalDisplayName(name);
-  const parts = clean.split(' ').filter(Boolean);
-  if (!parts.length) return { full: '', first: '', last: '' };
-  if (parts.length === 1) return { full: clean, first: parts[0], last: '' };
-  return { full: clean, first: parts[0], last: parts.slice(1).join(' ') };
-}
 function preferredUserName(user, preferPending = false) {
   const pendingFirst = preferPending
     ? [user?.pendingName, user?.requestedName, user?.displayName]
     : [user?.displayName, user?.pendingName, user?.requestedName];
   for (const candidate of pendingFirst) {
-    const clean = professionalDisplayName(candidate, user?.email || '');
+    const clean = normalizePersonName(candidate);
     if (clean) return clean;
   }
-  return professionalDisplayName('', user?.email || '') || normalizeEmail(user?.email) || '';
+  return normalizeEmail(user?.email) || '';
 }
 function isAdmin(email) { return ADMIN_EMAILS.map((x) => x.toLowerCase()).includes(normalizeEmail(email)); }
 function isProtectedCoreAdmin(email) { return CORE_ADMIN_EMAILS.includes(normalizeEmail(email)); }
@@ -529,10 +500,45 @@ function listingThreadStats(item) {
   };
 }
 
+function isSystemSitePage(item) {
+  if (!item) return false;
+  const board = String(item.board || item.category || '').trim().toUpperCase();
+  const title = String(item.title || '').trim().toUpperCase();
+  const id = String(item.id || '').trim().toLowerCase();
+  return board === 'PICTURES' && (id === 'pictures-home' || title === 'PICTURES HOME');
+}
+
+function renderSitePageRows() {
+  const wrap = $('sitePageRows');
+  if (!wrap) return;
+  const rows = listingRowsData.filter((item) => isSystemSitePage(item));
+  if (!rows.length) {
+    wrap.innerHTML = '<tr><td colspan="6"><div class="note">No system pages found.</div></td></tr>';
+    return;
+  }
+
+  wrap.innerHTML = rows.map((item) => {
+    const pageType = item.board || item.category || 'Page';
+    const visibility = item.hidden ? 'Hidden from marketplace feed' : 'Visible in marketplace feed';
+    const updatedMs = Number(item.updatedAt || item.createdAtMs || 0);
+    const openHref = pageType.toUpperCase() === 'PICTURES' ? 'pictures.html' : 'index.html';
+    const studioHref = pageType.toUpperCase() === 'PICTURES' ? 'pictures.html?edit=1' : openHref;
+    return `
+      <tr>
+        <td><strong>${esc(item.title || 'System Page')}</strong><div class="note">System-managed page record</div></td>
+        <td>${esc(boardLabels[pageType] || pageType)}</td>
+        <td>${esc(String(item.status || 'ACTIVE').toUpperCase())}</td>
+        <td>${esc(visibility)}</td>
+        <td>${esc(fmtDate(updatedMs))}</td>
+        <td><div class="rowBtns compact-rowBtns"><a class="btn" href="${openHref}" target="_blank" rel="noopener">Open Page</a><a class="btn ghost" href="${studioHref}" target="_blank" rel="noopener">Open Studio</a></div></td>
+      </tr>`;
+  }).join('');
+}
+
 function renderListingRows() {
   if (!$('listingRows')) return;
   const adminViewer = canManageUsers();
-  const rows = listingRowsData.slice();
+  const rows = listingRowsData.filter((item) => !isSystemSitePage(item));
   $('listingRows').innerHTML = rows.map((item) => {
     const board = item.board || item.category || 'BUYSELL';
     const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
@@ -607,6 +613,7 @@ function startListings() {
   onSnapshot(qRef, (snap) => {
     listingRowsData = snap.docs.map((d) => ({ id:d.id, ...d.data() }));
     renderListingRows();
+    renderSitePageRows();
     renderModerationRows();
     renderModerationModal();
   });
@@ -618,6 +625,7 @@ function startReplies() {
     replyRowsData = snap.docs.map((d) => ({ id: d.id, path: d.ref.path, sourceKey: `reply:${d.id}`, ...d.data() }));
     if ($('adminReplyCount')) $('adminReplyCount').textContent = `${replyRowsData.filter((reply) => reply.deleted !== true).length} replies`;
     renderListingRows();
+    renderSitePageRows();
     renderModerationModal();
   });
 }
@@ -628,6 +636,7 @@ function startModerationFlags() {
     moderationFlagsData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderModerationRows();
     renderListingRows();
+    renderSitePageRows();
     renderModerationModal();
   });
 }
@@ -814,7 +823,6 @@ function buildUserActionButtons(user, dup, protectedUser) {
   if (user.accessApproved && !protectedUser) buttons.push(`<button class="btn ghost" data-role="denyAccess" data-id="${esc(user.id)}" type="button">Remove Access</button>`);
 
   if (!protectedUser || selfRow) buttons.push(`<button class="btn ghost" data-role="setTempPassword" data-id="${esc(user.id)}" type="button">Set Temp Password</button>`);
-  buttons.push(`<button class="btn ghost" data-role="editName" data-id="${esc(user.id)}" type="button">Fix Name</button>`);
   buttons.push(`<button class="btn ghost" data-role="resetRules" data-id="${esc(user.id)}" type="button">Reset Rules</button>`);
   if (isCoreAdminViewer() && (!protectedUser || selfRow)) {
     if (!user.deleted) buttons.push(`<button class="btn danger" data-role="softDeleteAccount" data-id="${esc(user.id)}" type="button">Soft Delete</button>`);
@@ -1018,18 +1026,6 @@ function renderUserRows() {
     }
     if (role === 'banUser') await updateDoc(ref, { banned: true, updatedAt: Date.now() });
     if (role === 'unbanUser') await updateDoc(ref, { banned: false, deleted: false, approvalStatus: user.accessApproved ? 'APPROVED' : 'PENDING_ADMIN_APPROVAL', updatedAt: Date.now() });
-    if (role === 'editName') {
-      const suggested = preferredUserName(user, true) || professionalDisplayName('', user.email || '');
-      const entered = window.prompt(`Fix display name for ${user.email || 'this user'}. This updates their profile and existing posts/replies.`, suggested);
-      if (entered === null) return;
-      try {
-        const result = await applyAdminNameFix(user, entered);
-        alert(`Updated name to ${result.formattedName}. Refreshed ${result.listingUpdates} post(s) and ${result.replyUpdates} repl${result.replyUpdates === 1 ? 'y' : 'ies'}.`);
-      } catch (err) {
-        alert(err.message || 'Could not update that name.');
-      }
-      return;
-    }
     if (role === 'resetRules') {
       if (!confirm(`Reset rules agreement for ${user.email || 'this user'}? They will be forced to accept the current rules again on next login.`)) return;
       await updateDoc(ref, {
@@ -1102,75 +1098,6 @@ function renderUserRows() {
       await deleteDoc(ref);
     }
   });
-}
-
-
-async function applyAdminNameFix(user, rawName) {
-  const formattedName = professionalDisplayName(rawName, user?.email || '');
-  if (!formattedName) {
-    throw new Error('Enter a valid first and last name.');
-  }
-  const parts = splitNameParts(formattedName);
-  const profileRef = doc(db, 'profiles', user.id);
-  await updateDoc(profileRef, {
-    displayName: formattedName,
-    pendingName: formattedName,
-    requestedName: formattedName,
-    rulesAcceptedName: parts.full || formattedName,
-    rulesAcceptedFirstName: parts.first || '',
-    rulesAcceptedLastName: parts.last || '',
-    updatedAt: Date.now()
-  });
-
-  const email = normalizeEmail(user?.email || '');
-  const listingSnaps = await Promise.all([
-    getDocs(query(collection(db, 'listings'), where('userEmail', '==', email))).catch(() => null),
-    getDocs(query(collection(db, 'listings'), where('authorEmail', '==', email))).catch(() => null)
-  ]);
-  const listingDocs = new Map();
-  for (const snap of listingSnaps) {
-    if (!snap) continue;
-    snap.docs.forEach((d) => listingDocs.set(d.id, d));
-  }
-
-  let listingUpdates = 0;
-  for (const snap of listingDocs.values()) {
-    const data = snap.data() || {};
-    const updates = {};
-    if (normalizeEmail(data.userEmail || data.authorEmail || '') === email) {
-      if (data.displayName !== formattedName) updates.displayName = formattedName;
-      if (data.authorName !== formattedName) updates.authorName = formattedName;
-    }
-    if (Array.isArray(data.replies)) {
-      let changed = false;
-      const replies = data.replies.map((reply) => {
-        if (normalizeEmail(reply?.userEmail || reply?.authorEmail || '') !== email) return reply;
-        changed = true;
-        return {
-          ...reply,
-          displayName: formattedName,
-          authorName: formattedName
-        };
-      });
-      if (changed) updates.replies = replies;
-    }
-    if (Object.keys(updates).length) {
-      updates.updatedAt = Date.now();
-      await updateDoc(doc(db, 'listings', snap.id), updates);
-      listingUpdates += 1;
-    }
-  }
-
-  const replySnap = await getDocs(query(collectionGroup(db, 'replies'), where('userEmail', '==', email))).catch(() => null);
-  let replyUpdates = 0;
-  if (replySnap) {
-    for (const replyDoc of replySnap.docs) {
-      await updateDoc(replyDoc.ref, { displayName: formattedName, updatedAt: Date.now() });
-      replyUpdates += 1;
-    }
-  }
-
-  return { formattedName, listingUpdates, replyUpdates };
 }
 
 function startUsers() {
