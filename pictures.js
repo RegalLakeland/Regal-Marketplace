@@ -99,45 +99,103 @@ function sortedImageElements() {
     .sort((a, b) => (a.y - b.y) || (a.x - b.x) || (a.z - b.z));
 }
 
+function median(values) {
+  const nums = values.filter((value) => Number.isFinite(Number(value))).map(Number).sort((a, b) => a - b);
+  if (!nums.length) return 0;
+  const mid = Math.floor(nums.length / 2);
+  return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+}
+
+function groupImagesIntoRows(images) {
+  const rows = [];
+  const ordered = images.slice().sort((a, b) => ((a.y + (a.h / 2)) - (b.y + (b.h / 2))) || (a.x - b.x));
+
+  ordered.forEach((image) => {
+    const centerY = Number(image.y || 0) + (Number(image.h || 0) / 2);
+    const match = rows.find((row) => Math.abs(centerY - row.centerY) <= Math.max(8, row.avgHeight * 0.7));
+
+    if (match) {
+      match.items.push(image);
+      match.centerY = median(match.items.map((item) => Number(item.y || 0) + (Number(item.h || 0) / 2)));
+      match.avgHeight = median(match.items.map((item) => Number(item.h || 0)));
+    } else {
+      rows.push({
+        items: [image],
+        centerY,
+        avgHeight: Number(image.h || 0) || 20
+      });
+    }
+  });
+
+  return rows
+    .map((row) => ({
+      ...row,
+      items: row.items.sort((a, b) => (a.x - b.x) || (a.y - b.y))
+    }))
+    .sort((a, b) => a.centerY - b.centerY);
+}
+
 function autoAlignImages() {
   const images = sortedImageElements();
   if (!images.length) {
     status('No images to align.', true);
     return;
   }
-  const textBottom = pageState.elements
-    .filter((element) => element.type === 'text')
-    .reduce((max, element) => Math.max(max, Number(element.y || 0) + Number(element.h || 0)), 0);
 
-  const count = images.length;
-  let cols = 1;
-  if (count === 2) cols = 2;
-  else if (count === 3) cols = 3;
-  else if (count === 4) cols = 2;
-  else if (count <= 6) cols = 3;
-  else cols = 4;
+  const rows = groupImagesIntoRows(images);
+  const canvasMinX = 2;
+  const canvasMaxX = 98;
+  const rowGap = 2.5;
+  let previousBottom = 0;
 
-  const usableX = 4;
-  const usableW = 92;
-  const gap = cols >= 4 ? 1.8 : 2.4;
-  const cardW = (usableW - gap * (cols - 1)) / cols;
-  let cardH = cols === 1 ? 42 : cols === 2 ? 30 : cols === 3 ? 22 : 17;
-  if (count <= 2) cardH = 34;
-  const startY = Math.max(12, Math.min(80, textBottom ? textBottom + 2.5 : 12));
+  rows.forEach((row) => {
+    const items = row.items;
+    const gap = items.length >= 4 ? 1.5 : 2;
+    const currentLeft = Math.min(...items.map((item) => Number(item.x || 0)));
+    const currentRight = Math.max(...items.map((item) => Number(item.x || 0) + Number(item.w || 0)));
+    const currentCenter = (currentLeft + currentRight) / 2;
 
-  images.forEach((image, index) => {
-    const row = Math.floor(index / cols);
-    const col = index % cols;
-    image.x = snap(usableX + col * (cardW + gap));
-    image.y = snap(startY + row * (cardH + gap + 4));
-    image.w = snap(cardW);
-    image.h = snap(cardH);
-    image.fit = 'cover';
-    normalizeElementBounds(image);
+    let widths = items.map((item) => clamp(Number(item.w || 18), 8, 92));
+    let heights = items.map((item) => clamp(Number(item.h || 18), 8, 80));
+    let totalWidth = widths.reduce((sum, value) => sum + value, 0) + gap * (items.length - 1);
+
+    const maxAllowedWidth = canvasMaxX - canvasMinX;
+    if (totalWidth > maxAllowedWidth) {
+      const scale = (maxAllowedWidth - gap * (items.length - 1)) / widths.reduce((sum, value) => sum + value, 0);
+      widths = widths.map((value) => value * scale);
+      heights = heights.map((value) => value * scale);
+      totalWidth = widths.reduce((sum, value) => sum + value, 0) + gap * (items.length - 1);
+    }
+
+    const rowHeight = Math.max(...heights);
+    const currentTop = Math.min(...items.map((item) => Number(item.y || 0)));
+    let targetTop = currentTop;
+    if (targetTop < previousBottom + rowGap) {
+      targetTop = previousBottom + rowGap;
+    }
+
+    const minCenter = canvasMinX + (totalWidth / 2);
+    const maxCenter = canvasMaxX - (totalWidth / 2);
+    const targetCenter = clamp(currentCenter, minCenter, maxCenter);
+    let cursorX = targetCenter - (totalWidth / 2);
+
+    items.forEach((item, index) => {
+      const newW = widths[index];
+      const newH = heights[index];
+      item.x = snap(cursorX);
+      item.y = snap(targetTop + ((rowHeight - newH) / 2));
+      item.w = snap(newW);
+      item.h = snap(newH);
+      item.fit = item.fit || 'cover';
+      normalizeElementBounds(item);
+      cursorX += newW + gap;
+    });
+
+    previousBottom = targetTop + rowHeight;
   });
 
   selectedId = images[0]?.id || selectedId;
-  markDirty('Images auto-aligned');
+  markDirty('Images auto-aligned without moving your text layout');
   render();
 }
 
