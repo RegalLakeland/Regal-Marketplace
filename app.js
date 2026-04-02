@@ -1991,17 +1991,25 @@ function normalizeListing(item) {
   };
 }
 
+function shouldIncludeInBoardSummary(item, boardKey = 'ALL') {
+  if (!isVisibleToViewer(item)) return false;
+  const status = String(item?.status || 'ACTIVE').toUpperCase();
+  if (status === 'SOLD') return false;
+  if (item?.board === 'PICTURES') return false;
+  return boardKey === 'ALL' || item?.board === boardKey;
+}
+
 function boardCounts() {
-  const visible = listings.filter((item) => isVisibleToViewer(item));
-  const counts = { ALL: visible.length };
+  const summaryItems = listings.filter((item) => shouldIncludeInBoardSummary(item));
+  const counts = { ALL: summaryItems.length };
   BOARD_DEFS.forEach((b) => { if (b.key !== 'ALL') counts[b.key] = 0; });
-  visible.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
+  summaryItems.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
   return counts;
 }
 
 
 function latestForBoard(boardKey) {
-  const list = listings.filter((item) => isVisibleToViewer(item) && (boardKey === 'ALL' || item.board === boardKey));
+  const list = listings.filter((item) => shouldIncludeInBoardSummary(item, boardKey));
   return list[0] || null;
 }
 
@@ -2012,7 +2020,12 @@ function renderBoards() {
 
   const counts = boardCounts();
   wrap.innerHTML = BOARD_DEFS.map((board) => {
+    const isPicturesBoard = board.key === 'PICTURES';
     const last = latestForBoard(board.key);
+    const countText = isPicturesBoard ? 'Open' : String(counts[board.key] || 0);
+    const lastText = isPicturesBoard
+      ? 'Launch the standalone gallery designer'
+      : (last ? esc(last.title || 'Latest post') : 'No posts yet');
     return `
       <button class="boardBtn ${activeBoard === board.key ? 'active' : ''}" data-board="${board.key}" type="button">
         <div>
@@ -2020,8 +2033,8 @@ function renderBoards() {
           <div class="board-desc">${esc(board.desc)}</div>
         </div>
         <div class="board-meta">
-          <div class="board-count">${counts[board.key] || 0}</div>
-          <div class="board-last">${last ? esc(last.title || 'Latest post') : 'No posts yet'}</div>
+          <div class="board-count">${countText}</div>
+          <div class="board-last">${lastText}</div>
         </div>
       </button>
     `;
@@ -2029,7 +2042,12 @@ function renderBoards() {
 
   wrap.querySelectorAll('.boardBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      activeBoard = btn.dataset.board;
+      const boardKey = btn.dataset.board;
+      if (boardKey === 'PICTURES') {
+        window.location.href = 'pictures.html';
+        return;
+      }
+      activeBoard = boardKey;
       renderBoards();
       renderListings();
       const boardMeta = BOARD_DEFS.find((b) => b.key === activeBoard);
@@ -2051,7 +2069,7 @@ function filteredListings() {
   const st = $('st')?.value || 'ALL';
   const sort = $('sort')?.value || 'NEW';
 
-  let data = listings.filter((item) => isVisibleToViewer(item) && (activeBoard === 'ALL' || item.board === activeBoard));
+  let data = listings.filter((item) => isVisibleToViewer(item) && item.board !== 'PICTURES' && (activeBoard === 'ALL' || item.board === activeBoard));
 
   if (st !== 'ALL') {
     data = data.filter((item) => (item.status || 'ACTIVE') === st);
@@ -2223,9 +2241,9 @@ function renderListings() {
       : '';
     const boardLabel = BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board;
     const imageUrls = getListingImageUrls(item);
-    const galleryPreview = buildGalleryPreview(item);
     const visualValue = getListingDisplayValue(item);
     const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
+    const galleryPreview = isPictureBoard ? buildGalleryPreview(item) : '';
     const sideMeta = isPictureBoard
       ? `<div class="topicMeta topicMetaRight"><span>${esc(imageUrls.length ? `${imageUrls.length} image${imageUrls.length === 1 ? '' : 's'}` : 'No images')}</span><span>${esc(item.location || 'Regal gallery')}</span></div>`
       : `<div class="topicMeta topicMetaRight"><span>${esc(item.location || 'No location')}</span><span>${esc(item.contact || 'No contact')}</span></div>`;
