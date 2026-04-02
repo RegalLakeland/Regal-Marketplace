@@ -88,6 +88,60 @@ let pageOwnerUid = '';
 let pageOwnerEmail = '';
 
 
+function setToolsHidden(hidden) {
+  toolsHidden = !!hidden;
+  renderHeader();
+}
+
+function sortedImageElements() {
+  return pageState.elements
+    .filter((element) => element.type === 'image' && element.src)
+    .sort((a, b) => (a.y - b.y) || (a.x - b.x) || (a.z - b.z));
+}
+
+function autoAlignImages() {
+  const images = sortedImageElements();
+  if (!images.length) {
+    status('No images to align.', true);
+    return;
+  }
+  const textBottom = pageState.elements
+    .filter((element) => element.type === 'text')
+    .reduce((max, element) => Math.max(max, Number(element.y || 0) + Number(element.h || 0)), 0);
+
+  const count = images.length;
+  let cols = 1;
+  if (count === 2) cols = 2;
+  else if (count === 3) cols = 3;
+  else if (count === 4) cols = 2;
+  else if (count <= 6) cols = 3;
+  else cols = 4;
+
+  const usableX = 4;
+  const usableW = 92;
+  const gap = cols >= 4 ? 1.8 : 2.4;
+  const cardW = (usableW - gap * (cols - 1)) / cols;
+  let cardH = cols === 1 ? 42 : cols === 2 ? 30 : cols === 3 ? 22 : 17;
+  if (count <= 2) cardH = 34;
+  const startY = Math.max(12, Math.min(80, textBottom ? textBottom + 2.5 : 12));
+
+  images.forEach((image, index) => {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    image.x = snap(usableX + col * (cardW + gap));
+    image.y = snap(startY + row * (cardH + gap + 4));
+    image.w = snap(cardW);
+    image.h = snap(cardH);
+    image.fit = 'cover';
+    normalizeElementBounds(image);
+  });
+
+  selectedId = images[0]?.id || selectedId;
+  markDirty('Images auto-aligned');
+  render();
+}
+
+
 function hideStatus() {
   const banner = $('statusBanner');
   if (!banner) return;
@@ -255,6 +309,8 @@ function renderHeader() {
   $('toggleStudioBtn').textContent = editorMode ? 'Close Studio' : 'Open Studio';
   $('designerSidebar').style.display = editorMode && !toolsHidden ? 'block' : 'none';
   $('showToolsBtn').style.display = editorMode && toolsHidden ? 'inline-flex' : 'none';
+  $('floatingEditorDock').style.display = editorMode ? 'flex' : 'none';
+  $('floatingToolsBtn').textContent = toolsHidden ? 'Show Tools' : 'Hide Tools';
   $('pageTitleInput').value = pageState.title || '';
   $('canvasHeightInput').value = String(pageState.canvasHeight || 2600);
   $('canvasWidthInput').value = String(pageState.canvasWidth || 1800);
@@ -754,14 +810,11 @@ function bindEvents() {
   $('addTextBtn').addEventListener('click', () => createTextBlock(false));
   $('duplicateBlockBtn').addEventListener('click', duplicateSelected);
   $('deleteBlockBtn').addEventListener('click', deleteSelected);
-  $('hideToolsBtn').addEventListener('click', () => {
-    toolsHidden = true;
-    renderHeader();
-  });
-  $('showToolsBtn').addEventListener('click', () => {
-    toolsHidden = false;
-    renderHeader();
-  });
+  $('autoAlignImagesBtn').addEventListener('click', autoAlignImages);
+  $('hideToolsBtn').addEventListener('click', () => setToolsHidden(true));
+  $('showToolsBtn').addEventListener('click', () => setToolsHidden(false));
+  $('floatingAutoAlignBtn').addEventListener('click', autoAlignImages);
+  $('floatingToolsBtn').addEventListener('click', () => setToolsHidden(!toolsHidden));
 
   $('pageTitleInput').addEventListener('input', (event) => {
     pageState.title = event.target.value;
