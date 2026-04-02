@@ -98,21 +98,74 @@ function applyAuthLanguage() {
   } catch (_) {}
 }
 
-function normalizePersonName(value) {
-  const cleaned = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!cleaned) return '';
-  return cleaned
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part
-      .split(/([-'’])/)
-      .map((segment) => {
-        if (!segment || /^[-'’]$/.test(segment)) return segment;
-        const lower = segment.toLowerCase();
-        return lower.charAt(0).toUpperCase() + lower.slice(1);
-      })
-      .join(''))
-    .join(' ');
+const DISPLAY_NAME_OVERRIDES = {
+  'j.delgado@regallakeland.com': 'Jesel Delgado'
+};
+
+function displayNameOverrideForEmail(email) {
+  const key = String(email || '').trim().toLowerCase();
+  return DISPLAY_NAME_OVERRIDES[key] || '';
+}
+
+function emailLocalPartToName(email) {
+  const local = String(email || '').trim().toLowerCase().split('@')[0] || '';
+  return local.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function titleCaseNameSegment(value) {
+  const source = String(value || '').trim().toLowerCase();
+  if (!source) return '';
+  return source.split("'").map((piece) => {
+    if (!piece) return '';
+    return piece.split('-').map((part) => {
+      if (!part) return '';
+      if (/^(ii|iii|iv|v|jr|sr)$/i.test(part)) return part.toUpperCase();
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    }).join('-');
+  }).join("'");
+}
+
+function normalizePersonName(value, email = '') {
+  const override = displayNameOverrideForEmail(email);
+  let source = String(override || value || '').replace(/\s+/g, ' ').trim();
+  if (!source && email) source = emailLocalPartToName(email);
+  if (/@/.test(source)) source = emailLocalPartToName(source);
+  source = source.replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!source) return '';
+  return source.split(' ').map((part) => titleCaseNameSegment(part)).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function hasValidFirstLastName(value, email = '') {
+  const clean = normalizePersonName(value, email);
+  if (!clean) return false;
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return false;
+  const first = (parts[0] || '').replace(/[^A-Za-z]/g, '');
+  const last = (parts[1] || '').replace(/[^A-Za-z]/g, '');
+  return first.length >= 2 && last.length >= 2;
+}
+
+function getNormalizedProfileDisplayName(profile = currentProfile, user = currentUser) {
+  const email = String(profile?.email || user?.email || '').trim().toLowerCase();
+  return normalizePersonName(
+    displayNameOverrideForEmail(email) ||
+    profile?.displayName ||
+    profile?.pendingName ||
+    profile?.requestedName ||
+    user?.displayName ||
+    '',
+    email
+  );
+}
+
+function profileNeedsNameRefresh(profile = currentProfile, user = currentUser) {
+  const email = String(profile?.email || user?.email || '').trim().toLowerCase();
+  const raw = String(profile?.displayName || profile?.pendingName || profile?.requestedName || user?.displayName || '').trim();
+  if (displayNameOverrideForEmail(email)) {
+    return getNormalizedProfileDisplayName(profile, user) !== String(profile?.displayName || '').trim();
+  }
+  if (!hasValidFirstLastName(raw, email)) return true;
+  return normalizePersonName(raw, email) !== raw;
 }
 
 
@@ -529,8 +582,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     hideRulesOverlay();
-    if (!currentProfile.displayName) {
-      $('displayNameInput').value = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+    if (profileNeedsNameRefresh(currentProfile, user)) {
+      const suggested = getNormalizedProfileDisplayName(currentProfile, user);
+      $('displayNameInput').value = hasValidFirstLastName(suggested, user.email || '') ? suggested : '';
       show('nameOverlay');
     }
   } catch (err) {
@@ -1205,8 +1259,8 @@ async function ensureProfile(user) {
   const baseProfile = {
     uid: user.uid,
     email: user.email || '',
-    displayName: (user.displayName || '').trim(),
-    pendingName: (user.displayName || '').trim(),
+    displayName: normalizePersonName(user.displayName || '', user.email || ''),
+    pendingName: normalizePersonName(user.displayName || '', user.email || ''),
     isAdmin: isAdmin(user.email),
     isModerator: false,
     banned: false,
@@ -1254,13 +1308,14 @@ async function ensureProfile(user) {
   } else {
     currentProfile = { id: snap.id, ...snap.data() };
     const updates = {};
-    const authDisplayName = normalizePersonName(user.displayName || '');
+    const authDisplayName = normalizePersonName(user.displayName || '', user.email || '');
+    const desiredProfileName = getNormalizedProfileDisplayName(currentProfile, user) || authDisplayName;
 
     // Only backfill fields that the signed-in owner is allowed to update under Firestore rules.
-    if (authDisplayName) {
-      if (!normalizePersonName(currentProfile.displayName)) updates.displayName = authDisplayName;
-      if (!normalizePersonName(currentProfile.pendingName)) updates.pendingName = authDisplayName;
-      if (!normalizePersonName(currentProfile.requestedName)) updates.requestedName = authDisplayName;
+    if (desiredProfileName) {
+      if (String(currentProfile.displayName || '').trim() !== desiredProfileName || !hasValidFirstLastName(currentProfile.displayName || '', user.email || '')) updates.displayName = desiredProfileName;
+      if (String(currentProfile.pendingName || '').trim() !== desiredProfileName || !hasValidFirstLastName(currentProfile.pendingName || '', user.email || '')) updates.pendingName = desiredProfileName;
+      if (String(currentProfile.requestedName || '').trim() !== desiredProfileName || !hasValidFirstLastName(currentProfile.requestedName || '', user.email || '')) updates.requestedName = desiredProfileName;
     }
     if (typeof currentProfile.emailVerified !== 'boolean') updates.emailVerified = !!user.emailVerified;
     if (typeof currentProfile.tempPasswordActive !== 'boolean') updates.tempPasswordActive = false;
@@ -1315,7 +1370,7 @@ function updateAuthUI() {
 
   if ($('pillUser')) {
     $('pillUser').textContent = loggedIn
-      ? (currentProfile.displayName || currentUser.email)
+      ? (getNormalizedProfileDisplayName(currentProfile, currentUser) || currentUser.email)
       : 'Not signed in';
   }
 
@@ -1485,8 +1540,9 @@ async function handleForcePasswordChange() {
         showRulesOverlay();
         return;
       }
-      if (currentProfile && !currentProfile.displayName) {
-        $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+      if (currentProfile && profileNeedsNameRefresh(currentProfile, currentUser)) {
+        const suggested = getNormalizedProfileDisplayName(currentProfile, currentUser);
+        $('displayNameInput').value = hasValidFirstLastName(suggested, currentUser?.email || '') ? suggested : '';
         show('nameOverlay');
       }
     }, 500);
@@ -1661,7 +1717,7 @@ async function handleRulesAgreement() {
     return;
   }
 
-  const cleanedTyped = normalizePersonName(typedName.replace(/[._-]+/g, ' '));
+  const cleanedTyped = typedName.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
   const parts = cleanedTyped.split(' ').filter(Boolean);
 
   if (parts.length < 2) {
@@ -1696,7 +1752,7 @@ async function handleRulesAgreement() {
     rulesAcceptedAtMs: now,
     rulesAcceptedByUid: currentUser.uid,
     rulesAcceptedByEmail: String(currentUser.email || '').toLowerCase(),
-    rulesAcceptedDisplayNameSnapshot: String(currentProfile.displayName || currentProfile.pendingName || currentProfile.requestedName || cleanedTyped),
+    rulesAcceptedDisplayNameSnapshot: getNormalizedProfileDisplayName(currentProfile, currentUser) || cleanedTyped,
     updatedAt: serverTimestamp()
   };
 
@@ -1705,8 +1761,9 @@ async function handleRulesAgreement() {
     currentProfile = { ...currentProfile, ...payload };
     hideRulesOverlay();
     updateAuthUI();
-    if (!currentProfile.displayName) {
-      $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+    if (profileNeedsNameRefresh(currentProfile, currentUser)) {
+      const suggested = getNormalizedProfileDisplayName(currentProfile, currentUser);
+      $('displayNameInput').value = hasValidFirstLastName(suggested, currentUser?.email || '') ? suggested : '';
       show('nameOverlay');
     }
   } catch (err) {
@@ -1725,8 +1782,9 @@ async function handleRulesAgreement() {
       currentProfile = { ...currentProfile, ...minimalPayload };
       hideRulesOverlay();
       updateAuthUI();
-      if (!currentProfile.displayName) {
-        $('displayNameInput').value = currentUser.email?.split('@')[0]?.replace(/[._]/g, ' ') || '';
+      if (profileNeedsNameRefresh(currentProfile, currentUser)) {
+        const suggested = getNormalizedProfileDisplayName(currentProfile, currentUser);
+        $('displayNameInput').value = hasValidFirstLastName(suggested, currentUser?.email || '') ? suggested : '';
         show('nameOverlay');
       }
       return;
@@ -1748,13 +1806,18 @@ async function handleResendVerification() {
 
 
 async function handleSaveName() {
-  const name = normalizePersonName($('displayNameInput')?.value);
+  const rawName = $('displayNameInput')?.value.trim();
   if (!currentUser) {
     alert('Please log in again.');
     return;
   }
+  const name = normalizePersonName(rawName, currentUser.email || '');
   if (!name) {
     alert('Enter your name.');
+    return;
+  }
+  if (!hasValidFirstLastName(name, currentUser.email || '')) {
+    alert('Enter your full first and last name.');
     return;
   }
 
@@ -1764,8 +1827,12 @@ async function handleSaveName() {
     requestedName: name,
     updatedAt: serverTimestamp()
   });
+  await updateProfile(currentUser, { displayName: name }).catch(() => {});
 
   currentProfile.displayName = name;
+  currentProfile.pendingName = name;
+  currentProfile.requestedName = name;
+  if ($('displayNameInput')) $('displayNameInput').value = name;
   updateAuthUI();
   hide('nameOverlay');
 }
@@ -1930,7 +1997,7 @@ function normalizeReplyRecord(reply, source = 'legacy', legacyIndex = -1) {
     flagged: reply?.flagged === true,
     moderationLabels: Array.isArray(reply?.moderationLabels) ? reply.moderationLabels : [],
     moderationMatchedTerms: Array.isArray(reply?.moderationMatchedTerms) ? reply.moderationMatchedTerms : [],
-    displayName: normalizePersonName(reply?.displayName || reply?.authorName || '') || reply?.userEmail || 'Unknown',
+    displayName: normalizePersonName(reply?.displayName || reply?.authorName || '', reply?.userEmail || '') || reply?.userEmail || 'Unknown',
     createdAtMs
   };
 }
@@ -1989,7 +2056,7 @@ function normalizeListing(item) {
     ...item,
     board,
     authorEmail: item.authorEmail || item.userEmail || '',
-    authorName: normalizePersonName(item.authorName || item.displayName || '') || item.userEmail || '',
+    authorName: normalizePersonName(item.authorName || item.displayName || '', item.authorEmail || item.userEmail || '') || item.userEmail || '',
     description: item.description || item.desc || '',
     imageUrl: item.imageUrl || item.photo || '',
     imageUrls: getListingImageUrls(item),
@@ -2025,12 +2092,7 @@ function renderBoards() {
 
   const counts = boardCounts();
   wrap.innerHTML = BOARD_DEFS.map((board) => {
-    const isPicturesBoard = board.key === 'PICTURES';
     const last = latestForBoard(board.key);
-    const countText = isPicturesBoard ? 'Open' : String(counts[board.key] || 0);
-    const lastText = isPicturesBoard
-      ? 'Launch the standalone gallery designer'
-      : (last ? esc(last.title || 'Latest post') : 'No posts yet');
     return `
       <button class="boardBtn ${activeBoard === board.key ? 'active' : ''}" data-board="${board.key}" type="button">
         <div>
@@ -2038,8 +2100,8 @@ function renderBoards() {
           <div class="board-desc">${esc(board.desc)}</div>
         </div>
         <div class="board-meta">
-          <div class="board-count">${countText}</div>
-          <div class="board-last">${lastText}</div>
+          <div class="board-count">${counts[board.key] || 0}</div>
+          <div class="board-last">${last ? esc(last.title || 'Latest post') : 'No posts yet'}</div>
         </div>
       </button>
     `;
@@ -2047,12 +2109,7 @@ function renderBoards() {
 
   wrap.querySelectorAll('.boardBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const boardKey = btn.dataset.board;
-      if (boardKey === 'PICTURES') {
-        window.location.href = 'pictures.html';
-        return;
-      }
-      activeBoard = boardKey;
+      activeBoard = btn.dataset.board;
       renderBoards();
       renderListings();
       const boardMeta = BOARD_DEFS.find((b) => b.key === activeBoard);
@@ -2074,7 +2131,7 @@ function filteredListings() {
   const st = $('st')?.value || 'ALL';
   const sort = $('sort')?.value || 'NEW';
 
-  let data = listings.filter((item) => isVisibleToViewer(item) && item.board !== 'PICTURES' && (activeBoard === 'ALL' || item.board === activeBoard));
+  let data = listings.filter((item) => isVisibleToViewer(item) && (activeBoard === 'ALL' || item.board === activeBoard));
 
   if (st !== 'ALL') {
     data = data.filter((item) => (item.status || 'ACTIVE') === st);
@@ -2162,7 +2219,7 @@ function canModify(item) {
 }
 
 function getPosterDisplayName(item) {
-  return normalizePersonName(item?.authorName || item?.displayName || '') || item?.authorEmail || item?.userEmail || 'Marketplace Member';
+  return normalizePersonName(item?.authorName || item?.displayName || '', item?.authorEmail || item?.userEmail || '') || item?.authorEmail || item?.userEmail || 'Marketplace Member';
 }
 
 function getPosterContactValue(item) {
@@ -2246,9 +2303,9 @@ function renderListings() {
       : '';
     const boardLabel = BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board;
     const imageUrls = getListingImageUrls(item);
+    const galleryPreview = buildGalleryPreview(item);
     const visualValue = getListingDisplayValue(item);
     const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
-    const galleryPreview = isPictureBoard ? buildGalleryPreview(item) : '';
     const sideMeta = isPictureBoard
       ? `<div class="topicMeta topicMetaRight"><span>${esc(imageUrls.length ? `${imageUrls.length} image${imageUrls.length === 1 ? '' : 's'}` : 'No images')}</span><span>${esc(item.location || 'Regal gallery')}</span></div>`
       : `<div class="topicMeta topicMetaRight"><span>${esc(item.location || 'No location')}</span><span>${esc(item.contact || 'No contact')}</span></div>`;
@@ -2393,8 +2450,8 @@ async function handleSavePost() {
       const createdRef = await addDoc(collection(db, 'listings'), {
         uid: currentUser.uid,
         userEmail: currentUser.email || '',
-        displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
-        authorName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
+        displayName: getNormalizedProfileDisplayName(currentProfile, currentUser) || currentUser.email || '',
+        authorName: getNormalizedProfileDisplayName(currentProfile, currentUser) || currentUser.email || '',
         ...payload,
         replies: [],
         replyCount: 0,
@@ -2421,7 +2478,7 @@ async function handleSavePost() {
         listingId,
         listingTitle: title,
         userEmail: currentUser.email || '',
-        displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
+        displayName: getNormalizedProfileDisplayName(currentProfile, currentUser) || currentUser.email || '',
         textSnippet: buildModerationSnippet(`${title} — ${description}`),
         matchedLabels: moderationScan.matchedLabels,
         matchedTerms: moderationScan.matchedTerms,
@@ -2487,7 +2544,7 @@ async function openThread(id) {
   startActiveThreadRepliesListener(item.id);
   if ($('threadTitle')) $('threadTitle').textContent = item.title || 'Thread';
   if ($('threadMeta')) {
-    $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${getPosterDisplayName(item)} | ${formatDate(item.createdAtMs)}`;
+    $('threadMeta').textContent = `${BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board} | ${normalizePersonName(item.authorName || '', item.authorEmail || item.userEmail || '') || item.authorEmail || ''} | ${formatDate(item.createdAtMs)}`;
   }
 
   if ($('threadBody')) {
@@ -2556,7 +2613,7 @@ function renderReplies(replies) {
       <div class="replyItem${r.flagged && canModerate() ? ' moderation-flagged' : ''}">
         <div class="replyTop">
           <div>
-            <div class="replyUser">${esc(normalizePersonName(r.displayName || '') || r.userEmail || 'Unknown')}</div>
+            <div class="replyUser">${esc(normalizePersonName(r.displayName || '', r.userEmail || '') || r.userEmail || 'Unknown')}</div>
             ${badges.length ? `<div class="replyBadges">${badges.join('')}</div>` : ''}
           </div>
           <div class="replyTime">${esc(formatDate(r.createdAtMs || r.createdAt))}</div>
@@ -2603,7 +2660,7 @@ async function handleSendReply() {
       listingTitle: activeThread.title || '',
       uid: currentUser.uid,
       userEmail: currentUser.email || '',
-      displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
+      displayName: getNormalizedProfileDisplayName(currentProfile, currentUser) || currentUser.email || '',
       text,
       textSnippet: buildModerationSnippet(text, 160),
       flagged: moderationScan.flagged,
@@ -2641,7 +2698,7 @@ async function handleSendReply() {
         replyId: replyRef.id,
         listingTitle: activeThread.title || '',
         userEmail: currentUser.email || '',
-        displayName: normalizePersonName(currentProfile.displayName) || currentUser.email || '',
+        displayName: getNormalizedProfileDisplayName(currentProfile, currentUser) || currentUser.email || '',
         textSnippet: buildModerationSnippet(text),
         matchedLabels: moderationScan.matchedLabels,
         matchedTerms: moderationScan.matchedTerms,

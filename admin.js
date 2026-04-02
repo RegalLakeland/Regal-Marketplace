@@ -196,30 +196,42 @@ function approvalStateLabel(user) {
   if (user?.accessManuallyDenied) return 'Denied';
   return 'Waiting on admin approval';
 }
+const DISPLAY_NAME_OVERRIDES = {
+  'j.delgado@regallakeland.com': 'Jesel Delgado'
+};
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
-function toDisplayNamePiece(piece) {
-  const clean = String(piece || '');
-  if (!clean) return '';
-  if (!/[A-Za-z]/.test(clean)) return clean;
-  const isAllUpper = clean === clean.toUpperCase();
-  const isAllLower = clean === clean.toLowerCase();
-  if (!(isAllUpper || isAllLower)) return clean;
-  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+function displayNameOverrideForEmail(email) { return DISPLAY_NAME_OVERRIDES[normalizeEmail(email)] || ''; }
+function emailLocalPartToName(email) {
+  const local = normalizeEmail(email).split('@')[0] || '';
+  return local.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
-function normalizePersonName(value) {
-  const raw = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!raw) return '';
-  return raw
-    .split(' ')
-    .map((part) => part.split(/([\-'])/).map((piece) => /[-']/.test(piece) ? piece : toDisplayNamePiece(piece)).join(''))
-    .join(' ');
+function titleCaseNameSegment(value) {
+  const source = String(value || '').trim().toLowerCase();
+  if (!source) return '';
+  return source.split("'").map((piece) => {
+    if (!piece) return '';
+    return piece.split('-').map((part) => {
+      if (!part) return '';
+      if (/^(ii|iii|iv|v|jr|sr)$/i.test(part)) return part.toUpperCase();
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    }).join('-');
+  }).join("'");
+}
+function normalizePersonName(value, email = '') {
+  const override = displayNameOverrideForEmail(email);
+  let source = String(override || value || '').replace(/\s+/g, ' ').trim();
+  if (!source && email) source = emailLocalPartToName(email);
+  if (/@/.test(source)) source = emailLocalPartToName(source);
+  source = source.replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!source) return '';
+  return source.split(' ').map((part) => titleCaseNameSegment(part)).join(' ').replace(/\s+/g, ' ').trim();
 }
 function preferredUserName(user, preferPending = false) {
   const pendingFirst = preferPending
     ? [user?.pendingName, user?.requestedName, user?.displayName]
     : [user?.displayName, user?.pendingName, user?.requestedName];
   for (const candidate of pendingFirst) {
-    const clean = normalizePersonName(candidate);
+    const clean = normalizePersonName(candidate, user?.email || '');
     if (clean) return clean;
   }
   return normalizeEmail(user?.email) || '';
@@ -363,7 +375,7 @@ function flagSummary(user, dup) {
 
 function formatRulesStatus(user) {
   if (!user?.rulesAccepted) return 'Pending employee agreement';
-  const acceptedName = normalizePersonName(user.rulesAcceptedName) || preferredUserName(user, true) || user.email || '—';
+  const acceptedName = normalizePersonName(user.rulesAcceptedName, user?.email || '') || preferredUserName(user, true) || user.email || '—';
   const acceptedAt = fmtDate(user.rulesAcceptedAtMs || user.updatedAt || user.createdAtMs || Date.now());
   const version = user.rulesAcceptedVersion || '—';
   const byEmail = user.rulesAcceptedByEmail || user.email || '—';
@@ -522,7 +534,7 @@ function renderListingRows() {
   const rows = listingRowsData.slice();
   $('listingRows').innerHTML = rows.map((item) => {
     const board = item.board || item.category || 'BUYSELL';
-    const poster = item.authorName || item.displayName || item.authorEmail || item.userEmail || '—';
+    const poster = normalizePersonName(item.authorName || item.displayName || '', item.authorEmail || item.userEmail || '') || item.authorEmail || item.userEmail || '—';
     const requestPill = item.reactivationRequested ? `<div class="note">Reactivation requested ${esc(fmtDate(item.reactivationRequestedAt))}</div>` : '';
     const hiddenPill = item.hidden ? `<div class="note">Hidden from marketplace view</div>` : '';
     const featuredPill = item.featured ? `<div class="note">Featured on homepage</div>` : '';
@@ -1175,7 +1187,7 @@ function renderModerationModal() {
   const openFlags = getOpenFlagsForListing(listing.id);
   const visibleReplyCount = replies.filter((reply) => reply.deleted !== true).length;
   titleEl.textContent = listing.title || 'Thread Moderation';
-  metaEl.textContent = `${boardLabels[listing.board || listing.category || 'BUYSELL'] || (listing.board || listing.category || 'BUYSELL')} • ${listing.displayName || listing.userEmail || 'Unknown poster'} • ${fmtDate(listing.createdAtMs)}`;
+  metaEl.textContent = `${boardLabels[listing.board || listing.category || 'BUYSELL'] || (listing.board || listing.category || 'BUYSELL')} • ${normalizePersonName(listing.displayName || '', listing.userEmail || '') || listing.userEmail || 'Unknown poster'} • ${fmtDate(listing.createdAtMs)}`;
   summaryEl.innerHTML = `
     <div class="mod-stat-line">
       <span class="mod-chip ${visibleReplyCount ? 'good' : ''}">${visibleReplyCount} active repl${visibleReplyCount === 1 ? 'y' : 'ies'}</span>
@@ -1201,7 +1213,7 @@ function renderModerationModal() {
       <div class="replyModerationCard ${reply.flagged ? 'flagged' : ''} ${reply.deleted ? 'deleted' : ''}">
         <div class="replyModerationHead">
           <div class="replyModerationMeta">
-            <div class="replyModerationAuthor">${esc(reply.displayName || reply.userEmail || 'Unknown')}</div>
+            <div class="replyModerationAuthor">${esc(normalizePersonName(reply.displayName || '', reply.userEmail || '') || reply.userEmail || 'Unknown')}</div>
             <div class="replyModerationSub">${esc(reply.userEmail || '—')} • ${esc(fmtDate(reply.createdAtMs || Date.now()))}</div>
             ${badges.length ? `<div class="mod-stat-line">${badges.join('')}</div>` : ''}
           </div>

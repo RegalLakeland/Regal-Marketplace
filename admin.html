@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marketplace Admin</title>
-  <link rel="stylesheet" href="styles.css?v=44" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body class="admin-page">
   <header class="topbar admin-topbar">
@@ -12,7 +12,7 @@
       <div class="logo"><span class="logo-dot"></span><span class="logo-text">Regal Honda</span></div>
       <div class="title">
         <div class="h1">Marketplace Admin</div>
-        <div class="h2">Dashboard for approvals, content moderation, photo galleries, and employee marketplace activity</div>
+        <div class="h2">Professional moderation, access review, and security controls for the employee marketplace</div>
       </div>
     </div>
     <div class="right">
@@ -21,55 +21,45 @@
     </div>
   </header>
 
-  <div class="admin-nav-strip">
-    <div class="admin-wrap admin-nav-strip-inner">
-      <a class="admin-anchor-link active" href="#adminOverview">Dashboard</a>
-      <a class="admin-anchor-link" href="#userAccessPanel">Access Review</a>
-      <a class="admin-anchor-link" href="#contentOperations">Listings</a>
-      <a class="admin-anchor-link" href="#moderationQueuePanel">Moderation</a>
-      <a class="admin-anchor-link" href="#recentActivityPanel">Recent Activity</a>
-    </div>
-  </div>
-
-  <main class="admin-wrap admin-workspace" id="adminOverview">
-    <section class="admin-overview-grid admin-overview-grid-template">
-      <article class="admin-stat-card">
+  <main class="admin-wrap admin-workspace">
+    <section class="admin-overview-grid">
+      <article class="admin-stat-card admin-stat-card-hero">
         <div class="admin-stat-label">Online Now</div>
         <div class="admin-stat-value" id="adminOnlineCountHero">0</div>
-        <div class="admin-stat-sub">Employees active in the marketplace right now</div>
+        <div class="admin-stat-sub">Employees currently active on the site</div>
       </article>
       <article class="admin-stat-card">
         <div class="admin-stat-label">Pending Approvals</div>
         <div class="admin-stat-value" id="adminPendingCountHero">0</div>
-        <div class="admin-stat-sub">New employee signups waiting for admin review</div>
+        <div class="admin-stat-sub">New signup requests waiting on review</div>
       </article>
       <article class="admin-stat-card">
         <div class="admin-stat-label">Blocked Users</div>
         <div class="admin-stat-value" id="adminBlockedCount">0</div>
-        <div class="admin-stat-sub">Accounts currently blocked from access</div>
+        <div class="admin-stat-sub">Accounts blocked from marketplace access</div>
       </article>
       <article class="admin-stat-card">
         <div class="admin-stat-label">Deleted Accounts</div>
         <div class="admin-stat-value" id="adminDeletedCount">0</div>
-        <div class="admin-stat-sub">Profiles moved to deleted-account status</div>
+        <div class="admin-stat-sub">Profiles moved into deleted-account status</div>
       </article>
       <article class="admin-stat-card">
         <div class="admin-stat-label">Open Flags</div>
         <div class="admin-stat-value" id="adminFlagOpenCountHero">0</div>
-        <div class="admin-stat-sub">Posts or replies waiting on moderator action</div>
+        <div class="admin-stat-sub">Posts or replies waiting for moderator review</div>
       </article>
-      <article class="admin-stat-card accent-card">
-        <div class="admin-stat-label">Duplicate Profiles</div>
+      <article class="admin-stat-card">
+        <div class="admin-stat-label">Duplicates</div>
         <div class="admin-stat-value" id="adminDuplicateCount">0</div>
-        <div class="admin-stat-sub">Rows that still need cleanup or merge review</div>
+        <div class="admin-stat-sub">Duplicate profile rows needing cleanup</div>
       </article>
     </section>
 
-    <section class="panel admin-section-card admin-live-banner">
+    <section class="panel admin-section-card admin-presence-panel">
       <div class="panel-h">
         <div>
           <div class="panel-title">Live Website Activity</div>
-          <div class="meta">Fast view of who is online without digging through the full admin tables.</div>
+          <div class="meta">Instant presence view for admins without taking over the full page.</div>
         </div>
         <div class="admin-summary">
           <span class="pill" id="adminOnlineCount">0 online</span>
@@ -81,12 +71,12 @@
       </div>
     </section>
 
-    <section class="admin-dashboard-main">
-      <section class="panel admin-section-card admin-access-card" id="userAccessPanel">
+    <section class="admin-control-grid">
+      <section class="panel admin-section-card" id="userAccessPanel">
         <div class="panel-h admin-section-head">
           <div>
             <div class="panel-title">Access Review</div>
-            <div class="meta">Pending approvals, blocked users, deleted accounts, duplicate profiles, and account controls in one cleaner workspace.</div>
+            <div class="meta">Pending approvals, blocked users, deleted accounts, duplicates, and account controls in one clean workspace.</div>
           </div>
         </div>
         <div class="panel-b">
@@ -130,15 +120,15 @@
         </div>
       </section>
 
-      <div class="admin-right-stack" id="contentOperations">
+      <section class="admin-grid admin-grid-clean admin-right-rail">
         <section class="panel admin-section-card">
           <div class="panel-h">
             <div>
               <div class="panel-title">Listings</div>
-              <div class="meta">Post controls, status changes, feature actions, gallery content, and hard-delete tools.</div>
+              <div class="meta">Per-post thread controls, hard delete, feature, hide, and status changes.</div>
             </div>
           </div>
-          <div class="panel-b table-scroll admin-table-shell admin-table-shell-medium">
+          <div class="panel-b table-scroll admin-table-shell admin-table-shell-compact">
             <table class="adminTable">
               <thead>
                 <tr><th>Title</th><th>Board</th><th>Status</th><th>Poster</th><th>Thread</th><th>Actions</th></tr>
@@ -148,18 +138,18 @@
           </div>
         </section>
 
-        <section class="panel admin-section-card" id="moderationQueuePanel">
+        <section class="panel admin-section-card">
           <div class="panel-h">
             <div>
               <div class="panel-title">Moderation Queue</div>
-              <div class="meta">Flagged posts and replies show here for moderator or admin review.</div>
+              <div class="meta">Flagged posts and replies appear here for admin or moderator review.</div>
             </div>
             <div class="admin-summary">
               <span class="pill" id="adminFlagOpenCount">0 open</span>
               <span class="pill" id="adminReplyCount">0 replies</span>
             </div>
           </div>
-          <div class="panel-b table-scroll admin-table-shell admin-table-shell-medium">
+          <div class="panel-b table-scroll admin-table-shell admin-table-shell-compact">
             <table class="adminTable">
               <thead>
                 <tr><th>When</th><th>Type</th><th>Post</th><th>Content</th><th>Flags</th><th>Actions</th></tr>
@@ -168,14 +158,14 @@
             </table>
           </div>
         </section>
-      </div>
+      </section>
     </section>
 
-    <section class="panel admin-section-card admin-activity-section" id="recentActivityPanel">
+    <section class="panel admin-section-card admin-activity-section admin-activity-bottom">
       <div class="panel-h">
         <div>
           <div class="panel-title">Recent Activity</div>
-          <div class="meta">Compact review area for recent users, last logins, visited boards, and thread movement.</div>
+          <div class="meta">A compact admin-only activity section that shows who has been on recently, even after they go offline, without taking over the full page.</div>
         </div>
         <div class="admin-summary">
           <span class="pill" id="adminRecent24hCount">0 active today</span>
@@ -237,12 +227,16 @@
               <div class="activity-side-value" id="adminOfflineRecentCount">0</div>
               <div class="activity-side-sub">Users active in the last 24 hours who are not currently online.</div>
             </div>
+            <div class="activity-side-card">
+              <div class="activity-side-label">Admin View</div>
+              <div class="activity-side-sub">Live presence stays near the top. Recent activity now sits at the bottom so approvals and listing controls stay front and center for daily admin work.</div>
+            </div>
           </aside>
         </div>
       </div>
     </section>
   </main>
 
-  <script type="module" src="admin.js?v=52"></script>
+  <script type="module" src="admin.js?v=11"></script>
 </body>
 </html>
