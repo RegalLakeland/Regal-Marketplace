@@ -2022,8 +2022,16 @@ function normalizeListing(item) {
   };
 }
 
+function isCountableMarketplaceListing(item) {
+  if (!item) return false;
+  if (!isVisibleToViewer(item)) return false;
+  if (String(item.board || item.category || '').toUpperCase() === 'PICTURES') return false;
+  return String(item.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
+}
+
+
 function boardCounts() {
-  const visible = listings.filter((item) => isVisibleToViewer(item));
+  const visible = listings.filter((item) => isCountableMarketplaceListing(item));
   const counts = { ALL: visible.length };
   BOARD_DEFS.forEach((b) => { if (b.key !== 'ALL') counts[b.key] = 0; });
   visible.forEach((item) => { counts[item.board] = (counts[item.board] || 0) + 1; });
@@ -2032,7 +2040,7 @@ function boardCounts() {
 
 
 function latestForBoard(boardKey) {
-  const list = listings.filter((item) => isVisibleToViewer(item) && (boardKey === 'ALL' || item.board === boardKey));
+  const list = listings.filter((item) => isCountableMarketplaceListing(item) && (boardKey === 'ALL' || item.board === boardKey));
   return list[0] || null;
 }
 
@@ -2227,14 +2235,14 @@ function renderListings() {
   const empty = $('empty');
   if (!wrap || !empty) return;
 
-  const visibleListings = listings.filter((item) => isVisibleToViewer(item));
+  const liveSummaryListings = listings.filter((item) => isCountableMarketplaceListing(item));
   const data = filteredListings();
-  const latest = data[0] || visibleListings[0] || null;
+  const latest = data[0] || liveSummaryListings[0] || null;
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
-  if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
+  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${liveSummaryListings.length} live`;
+  if ($('heroListingCount')) $('heroListingCount').textContent = String(liveSummaryListings.length);
   updateHeroPeopleStats();
   renderEventSpotlight();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
