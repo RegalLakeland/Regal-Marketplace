@@ -334,6 +334,9 @@ const esc = (s) => String(s ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
   .replaceAll('>', '&gt;');
+const escAttr = (s) => esc(s)
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;');
 
 const BOARD_DEFS = [
   { key: 'ALL', label: 'All Boards', desc: 'Everything in one place' },
@@ -417,6 +420,7 @@ window.addEventListener('error', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  ensureMarketplaceImageOverlay();
   removeLegacyForgotPasswordUI();
   initPasswordToggles();
   bindStaticEvents();
@@ -564,6 +568,38 @@ function removeLegacyForgotPasswordUI() {
   });
 }
 
+function ensureMarketplaceImageOverlay() {
+  if ($('marketplaceImageOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'marketplaceImageOverlay';
+  overlay.style.display = 'none';
+  overlay.innerHTML = `
+    <div class="modal eventImageModal">
+      <div class="modal-h"><strong>Image Preview</strong><button class="btn ghost" id="marketplaceImageCloseBtn" type="button">Close</button></div>
+      <div class="modal-b eventImageModalBody modal-scroll">
+        <img id="marketplaceImageLarge" class="eventSpotlight-art eventSpotlight-artLarge" src="" alt="Marketplace image preview" />
+        <div class="note eventImageHelp">Tap or click anywhere outside this window to close.</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) hide('marketplaceImageOverlay');
+  });
+  $('marketplaceImageCloseBtn')?.addEventListener('click', () => hide('marketplaceImageOverlay'));
+}
+
+function openMarketplaceImageOverlay(src, alt = 'Marketplace image preview') {
+  ensureMarketplaceImageOverlay();
+  if ($('marketplaceImageLarge')) {
+    $('marketplaceImageLarge').src = src;
+    $('marketplaceImageLarge').alt = alt;
+  }
+  show('marketplaceImageOverlay');
+}
+
 function bindStaticEvents() {
   const loginForm = $('loginPane');
   const submitLoginForm = () => {
@@ -642,7 +678,14 @@ function bindStaticEvents() {
   $('eventImage')?.addEventListener('click', () => show('eventImageOverlay'));
   $('eventImageLarge')?.addEventListener('click', (e) => e.stopPropagation());
   $('eventImageOverlay')?.addEventListener('click', (e) => { if (e.target === $('eventImageOverlay')) hide('eventImageOverlay'); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('eventImageOverlay')?.style.display === 'flex') hide('eventImageOverlay'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if ($('marketplaceImageOverlay')?.style.display === 'flex') {
+      hide('marketplaceImageOverlay');
+      return;
+    }
+    if ($('eventImageOverlay')?.style.display === 'flex') hide('eventImageOverlay');
+  });
 
   const openPost = () => {
   if (!currentUser) {
@@ -687,6 +730,14 @@ function bindStaticEvents() {
   $('sort')?.addEventListener('change', renderListings);
 
   document.body.addEventListener('click', async (e) => {
+    const lightboxEl = e.target.closest('[data-lightbox-src]');
+    if (lightboxEl) {
+      e.preventDefault();
+      const src = lightboxEl.getAttribute('data-lightbox-src') || '';
+      if (src) openMarketplaceImageOverlay(src, lightboxEl.getAttribute('data-lightbox-alt') || lightboxEl.getAttribute('alt') || 'Marketplace image preview');
+      return;
+    }
+
     const actionEl = e.target.closest('[data-action]');
     if (!actionEl) return;
 
@@ -749,7 +800,7 @@ function hide(id) {
     stopActiveThreadRepliesListener();
     activeThread = null;
   }
-  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay', 'eventImageOverlay'].some((overlayId) => {
+  const stillOpen = ['nameOverlay', 'postOverlay', 'threadOverlay', 'passwordGateOverlay', 'rulesOverlay', 'eventImageOverlay', 'marketplaceImageOverlay'].some((overlayId) => {
     const o = $(overlayId);
     return o && (o.style.display === 'flex' || o.style.display === 'block');
   });
@@ -2151,13 +2202,13 @@ function buildGalleryPreview(item) {
   if (!images.length) return '';
   const preview = images.slice(0, 4);
   const extra = images.length - preview.length;
-  return `<div class="galleryPreview galleryPreview-${preview.length}">${preview.map((url, idx) => `<div class="galleryPreviewCell ${idx === 0 ? 'primary' : ''}"><img src="${esc(url)}" alt="${esc(item?.title || 'Gallery image')}" loading="lazy" /></div>`).join('')}${extra > 0 ? `<div class="galleryPreviewMore">+${extra}</div>` : ''}</div>`;
+  return `<div class="galleryPreview galleryPreview-${preview.length}">${preview.map((url, idx) => `<div class="galleryPreviewCell ${idx === 0 ? 'primary' : ''}"><img class="market-clickable-image" src="${escAttr(url)}" alt="${escAttr(item?.title || 'Gallery image')}" loading="lazy" data-lightbox-src="${escAttr(url)}" data-lightbox-alt="${escAttr(item?.title || 'Gallery image')}" /></div>`).join('')}${extra > 0 ? `<div class="galleryPreviewMore">+${extra}</div>` : ''}</div>`;
 }
 
 function buildThreadGallery(item) {
   const images = getListingImageUrls(item);
   if (!images.length) return '';
-  return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((url, idx) => `<div class="thread-gallery-item"><img class="thread-gallery-image" src="${esc(url)}" alt="${esc((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" /></div>`).join('')}</div></div>`;
+  return `<div class="thread-gallery-wrap"><div class="thread-gallery-grid">${images.map((url, idx) => `<div class="thread-gallery-item"><img class="thread-gallery-image market-clickable-image" src="${escAttr(url)}" alt="${escAttr((item?.title || 'Gallery image') + ' ' + (idx + 1))}" loading="lazy" data-lightbox-src="${escAttr(url)}" data-lightbox-alt="${escAttr((item?.title || 'Gallery image') + ' ' + (idx + 1))}" /></div>`).join('')}</div></div>`;
 }
 
 function canModify(item) {
@@ -2289,7 +2340,7 @@ function renderListings() {
         <div class="topicSide ${isPictureBoard ? 'topicSide-gallery' : ''}">
           <div class="topicSideTop ${isPictureBoard ? 'topicSideTop-gallery' : ''}">
             <div class="price ${isPictureBoard ? 'galleryPriceTag' : ''}">${esc(visualValue)}</div>
-            ${!isPictureBoard && item.imageUrl ? `<img class="topicThumb" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : ''}
+            ${!isPictureBoard && item.imageUrl ? `<img class="topicThumb market-clickable-image" src="${escAttr(item.imageUrl)}" alt="${escAttr(item.title)}" data-lightbox-src="${escAttr(item.imageUrl)}" data-lightbox-alt="${escAttr(item.title)}" />` : ''}
           </div>
           ${sideMeta}
         </div>
@@ -2505,7 +2556,7 @@ async function openThread(id) {
           <div class="threadPosterSub">Contact this person first about this thread.</div>
           ${posterContact ? `<div class="threadPosterContact"><span>Best contact</span><strong>${esc(posterContact)}</strong></div>` : ''}
         </div>
-        ${String(item.board || '').toUpperCase() === 'PICTURES' ? buildThreadGallery(item) : (item.imageUrl ? `<img class="thread-card-image" src="${esc(item.imageUrl)}" alt="${esc(item.title)}" />` : '')}
+        ${String(item.board || '').toUpperCase() === 'PICTURES' ? buildThreadGallery(item) : (item.imageUrl ? `<img class="thread-card-image market-clickable-image" src="${escAttr(item.imageUrl)}" alt="${escAttr(item.title)}" loading="lazy" data-lightbox-src="${escAttr(item.imageUrl)}" data-lightbox-alt="${escAttr(item.title)}" />` : '')}
         <div class="threadDescriptionCopy">${esc(item.description || '').replaceAll('\n', '<br>')}</div>
         <div class="topicMeta threadInfoList">
           <span>${esc(item.location || (String(item.board || '').toUpperCase() === 'PICTURES' ? 'Regal gallery' : 'No location'))}</span>
