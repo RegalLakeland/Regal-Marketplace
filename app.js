@@ -496,7 +496,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadThreadReadState();
     updateAuthUI();
     startListingsListener();
-    startProfilesListener();
+    if (isProtectedCoreAdmin(user.email) || currentProfile?.isAdmin === true) {
+      startProfilesListener();
+    } else {
+      profiles = [];
+      updateHeroPeopleStats();
+    }
     startParticipantRepliesListener();
     startUserProfileGuard(user);
     startEventResponsesListener();
@@ -981,7 +986,10 @@ function startParticipantRepliesListener() {
     updateThreadNotificationUI();
     renderListings();
   }, (err) => {
-    console.error('Participant replies error:', err);
+    threadParticipationIds = new Set();
+    updateThreadNotificationUI();
+    renderListings();
+    console.warn('Participant reply notifications listener disabled:', err?.message || err);
   });
 }
 
@@ -1942,7 +1950,9 @@ function startProfilesListener() {
     profiles = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     updateHeroPeopleStats();
   }, (err) => {
-    console.error('Profiles error:', err);
+    profiles = [];
+    updateHeroPeopleStats();
+    console.warn('Profiles listener disabled:', err?.message || err);
   });
 }
 

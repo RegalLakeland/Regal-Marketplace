@@ -199,6 +199,11 @@ service cloud.firestore {
         && (resource.data.uid == request.auth.uid || canModerateContent());
     }
 
+    // Required for collectionGroup(db, 'replies') queries used for unread-thread tracking.
+    match /{path=**}/replies/{replyId} {
+      allow read: if marketplaceMember();
+    }
+
     match /moderationFlags/{id} {
       allow read, update, delete: if canModerateContent();
 
