@@ -291,7 +291,7 @@
             <select id="st">
               <option value="ALL">All</option>
               <option value="ACTIVE">Active</option>
-              <option value="SOLD">Closed</option>
+              <option value="SOLD">Sold / Closed</option>
             </select>
             <select id="sort">
               <option value="NEW">Newest</option>
@@ -303,6 +303,15 @@
         </div>
 
         <div class="cards topicList" id="cards"></div>
+        <section class="soldSection" id="soldSection" style="display:none">
+          <div class="soldSectionHead">
+            <div>
+              <div class="section-title soldSectionTitle">Sold / Closed Items</div>
+              <div class="section-sub" id="soldCountLine">Closed listings stay visible here for reference.</div>
+            </div>
+          </div>
+          <div class="cards topicList soldCards" id="soldCards"></div>
+        </section>
         <div class="note emptyState" id="empty" style="display:none">No listings match your filters.</div>
       </section>
     </section>

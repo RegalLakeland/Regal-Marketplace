@@ -1157,7 +1157,6 @@ function hideRulesOverlay() {
 function isVisibleToViewer(item) {
   if (!item) return false;
   if (item.hidden && !isViewerAdmin()) return false;
-  if (String(item.status || 'ACTIVE').toUpperCase() === 'SOLD' && !isViewerAdmin()) return false;
   return true;
 }
 
@@ -2133,15 +2132,15 @@ function renderBoards() {
   if ($('heroBoardCount')) $('heroBoardCount').textContent = String(BOARD_DEFS.length - 1);
 }
 
-function filteredListings() {
+function filteredListings(statusOverride = null) {
   const q = $('q')?.value.trim().toLowerCase() || '';
-  const st = $('st')?.value || 'ALL';
+  const st = statusOverride || $('st')?.value || 'ALL';
   const sort = $('sort')?.value || 'NEW';
 
   let data = listings.filter((item) => isVisibleToViewer(item) && !isMarketplaceSystemPage(item) && item.board !== 'PICTURES' && (activeBoard === 'ALL' || item.board === activeBoard));
 
   if (st !== 'ALL') {
-    data = data.filter((item) => (item.status || 'ACTIVE') === st);
+    data = data.filter((item) => String(item.status || 'ACTIVE').toUpperCase() === st);
   }
 
   if (q) {
@@ -2268,24 +2267,103 @@ function openPostEditor(id) {
   show('postOverlay');
 }
 
+function renderListingCard(item) {
+  const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
+  const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
+  const showRequestActive = isViewerAdmin() && item.status === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
+  const requestPending = item.status === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
+  const featuredPill = item.featured ? `<span class="status featured">Featured</span>` : '';
+  const unread = hasUnreadThreadActivity(item);
+  const unreadBadge = unread ? '<span class="threadUnreadBadge" title="New activity in this thread">● New</span>' : '';
+  const quickDelete = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : '';
+  const posterName = getPosterDisplayName(item);
+  const posterContact = getPosterContactValue(item);
+  const posterContactText = posterContact && normalizeEmail(posterContact) !== normalizeEmail(item.authorEmail || item.userEmail || '')
+    ? `<span class="topicPosterContact">${esc(posterContact)}</span>`
+    : '';
+  const boardLabel = BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board;
+  const imageUrls = getListingImageUrls(item);
+  const visualValue = getListingDisplayValue(item);
+  const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
+  const galleryPreview = isPictureBoard ? buildGalleryPreview(item) : '';
+  const sideMeta = isPictureBoard
+    ? `<div class="topicMeta topicMetaRight"><span>${esc(imageUrls.length ? `${imageUrls.length} image${imageUrls.length === 1 ? '' : 's'}` : 'No images')}</span><span>${esc(item.location || 'Regal gallery')}</span></div>`
+    : `<div class="topicMeta topicMetaRight"><span>${esc(item.location || 'No location')}</span><span>${esc(item.contact || 'No contact')}</span></div>`;
+  return `
+    <article class="topicRow ${unread ? 'topicRow-unread' : ''} ${isPictureBoard ? 'galleryTopicRow' : ''} ${item.status === 'SOLD' ? 'soldTopicRow' : ''}" data-thread-card-id="${esc(item.id)}">
+      <div class="topicMain">
+        <div class="topicHeader">
+          <div class="topicTitleWrap">
+            <div class="topicTitle">${esc(item.title || 'Untitled')}</div>
+            ${unreadBadge}
+          </div>
+          <span class="status ${statusClass}">${esc(statusText)}</span>${featuredPill}
+        </div>
+        <div class="topicPosterBar" title="Thread owner">
+          <span class="topicPosterEyebrow">Posted by</span>
+          <span class="topicPosterName">${esc(posterName)}</span>
+          ${posterContactText}
+        </div>
+        <div class="topicMeta">
+          <span>${esc(boardLabel)}</span>
+          <span>${esc(formatDate(item.createdAtMs))}</span>
+          ${item.lastReplyAtMs ? `<span>${esc(formatDate(item.lastReplyAtMs))} latest reply</span>` : ''}
+        </div>
+        ${galleryPreview ? `<div class="topicGalleryPreviewWrap">${galleryPreview}</div>` : ''}
+        <div class="topicDesc">${esc(item.description || '').slice(0, 220)}${(item.description || '').length > 220 ? '…' : ''}</div>
+        <div class="rowBtns">
+          <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
+          ${canModify(item) ? `<button class="btn ghost" data-action="editPost" data-id="${esc(item.id)}" type="button">Edit</button>` : ''}
+          ${canModify(item) && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : ''}
+          ${showRequestActive ? `<button class="btn ghost" data-action="requestActive" data-id="${esc(item.id)}" type="button">Request Active</button>` : ''}
+          ${quickDelete}
+          ${requestPending ? `<span class="pill">Awaiting admin review</span>` : ''}
+        </div>
+      </div>
+      <div class="topicSide ${isPictureBoard ? 'topicSide-gallery' : ''}">
+        <div class="topicSideTop ${isPictureBoard ? 'topicSideTop-gallery' : ''}">
+          <div class="price ${isPictureBoard ? 'galleryPriceTag' : ''}">${esc(visualValue)}</div>
+          ${!isPictureBoard && item.imageUrl ? `<img class="topicThumb market-clickable-image" src="${escAttr(item.imageUrl)}" alt="${escAttr(item.title)}" data-lightbox-src="${escAttr(item.imageUrl)}" data-lightbox-alt="${escAttr(item.title)}" />` : ''}
+        </div>
+        ${sideMeta}
+      </div>
+    </article>
+  `;
+}
+
 function renderListings() {
   const wrap = $('cards');
+  const soldWrap = $('soldCards');
+  const soldSection = $('soldSection');
   const empty = $('empty');
-  if (!wrap || !empty) return;
+  if (!wrap || !empty || !soldWrap || !soldSection) return;
 
   const visibleListings = listings.filter((item) => isCountableMarketplaceListing(item));
-  const data = filteredListings();
-  const latest = visibleListings[0] || data[0] || null;
+  const filterStatus = String($('st')?.value || 'ALL').toUpperCase();
+  const activeData = filteredListings('ACTIVE');
+  const soldData = filteredListings('SOLD');
+  const data = filterStatus === 'SOLD' ? soldData : activeData;
+  const latest = activeData[0] || soldData[0] || visibleListings[0] || null;
+  const showingSoldSection = filterStatus === 'ALL' && soldData.length > 0;
 
   if ($('feedTitle')) $('feedTitle').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All Boards';
   if ($('boardPill')) $('boardPill').textContent = BOARD_DEFS.find((b) => b.key === activeBoard)?.label || 'All';
-  if ($('countLine')) $('countLine').textContent = `${data.length} shown | ${visibleListings.length} live`;
+  if ($('countLine')) {
+    $('countLine').textContent = filterStatus === 'SOLD'
+      ? `${soldData.length} closed shown`
+      : `${activeData.length} active shown | ${soldData.length} closed`;
+  }
+  if ($('soldCountLine')) $('soldCountLine').textContent = `${soldData.length} closed listing${soldData.length === 1 ? '' : 's'} kept visible for reference`;
   if ($('heroListingCount')) $('heroListingCount').textContent = String(visibleListings.length);
   updateHeroPeopleStats();
   renderEventSpotlight();
   if ($('heroRecentText')) $('heroRecentText').textContent = latest ? latest.title : 'Waiting for new posts';
 
-  if (!data.length) {
+  wrap.classList.toggle('pictureBoardActive', activeBoard === 'PICTURES');
+  soldSection.style.display = showingSoldSection ? 'block' : 'none';
+  soldWrap.innerHTML = showingSoldSection ? soldData.map(renderListingCard).join('') : '';
+
+  if (!data.length && !showingSoldSection) {
     wrap.innerHTML = '';
     empty.style.display = 'block';
     updateThreadNotificationUI();
@@ -2293,70 +2371,9 @@ function renderListings() {
   }
 
   empty.style.display = 'none';
-  wrap.classList.toggle('pictureBoardActive', activeBoard === 'PICTURES');
-  wrap.innerHTML = data.map((item) => {
-    const statusClass = item.status === 'SOLD' ? 'sold' : item.reactivationRequested ? 'pending' : 'active';
-    const statusText = item.reactivationRequested ? 'Reactivation Requested' : ((item.status === 'SOLD') ? getClosedLabel(item) : (item.status || 'ACTIVE'));
-    const showRequestActive = isViewerAdmin() && item.status === 'SOLD' && currentUser && currentUser.uid === item.uid && !item.reactivationRequested;
-    const requestPending = item.status === 'SOLD' && item.reactivationRequested && currentUser && currentUser.uid === item.uid;
-    const featuredPill = item.featured ? `<span class="status featured">Featured</span>` : '';
-    const unread = hasUnreadThreadActivity(item);
-    const unreadBadge = unread ? '<span class="threadUnreadBadge" title="New activity in this thread">● New</span>' : '';
-    const quickDelete = canModerate() ? `<button class="btn danger" data-action="deletePost" data-id="${esc(item.id)}" type="button">Delete</button>` : '';
-    const posterName = getPosterDisplayName(item);
-    const posterContact = getPosterContactValue(item);
-    const posterContactText = posterContact && normalizeEmail(posterContact) !== normalizeEmail(item.authorEmail || item.userEmail || '')
-      ? `<span class="topicPosterContact">${esc(posterContact)}</span>`
-      : '';
-    const boardLabel = BOARD_DEFS.find((b) => b.key === item.board)?.label || item.board;
-    const imageUrls = getListingImageUrls(item);
-    const visualValue = getListingDisplayValue(item);
-    const isPictureBoard = String(item.board || '').toUpperCase() === 'PICTURES';
-    const galleryPreview = isPictureBoard ? buildGalleryPreview(item) : '';
-    const sideMeta = isPictureBoard
-      ? `<div class="topicMeta topicMetaRight"><span>${esc(imageUrls.length ? `${imageUrls.length} image${imageUrls.length === 1 ? '' : 's'}` : 'No images')}</span><span>${esc(item.location || 'Regal gallery')}</span></div>`
-      : `<div class="topicMeta topicMetaRight"><span>${esc(item.location || 'No location')}</span><span>${esc(item.contact || 'No contact')}</span></div>`;
-    return `
-      <article class="topicRow ${unread ? 'topicRow-unread' : ''} ${isPictureBoard ? 'galleryTopicRow' : ''}" data-thread-card-id="${esc(item.id)}">
-        <div class="topicMain">
-          <div class="topicHeader">
-            <div class="topicTitleWrap">
-              <div class="topicTitle">${esc(item.title || 'Untitled')}</div>
-              ${unreadBadge}
-            </div>
-            <span class="status ${statusClass}">${esc(statusText)}</span>${featuredPill}
-          </div>
-          <div class="topicPosterBar" title="Thread owner">
-            <span class="topicPosterEyebrow">Posted by</span>
-            <span class="topicPosterName">${esc(posterName)}</span>
-            ${posterContactText}
-          </div>
-          <div class="topicMeta">
-            <span>${esc(boardLabel)}</span>
-            <span>${esc(formatDate(item.createdAtMs))}</span>
-            ${item.lastReplyAtMs ? `<span>${esc(formatDate(item.lastReplyAtMs))} latest reply</span>` : ''}
-          </div>
-          ${galleryPreview ? `<div class="topicGalleryPreviewWrap">${galleryPreview}</div>` : ''}
-          <div class="topicDesc">${esc(item.description || '').slice(0, 220)}${(item.description || '').length > 220 ? '…' : ''}</div>
-          <div class="rowBtns">
-            <button class="btn primary" data-action="openThread" data-id="${esc(item.id)}" type="button">Open</button>
-            ${canModify(item) ? `<button class="btn ghost" data-action="editPost" data-id="${esc(item.id)}" type="button">Edit</button>` : ''}
-            ${canModify(item) && item.status !== 'SOLD' ? `<button class="btn" data-action="markSold" data-id="${esc(item.id)}" type="button">${esc(getMarkClosedLabel(item))}</button>` : ''}
-            ${showRequestActive ? `<button class="btn ghost" data-action="requestActive" data-id="${esc(item.id)}" type="button">Request Active</button>` : ''}
-            ${quickDelete}
-            ${requestPending ? `<span class="pill">Awaiting admin review</span>` : ''}
-          </div>
-        </div>
-        <div class="topicSide ${isPictureBoard ? 'topicSide-gallery' : ''}">
-          <div class="topicSideTop ${isPictureBoard ? 'topicSideTop-gallery' : ''}">
-            <div class="price ${isPictureBoard ? 'galleryPriceTag' : ''}">${esc(visualValue)}</div>
-            ${!isPictureBoard && item.imageUrl ? `<img class="topicThumb market-clickable-image" src="${escAttr(item.imageUrl)}" alt="${escAttr(item.title)}" data-lightbox-src="${escAttr(item.imageUrl)}" data-lightbox-alt="${escAttr(item.title)}" />` : ''}
-          </div>
-          ${sideMeta}
-        </div>
-      </article>
-    `;
-  }).join('');
+  wrap.innerHTML = data.length
+    ? data.map(renderListingCard).join('')
+    : '<div class="note listInlineNotice">No active listings right now. Closed items are shown below.</div>';
   updateThreadNotificationUI();
 }
 

@@ -200,6 +200,12 @@ select option{background:#0b1628; color:#f3f6fb}
 .topicThumb{width:132px; height:132px; padding:8px; border-radius:16px; object-fit:contain; background:rgba(3,8,20,.52); border:1px solid rgba(255,255,255,.09)}
 .topicSideTop{display:flex; align-items:flex-start; gap:10px}
 .emptyState{padding:0 18px 18px}
+.soldSection{display:grid;gap:0;border-top:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015))}
+.soldSectionHead{padding:18px 20px 0}
+.soldSectionTitle{display:flex;align-items:center;gap:8px}
+.soldCards{padding-top:12px}
+.soldTopicRow{border-color:rgba(239,68,68,.16);background:linear-gradient(180deg, rgba(239,68,68,.08), rgba(255,255,255,.04))}
+.listInlineNotice{padding:6px 18px 18px;color:var(--muted);font-weight:700}
 .thread-card-image{width:100%; max-height:min(68vh,760px); object-fit:contain; background:rgba(3,8,20,.52); border-radius:18px; border:1px solid rgba(255,255,255,.08); margin-bottom:14px}
 .market-clickable-image{cursor:zoom-in}
 .thread-body-grid{display:grid; gap:14px}
