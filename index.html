@@ -223,51 +223,38 @@
 
 
 
-    <section class="glass eventSpotlight" id="featuredEventCard">
+    <section class="glass eventSpotlight eventSpotlight-thankyou" id="featuredEventCard">
       <div class="eventSpotlight-copy">
-        <div class="eventSpotlight-kicker">Upcoming Event</div>
+        <div class="eventSpotlight-kicker">Thank You For Celebrating With Us</div>
         <h2>Regal 50th Anniversary Celebration</h2>
-        <p class="eventSpotlight-text">Join us in May for a special night celebrating Regal’s 50th Anniversary with dinner, drinks, live entertainment, and a chance for the team to come together.</p>
+        <p class="eventSpotlight-text">Thank you to everyone who attended and helped make Regal’s 50th Anniversary celebration special. Share your favorite photos from the event below so the team can enjoy the memories together.</p>
         <div class="eventSpotlight-meta">
-          <span class="eventMetaPill">May 15th • 6:30 PM</span>
-          <span class="eventMetaPill">Haus 820 @ 820 N Massachusetts Ave • Lakeland, FL</span>
+          <span class="eventMetaPill">Event Completed</span>
+          <span class="eventMetaPill">Haus 820 • Lakeland, FL</span>
+          <span class="eventMetaPill">Photos require admin approval before public display</span>
         </div>
-        <div class="eventRsvpNotice">
-          <strong>MUST RSVP USING ONE OF THE OPTIONS BELOW</strong>
-          <span>The marketplace website does not record your RSVP directly. Mobile users may tap the RSVP button below. Desktop users may also click the flyer to enlarge it and scan the barcode.</span>
+        <div class="eventRsvpNotice photoUploadNotice">
+          <strong>Upload Event Photos Here</strong>
+          <span>Choose clear, workplace-appropriate photos from the anniversary event. Submitted photos stay hidden until an admin approves them.</span>
         </div>
-        <div class="eventRsvpActions">
-          <a class="btn primary eventRsvpLink" href="https://www.eventbrite.com/e/regal-50th-anniversary-party-tickets-1980564307158" target="_blank" rel="noopener noreferrer" aria-label="Open Regal 50th Anniversary RSVP page">
-            RSVP HERE
-          </a>
-        </div>
-        <div class="note eventStatusNote" id="eventStatusText">Tap RSVP HERE to open the event page directly, or click the flyer to enlarge the barcode for scanning.</div>
+        <form class="eventPhotoUpload" id="eventPhotoUploadForm">
+          <label class="eventUploadDrop" for="eventPhotoInput">
+            <span class="eventUploadIcon">＋</span>
+            <strong>Add photos from the event</strong>
+            <small>JPG, PNG, GIF, or WEBP • multiple photos allowed</small>
+            <input id="eventPhotoInput" type="file" accept="image/*" multiple />
+          </label>
+          <input id="eventPhotoCaption" class="eventCaptionInput" type="text" maxlength="120" placeholder="Optional caption or who is in the photo" />
+          <button class="btn primary" id="eventPhotoSubmit" type="submit">Submit for Admin Approval</button>
+        </form>
+        <div class="note eventStatusNote" id="eventStatusText">Approved photos will appear below after review.</div>
       </div>
-      <div class="eventSpotlight-artWrap">
-        <button class="eventImageButton" id="eventImageButton" type="button" aria-label="Open RSVP flyer larger">
-          <img id="eventImage" class="eventSpotlight-art" src="Images/background5.jpg" alt="Regal 50th Anniversary event flyer with RSVP barcode" />
-        </button>
+      <div class="eventSpotlight-artWrap eventGalleryPreviewWrap">
+        <div class="eventGalleryPreview" id="eventGalleryPreview">
+          <div class="eventGalleryEmpty">Approved anniversary photos will show here.</div>
+        </div>
       </div>
     </section>
-
-    <div class="overlay" id="eventImageOverlay" style="display:none">
-      <div class="modal eventImageModal">
-        <div class="modal-h"><strong>Event Flyer & RSVP Barcode</strong></div>
-        <div class="modal-b eventImageModalBody modal-scroll">
-          <div class="eventRsvpNotice eventRsvpNoticeModal">
-            <strong>MUST RSVP USING ONE OF THE OPTIONS BELOW</strong>
-            <span>Use the RSVP button to open the event page directly, or scan the barcode on this flyer. The marketplace website itself does not submit your RSVP.</span>
-          </div>
-          <div class="eventRsvpActions eventRsvpActionsModal">
-            <a class="btn primary eventRsvpLink" href="https://www.eventbrite.com/e/regal-50th-anniversary-party-tickets-1980564307158" target="_blank" rel="noopener noreferrer" aria-label="Open Regal 50th Anniversary RSVP page from flyer modal">
-              RSVP HERE
-            </a>
-          </div>
-          <img id="eventImageLarge" class="eventSpotlight-art eventSpotlight-artLarge" src="Images/background5.jpg" alt="Large RSVP barcode event flyer" />
-          <div class="note eventImageHelp">Tap or click anywhere outside this window to close.</div>
-        </div>
-      </div>
-    </div>
 
     <section class="content-grid">
       <aside class="glass boardPanel">
@@ -419,6 +406,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=44"></script>
+  <script type="module" src="app.js?v=45"></script>
 </body>
 </html>
