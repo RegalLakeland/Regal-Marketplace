@@ -382,6 +382,8 @@ let presenceTimer = null;
 let profiles = [];
 let eventResponses = [];
 let eventResponsesUnsub = null;
+let eventPhotos = [];
+let eventPhotosUnsub = null;
 let lastUnverifiedEmail = '';
 let isSavingPost = false;
 let editingPostId = null;
@@ -505,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
     startParticipantRepliesListener();
     startUserProfileGuard(user);
     startEventResponsesListener();
+    startEventPhotosListener();
     void logMarketplaceActivity('Signed in to marketplace', {
       lastLoginAtMs: Date.now(),
       lastBoardVisited: activeBoard,
@@ -680,6 +683,7 @@ function bindStaticEvents() {
   $('heroThreadAlert')?.addEventListener('click', scrollToFirstUnreadThread);
 
   $('eventImageButton')?.addEventListener('click', () => show('eventImageOverlay'));
+  $('eventPhotoUploadForm')?.addEventListener('submit', handleEventPhotoSubmit);
   $('eventImage')?.addEventListener('click', () => show('eventImageOverlay'));
   $('eventImageLarge')?.addEventListener('click', (e) => e.stopPropagation());
   $('eventImageOverlay')?.addEventListener('click', (e) => { if (e.target === $('eventImageOverlay')) hide('eventImageOverlay'); });
@@ -1916,12 +1920,82 @@ function canUseEventRsvp() {
     && /@regallakeland\.com$/i.test(String(currentUser.email || '')));
 }
 
+function approvedEventPhotos() {
+  return eventPhotos
+    .filter((item) => item.status === 'APPROVED' && item.eventId === FEATURED_EVENT.id && item.hidden !== true)
+    .sort((a, b) => Number(b.approvedAtMs || b.createdAtMs || 0) - Number(a.approvedAtMs || a.createdAtMs || 0));
+}
+
 function renderEventSpotlight() {
   if (!$('featuredEventCard')) return;
-  if ($('eventImage')) $('eventImage').src = FEATURED_EVENT.imageUrl;
-  if ($('eventImageLarge')) $('eventImageLarge').src = FEATURED_EVENT.imageUrl;
-  if ($('eventStatusText')) {
-    $('eventStatusText').textContent = 'Tap RSVP HERE to open the event page directly, or click the flyer to enlarge the barcode for scanning.';
+  const gallery = $('eventGalleryPreview');
+  if (gallery) {
+    const photos = approvedEventPhotos().slice(0, 9);
+    if (photos.length) {
+      gallery.innerHTML = photos.map((photo) => `
+        <button class="eventGalleryTile" type="button" data-full="${escAttr(photo.imageUrl || '')}" aria-label="Open anniversary photo">
+          <img src="${escAttr(photo.imageUrl || '')}" alt="${escAttr(photo.caption || 'Regal 50th Anniversary event photo')}" loading="lazy" />
+          ${photo.caption ? `<span>${esc(photo.caption)}</span>` : ''}
+        </button>
+      `).join('');
+      gallery.querySelectorAll('.eventGalleryTile').forEach((btn) => {
+        btn.addEventListener('click', () => window.open(btn.dataset.full, '_blank', 'noopener,noreferrer'));
+      });
+    } else {
+      gallery.innerHTML = '<div class="eventGalleryEmpty">Approved anniversary photos will show here.</div>';
+    }
+  }
+}
+
+async function handleEventPhotoSubmit(e) {
+  e.preventDefault();
+  if (!currentUser || !currentProfile || !canCompleteMarketplaceLogin(currentProfile)) {
+    alert('Please log in before uploading event photos.');
+    return;
+  }
+  const files = Array.from($('eventPhotoInput')?.files || []);
+  const caption = String($('eventPhotoCaption')?.value || '').trim().slice(0, 120);
+  if (!files.length) {
+    alert('Please choose at least one photo.');
+    return;
+  }
+  const submitBtn = $('eventPhotoSubmit');
+  const status = $('eventStatusText');
+  if (submitBtn) submitBtn.disabled = true;
+  if (status) status.textContent = 'Uploading photos for admin review...';
+  try {
+    for (const [index, file] of files.entries()) {
+      if (!/^image\//i.test(file.type || '')) continue;
+      const safeName = `${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const storageRef = ref(storage, `event-photos/${FEATURED_EVENT.id}/${currentUser.uid}/${safeName}`);
+      await uploadBytes(storageRef, file);
+      const imageUrl = await getDownloadURL(storageRef);
+      await addDoc(collection(db, 'eventPhotos'), {
+        eventId: FEATURED_EVENT.id,
+        uid: currentUser.uid,
+        userEmail: currentUser.email || '',
+        displayName: currentProfile.displayName || currentProfile.pendingName || currentUser.displayName || '',
+        caption,
+        imageUrl,
+        storagePath: storageRef.fullPath,
+        status: 'PENDING',
+        hidden: true,
+        createdAt: serverTimestamp(),
+        createdAtMs: Date.now(),
+        approvedAtMs: null,
+        approvedBy: ''
+      });
+    }
+    if ($('eventPhotoInput')) $('eventPhotoInput').value = '';
+    if ($('eventPhotoCaption')) $('eventPhotoCaption').value = '';
+    if (status) status.textContent = 'Thank you. Your photo upload is pending admin approval.';
+    alert('Photos submitted for admin approval. They will appear after approval.');
+  } catch (err) {
+    console.error('Event photo upload error:', err);
+    if (status) status.textContent = 'Photo upload failed. Please try again or contact an admin.';
+    alert(err.message || 'Photo upload failed.');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 }
 
@@ -1931,6 +2005,16 @@ async function handleEventRsvp(status) {
   if ($('eventStatusText')) {
     $('eventStatusText').textContent = 'Use RSVP HERE to open the event page directly, or scan the barcode on the flyer. The website does not record RSVPs.';
   }
+}
+
+function startEventPhotosListener() {
+  if (eventPhotosUnsub) return;
+  eventPhotosUnsub = onSnapshot(query(collection(db, 'eventPhotos'), where('eventId', '==', FEATURED_EVENT.id), orderBy('createdAtMs', 'desc')), (snap) => {
+    eventPhotos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderEventSpotlight();
+  }, (err) => {
+    console.error('Event photos error:', err);
+  });
 }
 
 function startEventResponsesListener() {

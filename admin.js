@@ -361,6 +361,7 @@ let listingRowsData = [];
 let replyRowsData = [];
 let moderationFlagsData = [];
 let userRowsData = [];
+let eventPhotoRowsData = [];
 let adminEditingId = null;
 let moderationListingId = null;
 let userSearchTerm = '';
@@ -425,6 +426,7 @@ onAuthStateChanged(auth, async (user) => {
   startListings();
   startReplies();
   startModerationFlags();
+  startEventPhotos();
   if (canManageUsers()) startUsers();
 });
 
@@ -606,6 +608,76 @@ function renderListingRows() {
     if (!confirm('Permanently delete this post and all of its replies? This fully removes the thread from the website.')) return;
     await deleteListingAndResolve(item);
   });
+}
+
+
+function renderEventPhotoRows() {
+  const wrap = $('adminEventPhotoRows');
+  if (!wrap) return;
+  const rows = [...eventPhotoRowsData].sort((a, b) => {
+    const ap = a.status === 'PENDING' ? 1 : 0;
+    const bp = b.status === 'PENDING' ? 1 : 0;
+    if (ap !== bp) return bp - ap;
+    return Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0);
+  });
+  const pending = rows.filter((x) => x.status === 'PENDING').length;
+  if ($('adminEventPhotoPendingCount')) $('adminEventPhotoPendingCount').textContent = `${pending} pending`;
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="admin-empty-note">No anniversary photos have been submitted yet.</div>';
+    return;
+  }
+  wrap.innerHTML = rows.map((photo) => {
+    const isPending = photo.status === 'PENDING';
+    const isApproved = photo.status === 'APPROVED';
+    const statusClass = isPending ? 'pending' : (isApproved ? 'active' : 'sold');
+    return `
+      <article class="eventPhotoAdminCard">
+        <a href="${escAttr(photo.imageUrl || '')}" target="_blank" rel="noopener noreferrer">
+          <img src="${escAttr(photo.imageUrl || '')}" alt="${escAttr(photo.caption || '50th Anniversary photo')}" loading="lazy" />
+        </a>
+        <div class="eventPhotoAdminBody">
+          <div class="eventPhotoAdminTop"><span class="status ${statusClass}">${esc(photo.status || 'PENDING')}</span><span class="note">${esc(fmtDate(photo.createdAtMs || Date.now()))}</span></div>
+          <div class="user-main">${esc(photo.caption || 'No caption')}</div>
+          <div class="note">Uploaded by ${esc(photo.displayName || photo.userEmail || 'Unknown')}</div>
+          <div class="rowBtns compact-rowBtns">
+            ${!isApproved ? `<button class="btn primary" data-event-photo-approve="${escAttr(photo.id)}" type="button">Approve</button>` : `<button class="btn ghost" data-event-photo-hide="${escAttr(photo.id)}" type="button">Hide</button>`}
+            ${isApproved && photo.hidden ? `<button class="btn primary" data-event-photo-approve="${escAttr(photo.id)}" type="button">Show</button>` : ''}
+            <button class="btn danger" data-event-photo-delete="${escAttr(photo.id)}" type="button">Delete</button>
+          </div>
+        </div>
+      </article>`;
+  }).join('');
+
+  document.querySelectorAll('[data-event-photo-approve]').forEach((btn) => btn.onclick = async () => {
+    if (!canModerateViewer()) return;
+    await updateDoc(doc(db, 'eventPhotos', btn.dataset.eventPhotoApprove), {
+      status: 'APPROVED',
+      hidden: false,
+      approvedAtMs: Date.now(),
+      approvedBy: currentViewer?.email || '',
+      updatedAtMs: Date.now()
+    });
+  });
+  document.querySelectorAll('[data-event-photo-hide]').forEach((btn) => btn.onclick = async () => {
+    if (!canModerateViewer()) return;
+    await updateDoc(doc(db, 'eventPhotos', btn.dataset.eventPhotoHide), {
+      status: 'HIDDEN',
+      hidden: true,
+      updatedAtMs: Date.now()
+    });
+  });
+  document.querySelectorAll('[data-event-photo-delete]').forEach((btn) => btn.onclick = async () => {
+    if (!canModerateViewer()) return;
+    if (!confirm('Delete this event photo submission?')) return;
+    await deleteDoc(doc(db, 'eventPhotos', btn.dataset.eventPhotoDelete));
+  });
+}
+
+function startEventPhotos() {
+  onSnapshot(query(collection(db, 'eventPhotos'), orderBy('createdAtMs', 'desc')), (snap) => {
+    eventPhotoRowsData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderEventPhotoRows();
+  }, (err) => console.error('Event photos admin error:', err));
 }
 
 function startListings() {

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marketplace Admin</title>
-  <link rel="stylesheet" href="styles.css?v=44" />
+  <link rel="stylesheet" href="styles.css?v=45" />
 </head>
 <body class="admin-page">
   <header class="topbar admin-topbar">
@@ -148,6 +148,18 @@
           </div>
         </section>
 
+
+        <section class="panel admin-section-card" id="eventPhotoApprovalPanel">
+          <div class="panel-h">
+            <div>
+              <div class="panel-title">50th Anniversary Photo Approvals</div>
+              <div class="meta">Review employee-submitted event photos before they appear on the marketplace home page.</div>
+            </div>
+            <div class="admin-summary"><span class="pill" id="adminEventPhotoPendingCount">0 pending</span></div>
+          </div>
+          <div class="panel-b eventPhotoAdminGrid" id="adminEventPhotoRows"></div>
+        </section>
+
         <section class="panel admin-section-card" id="sitePagesPanel">
           <div class="panel-h">
             <div>
@@ -260,6 +272,6 @@
     </section>
   </main>
 
-  <script type="module" src="admin.js?v=43"></script>
+  <script type="module" src="admin.js?v=44"></script>
 </body>
 </html>
